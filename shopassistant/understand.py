@@ -16,8 +16,9 @@ STOCK_W = {"stock", "available", "availability", "milega", "milegi", "milenge", 
 RATING_W = {"rating", "rated", "review", "star", "feedback"}
 POLICY_W = {"return", "cash", "refund", "exchange", "replace", "replacement", "warranty", "guarantee", "shipping", "ship",
             "delivery", "deliver", "cod", "cancel", "cancellation", "wapas", "policy", "courier", "dispatch"}
-CHEAP_W = {"cheapest", "cheap", "sasta", "sasti", "lowest", "affordable"}
-EXPENSIVE_W = {"costliest", "expensive", "priciest", "mehnga", "mehnge", "premium"}
+CHEAP_W = {"cheapest", "cheap", "cheaper", "sasta", "sasti", "lowest", "affordable"}
+EXPENSIVE_W = {"costliest", "costlier", "expensive", "priciest", "pricier", "mehnga", "mehnge", "premium"}
+NEG_W = {"not", "except", "without", "excluding", "nahi", "no", "non"}
 BEST_W = {"best", "top", "highest", "popular"}
 GREET_W = {"hi", "hello", "hey", "hii", "namaste", "helo"}
 WH_W = {"what", "whats", "which", "kya", "kaun", "kaunsa", "kaunsi", "kis"}
@@ -48,13 +49,14 @@ class Parsed:
     spec: Spec = field(default_factory=Spec)
     unknown: list[str] = field(default_factory=list)
     detail_keys: list[str] = field(default_factory=list)
+    mentioned: list[str] = field(default_factory=list)  # products whose full title is in the query
     keywords: list[str] = field(default_factory=list)   # tokens left after stopword removal (policy matching)
     all_tokens: set[str] = field(default_factory=set)   # every token (exact title matching)
 
     @property
     def has_product_ref(self) -> bool:
         s = self.spec
-        return bool(self.product_id or s.type_tokens or s.desc_tokens or s.filters or s.size)
+        return bool(self.product_id or self.mentioned or s.type_tokens or s.desc_tokens or s.filters or s.size)
 
     @property
     def has_constraint(self) -> bool:
@@ -100,6 +102,29 @@ def _extract_money(text: str):
     return text, lo, hi
 
 
+def _repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
+    """Fix word-boundary mistakes: "smart watch" -> smartwatch, "powerbank" -> power bank."""
+    vocab = index.type_vocab | index.desc_vocab
+    out, i = [], 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if i + 1 < len(tokens) and tokens[i] + tokens[i + 1] in vocab and not (tok in vocab and tokens[i + 1] in vocab):
+            out.append(tok + tokens[i + 1])
+            i += 2
+            continue
+        if tok not in vocab and len(tok) >= 6 and not tok.isdigit():
+            for k in range(3, len(tok) - 2):
+                if tok[:k] in vocab and tok[k:] in vocab:
+                    out += [tok[:k], tok[k:]]
+                    break
+            else:
+                out.append(tok)
+        else:
+            out.append(tok)
+        i += 1
+    return out
+
+
 def understand(query: str, index: CatalogueIndex) -> Parsed:
     parsed = Parsed(raw=query)
     low = " ".join(query.lower().replace("t-shirt", "tshirt").split())
@@ -122,9 +147,10 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
 
     low, parsed.spec.price_min, parsed.spec.price_max = _extract_money(low)
 
-    tokens = tokenize(low)
+    tokens = _repair_tokens(tokenize(low), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
+    parsed.mentioned = index.mentioned(token_set)
     consumed = [False] * len(tokens)
 
     # attribute-value filters (colour, material, brand, ...); longest values first
@@ -133,7 +159,9 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         n = len(toks)
         for i in range(len(tokens) - n + 1):
             if tuple(tokens[i:i + n]) == toks and not any(consumed[i:i + n]):
-                if key not in parsed.spec.filters:
+                if i > 0 and tokens[i - 1] in NEG_W:
+                    parsed.spec.exclude.setdefault(key, []).append(val)
+                elif key not in parsed.spec.filters:
                     parsed.spec.filters[key] = val
                 for j in range(i, i + n):
                     consumed[j] = True
@@ -148,7 +176,7 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         parsed.intents.add("rating")
     wh = bool(token_set & WH_W) or "?" in query
     for ktok, key in index.attr_keys.items():
-        if ktok in token_set and key not in parsed.spec.filters and wh and ktok not in PRICE_W:
+        if ktok in token_set and key not in parsed.spec.filters and key not in parsed.spec.exclude and wh and ktok not in PRICE_W:
             parsed.detail_keys.append(key)
     if parsed.detail_keys:
         parsed.intents.add("detail")
@@ -161,6 +189,9 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         parsed.spec.sort = "price_desc" if ("price" in token_set and "highest" in token_set) else "rating_desc"
         if "price" in token_set and "highest" in token_set:
             parsed.intents.discard("rating")
+
+    if "least" in token_set and token_set & EXPENSIVE_W:
+        parsed.spec.sort = "price_asc"
 
     # remaining content tokens -> type / description / unknown
     ignore = (PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W
@@ -183,9 +214,11 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
             parsed.unknown.append(tok)
 
     explicit_price = bool(token_set & {"price", "much"})
-    if (token_set & POLICY_W and not explicit_price and "rating" not in parsed.intents
-            and not ("stock" in parsed.intents and parsed.has_product_ref)):
-        parsed.intents.add("policy")
+    product_ref = parsed.has_product_ref
+    asks_fact = (explicit_price or "rating" in parsed.intents
+                 or (bool(parsed.intents & {"stock", "detail"}) and product_ref))
+    if token_set & POLICY_W:
+        parsed.intents.add("policy_q" if asks_fact and product_ref else "policy")
     if token_set & GREET_W and not (parsed.has_constraint or parsed.intents):
         parsed.intents.add("greet")
     if not parsed.intents:

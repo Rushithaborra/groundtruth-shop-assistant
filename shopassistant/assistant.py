@@ -82,7 +82,19 @@ class ShoppingAssistant:
                             "questions about returns, shipping and warranty. What do you need?", CLARIFY)
         if "policy" in p.intents:
             return self._policy(p)
+        resp = self._product_route(p, session)
+        if "policy_q" in p.intents:  # e.g. "price of X and what is the return policy"
+            pol = self._policy(p)
+            if pol.action == ANSWER:
+                if resp.action == ANSWER:
+                    return Response(resp.text + "\n" + pol.text, ANSWER, resp.claims + pol.claims)
+                if resp.action == REFUSE:
+                    return pol
+        return resp
 
+    def _product_route(self, p: Parsed, session: Session) -> Response:
+        if len(p.mentioned) >= 2 and not p.product_id:
+            return self._compare(p.mentioned, p)
         forced, spec = self._resolve(p, session)
         if forced is not None:
             session.last_product = forced.id
@@ -106,6 +118,10 @@ class ShoppingAssistant:
         session.spec = spec
 
         specific = p.intents & {"price", "rating", "detail"}
+        refers_to_one = spec.sort and not p.spec.type_tokens and bool({"the", "one"} & p.all_tokens)
+        if refers_to_one and not specific and len(hits) > 1:  # "the cheapest" after a search
+            session.last_product = hits[0].id
+            return self._product_answer(hits[0], p, lead=self.SORT_LABELS.get(spec.sort))
         if specific and len(hits) > 1:
             if spec.sort:
                 pick = hits[0]
@@ -132,6 +148,8 @@ class ShoppingAssistant:
         s = p.spec
         if p.product_id:
             return self.index.products[p.product_id], Spec()
+        if len(p.mentioned) == 1:
+            return self.index.products[p.mentioned[0]], Spec()
         asks_fact = bool(p.intents & {"price", "stock", "rating", "detail"})
         no_ref = not (s.type_tokens or s.filters or s.size or s.price_min is not None or s.price_max is not None)
         if session.last_product and no_ref and (asks_fact or p.unknown or s.desc_tokens):
@@ -142,6 +160,8 @@ class ShoppingAssistant:
             return None, s.copy()
         merged = session.spec.copy()
         merged.filters.update(s.filters)
+        for key, values in s.exclude.items():
+            merged.exclude[key] = list(dict.fromkeys(merged.exclude.get(key, []) + values))
         merged.desc_tokens = list(dict.fromkeys(merged.desc_tokens + s.desc_tokens))
         for attr in ("price_min", "price_max", "size", "sort"):
             if getattr(s, attr) is not None:
@@ -178,15 +198,17 @@ class ShoppingAssistant:
 
         if lead:
             sentences.append(f"{subject()} is the {lead} match {cite}.")
-        if "price" in want or not want:
+        facts_only = not want and bool(p.spec.desc_tokens or p.unknown)  # "is X waterproof?" asks about one thing
+        want = want or (set() if facts_only else want)
+        if ("price" in want or not want) and not facts_only:
             sentences.append(f"{subject()} is priced at {format_inr(prod.price)} {cite}.")
             claims.append({"pid": prod.id, "field": "price", "value": prod.price})
             supported = True
-        if "stock" in want or not want:
+        if ("stock" in want or not want) and not facts_only:
             sentences.append(f"{subject()} is {self._stock_phrase(prod)} {cite}.")
             claims.append({"pid": prod.id, "field": "in_stock", "value": prod.in_stock})
             supported = True
-        if ("rating" in want or not want) and prod.rating is not None:
+        if ("rating" in want or not want) and prod.rating is not None and not facts_only:
             count = f" from {prod.rating_count} ratings" if prod.rating_count else ""
             sentences.append(f"{subject()} is rated {prod.rating} stars{count} {cite}.")
             claims.append({"pid": prod.id, "field": "rating", "value": prod.rating})
@@ -206,6 +228,38 @@ class ShoppingAssistant:
             sentences.extend(extra)
             supported = supported or ok
         return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims)
+
+    def _compare(self, pids: list[str], p: Parsed) -> Response:
+        prods = [self.index.products[i] for i in pids][:4]
+        want = (p.intents & {"price", "stock", "rating"}) or {"price"}
+        lines, claims = [], []
+        for prod in prods:
+            parts = []
+            if "price" in want:
+                parts.append(format_inr(prod.price))
+                claims.append({"pid": prod.id, "field": "price", "value": prod.price})
+            if "stock" in want:
+                parts.append(self._stock_phrase(prod))
+                claims.append({"pid": prod.id, "field": "in_stock", "value": prod.in_stock})
+            if "rating" in want and prod.rating is not None:
+                parts.append(f"rated {prod.rating} stars")
+                claims.append({"pid": prod.id, "field": "rating", "value": prod.rating})
+            lines.append(f"- {prod.title}: {', '.join(parts)} [{prod.id}]")
+        sort = p.spec.sort
+        if sort in ("price_asc", "price_desc"):
+            pick = (min if sort == "price_asc" else max)(prods, key=lambda x: x.price)
+            others = [x for x in prods if x.price != pick.price]
+            word = "cheaper" if sort == "price_asc" else "more expensive"
+            if others:
+                lines.append(f"The {pick.title} is the {word} one at {format_inr(pick.price)} [{pick.id}].")
+            else:
+                lines.append(f"They are the same price, {format_inr(pick.price)} " + " ".join(f"[{x.id}]" for x in prods) + ".")
+        elif sort == "rating_desc":
+            rated = [x for x in prods if x.rating is not None]
+            if rated:
+                pick = max(rated, key=lambda x: x.rating)
+                lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
+        return Response("\n".join(["Here is the comparison:"] + lines), ANSWER, claims)
 
     def _description_check(self, prod: Product, p: Parsed) -> tuple[list[str], bool]:
         out, ok = [], False

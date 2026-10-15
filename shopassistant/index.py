@@ -18,6 +18,7 @@ class Spec:
     type_tokens: list[str] = field(default_factory=list)   # must appear in title/category/attributes
     desc_tokens: list[str] = field(default_factory=list)   # must appear in description (relaxed if nothing matches)
     filters: dict[str, str] = field(default_factory=dict)  # attribute key -> value
+    exclude: dict[str, list[str]] = field(default_factory=dict)  # attribute key -> values to avoid ("not cotton")
     price_min: float | None = None
     price_max: float | None = None
     size: str | None = None
@@ -25,10 +26,10 @@ class Spec:
 
     def copy(self) -> "Spec":
         return Spec(list(self.type_tokens), list(self.desc_tokens), dict(self.filters),
-                    self.price_min, self.price_max, self.size, self.sort)
+                    {k: list(v) for k, v in self.exclude.items()}, self.price_min, self.price_max, self.size, self.sort)
 
     def is_empty(self) -> bool:
-        return not (self.type_tokens or self.desc_tokens or self.filters or self.price_min is not None
+        return not (self.type_tokens or self.desc_tokens or self.filters or self.exclude or self.price_min is not None
                     or self.price_max is not None or self.size)
 
 
@@ -73,6 +74,10 @@ class CatalogueIndex:
         for key, value in spec.filters.items():
             if value.lower() not in (v.lower() for v in p.attr_values(key)):
                 return False
+        for key, banned in spec.exclude.items():
+            have = {v.lower() for v in p.attr_values(key)}
+            if have & {b.lower() for b in banned}:
+                return False
         if spec.size and spec.size.lower() not in (s.lower() for k in SIZE_KEYS for s in p.attr_values(k)):
             return False
         text = self.text_tokens[p.id]
@@ -104,6 +109,11 @@ class CatalogueIndex:
             rel = sum(self.idf.get(t, 1.0) for t in query_tokens & self.title_tokens[p.id])
             return (-p.in_stock, -rel, -(p.rating or 0), p.price)
         return sorted(hits, key=score)
+
+    def mentioned(self, query_tokens: set[str]) -> list[str]:
+        """Products whose full title appears in the query (longest title wins over a contained shorter one)."""
+        found = [pid for pid, tt in self.title_tokens.items() if len(tt) >= 2 and tt <= query_tokens]
+        return [pid for pid in found if not any(self.title_tokens[pid] < self.title_tokens[o] for o in found)]
 
     def exact_title_matches(self, hits: list[Product], query_tokens: set[str]) -> list[Product]:
         """Products whose whole title is present in the query (the most specific mention wins)."""

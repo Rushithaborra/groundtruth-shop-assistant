@@ -54,6 +54,25 @@ def _parse_attributes(value) -> dict:
     return attrs
 
 
+KEY_ALIASES = {"colour": "color", "colours": "color", "colors": "color", "fabric": "material", "sizes": "size",
+               "manufacturer": "brand", "make": "brand"}
+
+
+def _clean_attributes(attrs: dict) -> dict:
+    """Lower-case keys, fold spelling variants onto one key, strip whitespace in values."""
+    clean: dict = {}
+    for key, value in attrs.items():
+        key = KEY_ALIASES.get(str(key).strip().lower(), str(key).strip().lower())
+        if isinstance(value, str):
+            value = value.strip()
+        elif isinstance(value, (list, tuple)):
+            value = [v.strip() if isinstance(v, str) else v for v in value]
+        if value in ("", None, []):
+            continue
+        clean.setdefault(key, value)
+    return clean
+
+
 def _parse_stock(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -78,7 +97,7 @@ def normalise_product(raw: dict) -> Product:
         in_stock=_parse_stock(stock),
         rating=float(rating) if rating is not None else None,
         rating_count=int(float(rating_count)) if rating_count is not None else None,
-        attributes=_parse_attributes(_first(raw, "attributes", "attrs", default={})),
+        attributes=_clean_attributes(_parse_attributes(_first(raw, "attributes", "attrs", default={}))),
     )
 
 

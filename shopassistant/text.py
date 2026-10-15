@@ -13,7 +13,7 @@ STOPWORDS = set(
     meri chahiye chahie dikhao dikha batao bata de dena aur ya bhi koi kuch yeh ye woh wo wala wali wale ek par pe
     liye lie sell selling buy buying sale under below above over upto within max maximum min minimum tak andar
     ander rs inr rupee rupees rupaye ruppees stock available availability already said told mentioned earlier before still ones now instead
-    rather kitne kitna kitni din abhi something anything good nice great cool decent quality product
+    rather kitne kitna kitni din abhi something anything good nice great cool decent quality product most least actually anyway okay ok yes yeah hmm except without excluding nahi
     products item items thing things recommend suggestion
     """.split()
 )
@@ -26,6 +26,7 @@ SYNONYMS = {
     "colour": "color", "colours": "color", "colors": "color",
     "cost": "price", "costs": "price", "keemat": "price", "kimat": "price",
     "daam": "price", "din": "day", "prices": "price", "pricing": "price",
+    "shipping": "ship", "shipped": "ship", "delivery": "deliver", "deliveries": "deliver",
     "suti": "cotton", "sooti": "cotton",
     "run": "running", "runner": "running", "runners": "running",
     "lal": "red", "neela": "blue", "nila": "blue", "kala": "black", "safed": "white", "hara": "green",

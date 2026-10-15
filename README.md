@@ -10,6 +10,11 @@ python data/generate_synthetic.py     # writes data/catalogue.jsonl, policy.txt,
 python chat.py --meta                 # interactive CLI; --meta shows action, latency, token estimates
 python evaluate.py --verbose          # scores + reports/summary.json + reports/query_report.csv
 python -m unittest discover -s tests
+
+python data/generate_hard.py          # adversarial questions (typos, negation, comparisons, multi-turn, ...)
+python evaluate.py --questions data/hard_questions.jsonl --verbose
+python data/generate_scale.py         # 5,000 messy products in data/scale/ (git-ignored)
+python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt                    --questions data/scale/hard_questions.jsonl
 ```
 
 Swap in the real data with `--catalogue`, `--policy` and `--questions` on `chat.py` / `evaluate.py`.
@@ -55,6 +60,9 @@ own bookkeeping.
   assistant makes no LLM calls, so real cost is zero. Use `--price-in/--price-out` to price it as if it were.
 
 ## Caveats
+
+* Known gap: "do you ship to Dubai?" returns the shipping section but not necessarily the sentence about shipping outside
+  India, because nothing links place names to "outside". Real policy wording will need a few such synonyms.
 
 * The bundled 100-product catalogue and 63 questions are synthetic and were written together with the assistant, so
   the perfect score on them is a regression check, not evidence of accuracy. Expect real misses on the 5,000-product catalogue

@@ -167,8 +167,10 @@ def main() -> None:
         for turn in case["turns"]:
             resp = assistant.ask(turn, session)
         exp = case["expected"]
+        accept = exp["behaviour"] if isinstance(exp.get("behaviour"), list) else [exp.get("behaviour")]
+        exp = {**exp, "behaviour": resp.action if resp.action in accept else accept[0]}
         g = grounding.check(resp.text, " ".join(case["turns"]))
-        behaviour_ok = resp.action == exp.get("behaviour")
+        behaviour_ok = resp.action in accept
         confusion[(exp.get("behaviour"), resp.action)] = confusion.get((exp.get("behaviour"), resp.action), 0) + 1
         rows.append({
             "id": case["id"], "query": " | ".join(case["turns"]), "expected": exp.get("behaviour"),
