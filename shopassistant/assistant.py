@@ -4,6 +4,9 @@ Every sentence is assembled from catalogue fields or extracted from the policy t
 ([P0001] for a product, [policy:returns] for a policy section). Nothing is generated freely, so a price that
 is not in the catalogue cannot be produced. When the catalogue cannot support an answer it refuses; when
 several products fit a question about "the" product it asks which one.
+
+Thread safety: the assistant and its index are read-only after construction, so one instance can serve all
+threads. All per-user state lives in a `Session`, which callers keep per user (see `SessionStore`).
 """
 from __future__ import annotations
 
@@ -12,20 +15,21 @@ import time
 from dataclasses import dataclass, field
 
 from .catalogue import Product
-from .index import CatalogueIndex, SIZE_KEYS, Spec
+from .index import SIZE_KEY, CatalogueIndex, Spec
 from .policy import Section, best_sentences
-from .text import approx_tokens, format_inr, split_sentences, tokenize
+from .text import approx_tokens, format_inr
 from .understand import Parsed, understand
 
 ANSWER, CLARIFY, REFUSE = "answer", "clarify", "refuse"
 CITATION = re.compile(r"\[([^\]]+)\]")
+SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}
+FACTS = frozenset({"price", "stock", "rating", "detail"})
 
 
-@dataclass
+@dataclass(slots=True)
 class Response:
     text: str
     action: str
-    claims: list[dict] = field(default_factory=list)
     latency_ms: float = 0.0
     context_tokens: int = 0
     output_tokens: int = 0
@@ -35,7 +39,7 @@ class Response:
         return list(dict.fromkeys(CITATION.findall(self.text)))
 
 
-@dataclass
+@dataclass(slots=True)
 class Session:
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
@@ -44,22 +48,42 @@ class Session:
         self.spec, self.last_product = Spec(), None
 
 
-class ShoppingAssistant:
-    SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}
+def _stock(p: Product) -> str:
+    return "in stock" if p.in_stock else "out of stock"
 
-    def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int = 3, clarify_limit: int = 5):
+
+def _line(p: Product, price=True, rating=True, stock=True) -> str:
+    """One cited catalogue line, e.g. '- Title: ₹1,299, rated 4.1 stars, in stock [P0001]'."""
+    parts = [format_inr(p.price)] if price else []
+    if rating and p.rating is not None:
+        parts.append(f"rated {p.rating} stars")
+    if stock:
+        parts.append(_stock(p))
+    return f"- {p.title}: {', '.join(parts)} [{p.id}]"
+
+
+class ShoppingAssistant:
+    def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int = 3, clarify_limit: int = 5,
+                 measure_tokens: bool = False):
         self.index, self.policy = index, policy
         self.sections = {s.id: s for s in policy}
         self.list_limit, self.clarify_limit = list_limit, clarify_limit
+        self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
 
     # -- public --------------------------------------------------------------------------------
+    def warm_up(self) -> None:
+        """Run a few queries once so first real requests don't pay for lazy initialisation."""
+        for query in ("hi", "cheap runing shoes under 2k", "return policy", "price of xyzzy"):
+            self.ask(query)
+
     def ask(self, query: str, session: Session | None = None) -> Response:
         session = session if session is not None else Session()
         start = time.perf_counter()
         resp = self._route(understand(query, self.index), session)
         resp.latency_ms = (time.perf_counter() - start) * 1000
-        resp.output_tokens = approx_tokens(resp.text)
-        resp.context_tokens = approx_tokens(query) + sum(approx_tokens(self._source_text(c)) for c in resp.citations)
+        if self.measure_tokens:
+            resp.output_tokens = approx_tokens(resp.text)
+            resp.context_tokens = approx_tokens(query) + sum(approx_tokens(self._source_text(c)) for c in resp.citations)
         return resp
 
     def _source_text(self, citation: str) -> str:
@@ -83,13 +107,10 @@ class ShoppingAssistant:
         if "policy" in p.intents:
             return self._policy(p)
         resp = self._product_route(p, session)
-        if "policy_q" in p.intents:  # e.g. "price of X and what is the return policy"
+        if "policy_q" in p.intents and resp.action != CLARIFY:  # "price of X and what is the return policy"
             pol = self._policy(p)
             if pol.action == ANSWER:
-                if resp.action == ANSWER:
-                    return Response(resp.text + "\n" + pol.text, ANSWER, resp.claims + pol.claims)
-                if resp.action == REFUSE:
-                    return pol
+                return Response(f"{resp.text}\n{pol.text}", ANSWER) if resp.action == ANSWER else pol
         return resp
 
     def _product_route(self, p: Parsed, session: Session) -> Response:
@@ -103,11 +124,10 @@ class ShoppingAssistant:
         if not spec.type_tokens and not spec.filters and spec.desc_tokens and session.spec.is_empty():
             # only description words (e.g. "laptop" appearing in a backpack's text): not a product the shop sells
             p.unknown = p.unknown + spec.desc_tokens
-            p.spec.desc_tokens = []
-            spec.desc_tokens = []
+            p.spec.desc_tokens = spec.desc_tokens = []
         known = len(p.spec.type_tokens) + len(p.spec.desc_tokens) + len(p.spec.filters)
         if p.unknown and len(p.unknown) >= max(known, 1):
-            return self._refuse(f"I don't have anything in the catalogue matching \"{' '.join(p.unknown)}\".")
+            return Response(f"I don't have anything in the catalogue matching \"{' '.join(p.unknown)}\".", REFUSE)
         if spec.is_empty():
             return Response("What are you looking for? Tell me the kind of product, and a brand, colour or budget "
                             "if you have one.", CLARIFY)
@@ -118,47 +138,41 @@ class ShoppingAssistant:
         session.spec = spec
 
         specific = p.intents & {"price", "rating", "detail"}
-        refers_to_one = spec.sort and not p.spec.type_tokens and bool({"the", "one"} & p.all_tokens)
-        if refers_to_one and not specific and len(hits) > 1:  # "the cheapest" after a search
-            session.last_product = hits[0].id
-            return self._product_answer(hits[0], p, lead=self.SORT_LABELS.get(spec.sort))
-        if specific and len(hits) > 1:
+        lead = SORT_LABELS.get(spec.sort)
+        pick = None
+        if len(hits) == 1 and specific:
+            pick = hits[0]
+        elif len(hits) > 1 and spec.sort and not p.spec.type_tokens and not specific and {"the", "one"} & p.all_tokens:
+            pick = hits[0]  # "the cheapest" after a search
+        elif len(hits) > 1 and specific:
             if spec.sort:
                 pick = hits[0]
-            elif spec.price_max is not None or spec.price_min is not None:
-                pick = None  # a budget implies browsing, not one specific product
-            else:
+            elif spec.price_max is None and spec.price_min is None:  # a budget implies browsing, not one product
                 exact = self.index.exact_title_matches(hits, p.all_tokens)
                 if len(exact) != 1:
                     session.last_product = None
                     return self._clarify(hits)
                 pick = exact[0]
-            if pick is not None:
-                session.last_product = pick.id
-                return self._product_answer(pick, p, lead=self.SORT_LABELS.get(spec.sort))
-        elif specific:
-            session.last_product = hits[0].id
-            return self._product_answer(hits[0], p)
+        if pick is not None:
+            session.last_product = pick.id
+            return self._product_answer(pick, p, lead=lead)
 
         session.last_product = hits[0].id if len(hits) == 1 else None
         return self._listing(hits, p, spec, relaxed)
 
     def _resolve(self, p: Parsed, session: Session) -> tuple[Product | None, Spec]:
         """Decide whether the turn is about one known product, a new search, or a refinement."""
-        s = p.spec
+        s, products = p.spec, self.index.products
         if p.product_id:
-            return self.index.products[p.product_id], Spec()
+            return products[p.product_id], Spec()
         if len(p.mentioned) == 1:
-            return self.index.products[p.mentioned[0]], Spec()
-        asks_fact = bool(p.intents & {"price", "stock", "rating", "detail"})
+            return products[p.mentioned[0]], Spec()
         no_ref = not (s.type_tokens or s.filters or s.size or s.price_min is not None or s.price_max is not None)
-        if session.last_product and no_ref and (asks_fact or p.unknown or s.desc_tokens):
-            return self.index.products[session.last_product], Spec()
-        refining = not s.type_tokens and not session.spec.is_empty() and (
-            p.has_constraint or s.sort or s.desc_tokens)
-        if not refining:
+        if session.last_product and no_ref and (p.intents & FACTS or p.unknown or s.desc_tokens):
+            return products[session.last_product], Spec()
+        if s.type_tokens or session.spec.is_empty() or not (p.has_constraint or s.sort or s.desc_tokens):
             return None, s.copy()
-        merged = session.spec.copy()
+        merged = session.spec.copy()  # a refinement of the previous search
         merged.filters.update(s.filters)
         for key, values in s.exclude.items():
             merged.exclude[key] = list(dict.fromkeys(merged.exclude.get(key, []) + values))
@@ -169,105 +183,72 @@ class ShoppingAssistant:
         return None, merged
 
     # -- answer builders -----------------------------------------------------------------------
-    def _refuse(self, text: str) -> Response:
-        return Response(text, REFUSE)
-
-    def _fact_claims(self, p: Product) -> list[dict]:
-        claims = [{"pid": p.id, "field": "price", "value": p.price},
-                  {"pid": p.id, "field": "in_stock", "value": p.in_stock}]
-        if p.rating is not None:
-            claims.append({"pid": p.id, "field": "rating", "value": p.rating})
-        return claims
-
-    @staticmethod
-    def _stock_phrase(p: Product) -> str:
-        return "in stock" if p.in_stock else "out of stock"
-
     def _product_answer(self, prod: Product, p: Parsed, lead: str | None = None) -> Response:
         cite = f"[{prod.id}]"
-        want = p.intents & {"price", "stock", "rating", "detail"}
-        sentences, claims, supported = [], [], False
-        named = False
+        want = p.intents & FACTS
+        facts_only = not want and bool(p.spec.desc_tokens or p.unknown)  # "is X waterproof?" asks about one thing
+        defaults = not want and not facts_only
+        sentences, supported, named = [], False, False
 
-        def subject() -> str:
+        def say(predicate: str) -> None:
             nonlocal named
-            if named:
-                return "It"
+            sentences.append(f"{'It' if named else f'The {prod.title}'} {predicate} {cite}.")
             named = True
-            return f"The {prod.title}"
 
         if lead:
-            sentences.append(f"{subject()} is the {lead} match {cite}.")
-        facts_only = not want and bool(p.spec.desc_tokens or p.unknown)  # "is X waterproof?" asks about one thing
-        want = want or (set() if facts_only else want)
-        if ("price" in want or not want) and not facts_only:
-            sentences.append(f"{subject()} is priced at {format_inr(prod.price)} {cite}.")
-            claims.append({"pid": prod.id, "field": "price", "value": prod.price})
+            say(f"is the {lead} match")
+        if "price" in want or defaults:
+            say(f"is priced at {format_inr(prod.price)}")
             supported = True
-        if ("stock" in want or not want) and not facts_only:
-            sentences.append(f"{subject()} is {self._stock_phrase(prod)} {cite}.")
-            claims.append({"pid": prod.id, "field": "in_stock", "value": prod.in_stock})
+        if "stock" in want or defaults:
+            say(f"is {_stock(prod)}")
             supported = True
-        if ("rating" in want or not want) and prod.rating is not None and not facts_only:
-            count = f" from {prod.rating_count} ratings" if prod.rating_count else ""
-            sentences.append(f"{subject()} is rated {prod.rating} stars{count} {cite}.")
-            claims.append({"pid": prod.id, "field": "rating", "value": prod.rating})
-            supported = True
-        elif "rating" in want:
-            sentences.append(f"The catalogue has no rating for the {prod.title} {cite}.")
+        if "rating" in want or defaults:
+            if prod.rating is not None:
+                count = f" from {prod.rating_count} ratings" if prod.rating_count else ""
+                say(f"is rated {prod.rating} stars{count}")
+                supported = True
+            elif "rating" in want:
+                sentences.append(f"The catalogue has no rating for the {prod.title} {cite}.")
         for key in p.detail_keys:
             values = prod.attr_values(key)
             if values:
                 sentences.append(f"The {key} of the {prod.title} is {', '.join(values)} {cite}.")
-                claims.append({"pid": prod.id, "field": key, "value": values})
                 supported = True
             else:
                 sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
         if "detail" in want or p.spec.desc_tokens or p.unknown:
             extra, ok = self._description_check(prod, p)
-            sentences.extend(extra)
+            sentences += extra
             supported = supported or ok
-        return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims)
+        return Response(" ".join(sentences), ANSWER if supported else REFUSE)
 
     def _compare(self, pids: list[str], p: Parsed) -> Response:
         prods = [self.index.products[i] for i in pids][:4]
         want = (p.intents & {"price", "stock", "rating"}) or {"price"}
-        lines, claims = [], []
-        for prod in prods:
-            parts = []
-            if "price" in want:
-                parts.append(format_inr(prod.price))
-                claims.append({"pid": prod.id, "field": "price", "value": prod.price})
-            if "stock" in want:
-                parts.append(self._stock_phrase(prod))
-                claims.append({"pid": prod.id, "field": "in_stock", "value": prod.in_stock})
-            if "rating" in want and prod.rating is not None:
-                parts.append(f"rated {prod.rating} stars")
-                claims.append({"pid": prod.id, "field": "rating", "value": prod.rating})
-            lines.append(f"- {prod.title}: {', '.join(parts)} [{prod.id}]")
+        lines = ["Here is the comparison:"]
+        lines += [_line(x, "price" in want, "rating" in want, "stock" in want) for x in prods]
         sort = p.spec.sort
         if sort in ("price_asc", "price_desc"):
             pick = (min if sort == "price_asc" else max)(prods, key=lambda x: x.price)
-            others = [x for x in prods if x.price != pick.price]
-            word = "cheaper" if sort == "price_asc" else "more expensive"
-            if others:
+            if any(x.price != pick.price for x in prods):
+                word = "cheaper" if sort == "price_asc" else "more expensive"
                 lines.append(f"The {pick.title} is the {word} one at {format_inr(pick.price)} [{pick.id}].")
             else:
                 lines.append(f"They are the same price, {format_inr(pick.price)} " + " ".join(f"[{x.id}]" for x in prods) + ".")
-        elif sort == "rating_desc":
-            rated = [x for x in prods if x.rating is not None]
-            if rated:
-                pick = max(rated, key=lambda x: x.rating)
-                lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
-        return Response("\n".join(["Here is the comparison:"] + lines), ANSWER, claims)
+        elif sort == "rating_desc" and (rated := [x for x in prods if x.rating is not None]):
+            pick = max(rated, key=lambda x: x.rating)
+            lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
+        return Response("\n".join(lines), ANSWER)
 
     def _description_check(self, prod: Product, p: Parsed) -> tuple[list[str], bool]:
         out, ok = [], False
-        desc_sents = split_sentences(prod.description)
+        in_description = self.index.desc_tokens[prod.id]
         for tok in dict.fromkeys(p.spec.desc_tokens + p.unknown):
-            hit = next((s for s in desc_sents if tok in tokenize(s)), None)
-            if hit:
-                out.append(f'The description says: "{hit}" [{prod.id}]')
+            if tok in in_description:
+                sentence = next((s for s in re.split(r"(?<=[.!?])\s+", prod.description) if tok in s.lower()),
+                                prod.description)
+                out.append(f'The description says: "{sentence}" [{prod.id}]')
                 ok = True
             else:
                 out.append(f"I don't have information about \"{tok}\" for the {prod.title} [{prod.id}].")
@@ -275,16 +256,8 @@ class ShoppingAssistant:
 
     def _listing(self, hits: list[Product], p: Parsed, spec: Spec, relaxed: bool) -> Response:
         shown = hits[: self.list_limit]
-        header = "Here are the best matches:"
-        if spec.sort == "price_asc":
-            header = "Here are the lowest-priced matches:"
-        elif spec.sort == "rating_desc":
-            header = "Here are the highest-rated matches:"
-        lines, claims = [header], []
-        for h in shown:
-            rating = f", rated {h.rating} stars" if h.rating is not None else ""
-            lines.append(f"- {h.title}: {format_inr(h.price)}{rating}, {self._stock_phrase(h)} [{h.id}]")
-            claims.extend(self._fact_claims(h))
+        kind = {"price_asc": "lowest-priced", "rating_desc": "highest-rated"}.get(spec.sort, "best")
+        lines = [f"Here are the {kind} matches:"] + [_line(h) for h in shown]
         if len(hits) > len(shown):
             lines.append("There are more matches; tell me a brand, colour or budget to narrow them down.")
         if relaxed and spec.desc_tokens:
@@ -292,26 +265,21 @@ class ShoppingAssistant:
                          "so these are the closest matches.")
         if p.unknown:
             lines.append(f"I can't verify \"{' '.join(p.unknown)}\" from the catalogue.")
-        return Response("\n".join(lines), ANSWER, claims)
+        return Response("\n".join(lines), ANSWER)
 
     def _clarify(self, hits: list[Product]) -> Response:
-        keys = []
-        for h in hits:
-            for k in h.attributes:
-                if k.lower() not in SIZE_KEYS and k not in keys:
-                    keys.append(k)
-        varying = [k for k in keys if len({tuple(h.attr_values(k)) for h in hits}) > 1][:3]
+        lowered = self.index.attr_lower
+        keys = dict.fromkeys(k for h in hits for k in lowered[h.id] if k != SIZE_KEY)
+        varying = [k for k in keys if len({lowered[h.id].get(k) for h in hits}) > 1][:3]
         lines = ["I found more than one match, so I don't want to guess. Which one do you mean?"]
-        claims = []
         for h in hits[: self.clarify_limit]:
             detail = ", ".join(v for k in varying for v in h.attr_values(k)[:1])
             lines.append(f"- {h.title}{f' ({detail})' if detail else ''} [{h.id}]")
-            claims += [{"pid": h.id, "field": k, "value": h.attr_values(k)} for k in varying]
         if len(hits) > self.clarify_limit:
             lines.append("There are more options too.")
         if varying:
             lines.append("You can tell me the " + " or ".join(varying) + " to pick one.")
-        return Response("\n".join(lines), CLARIFY, claims)
+        return Response("\n".join(lines), CLARIFY)
 
     def _no_match(self, spec: Spec, p: Parsed) -> Response:
         base = "I don't have that in the catalogue."
@@ -320,25 +288,23 @@ class ShoppingAssistant:
             looser.price_min = looser.price_max = None
             alt, _ = self.index.search(looser, p.all_tokens)
             if alt:
-                pick = min(alt, key=lambda x: x.price) if spec.price_max is not None else max(alt, key=lambda x: x.price)
-                word = "lowest" if spec.price_max is not None else "highest"
-                return Response(f"{base} The {word}-priced option that matches otherwise is {pick.title} at "
-                                f"{format_inr(pick.price)} [{pick.id}].", REFUSE, self._fact_claims(pick))
+                lowest = spec.price_max is not None
+                pick = (min if lowest else max)(alt, key=lambda x: x.price)
+                return Response(f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
+                                f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].", REFUSE)
         if spec.filters or spec.size:
             looser = spec.copy()
             looser.filters, looser.size = {}, None
             alt, _ = self.index.search(looser, p.all_tokens)
             if alt:
-                shown = alt[: self.list_limit]
                 lines = [f"{base} Similar products without that exact combination:"]
-                lines += [f"- {h.title} [{h.id}]" for h in shown]
+                lines += [f"- {h.title} [{h.id}]" for h in alt[: self.list_limit]]
                 return Response("\n".join(lines), REFUSE)
         return Response(base, REFUSE)
 
     def _policy(self, p: Parsed) -> Response:
         found = best_sentences(self.policy, p.keywords)
         if not found:
-            return self._refuse("I don't have that in our policy information.")
+            return Response("I don't have that in our policy information.", REFUSE)
         sec, sentences = found
-        return Response(" ".join(f"{s} [policy:{sec.id}]" for s in sentences), ANSWER,
-                        [{"policy": sec.id, "text": s} for s in sentences])
+        return Response(" ".join(f"{s} [policy:{sec.id}]" for s in sentences), ANSWER)

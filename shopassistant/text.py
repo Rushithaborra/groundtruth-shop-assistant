@@ -34,6 +34,9 @@ SYNONYMS = {
 }
 
 
+_COD = re.compile(r"\bcod\b")
+
+
 def stem(tok: str) -> str:
     if len(tok) > 4 and tok.endswith("ies"):
         return tok[:-3] + "y"
@@ -53,7 +56,7 @@ def normalise_word(word: str) -> str:
 
 def tokenize(text: str) -> list[str]:
     text = text.lower().replace("t-shirt", "tshirt").replace("t shirt", "tshirt")
-    text = re.sub(r"\bcod\b", "cash on delivery", text)
+    text = _COD.sub("cash on delivery", text)
     return [normalise_word(w) for w in re.findall(r"[a-z0-9]+", text)]
 
 

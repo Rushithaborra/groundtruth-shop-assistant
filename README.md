@@ -59,6 +59,18 @@ own bookkeeping.
   estimates (about 4 characters per token) of what an LLM would be given (query plus cited sources) and produce; this
   assistant makes no LLM calls, so real cost is zero. Use `--price-in/--price-out` to price it as if it were.
 
+## Serving many users
+
+* `ShoppingAssistant` and `CatalogueIndex` are read-only after start-up (about 35 MB for 5,000 products), so one instance
+  is safe to share across threads. Per-user state lives only in a `Session` (a few hundred bytes).
+* `SessionStore` keeps sessions per user id: bounded (LRU), expiring (TTL), thread-safe, and serialises requests from the
+  same user while different users run in parallel. Use `store.ask(assistant, user_id, query)`.
+* Queries are answered from inverted indexes (no catalogue scan) with cached typo matching: about 0.5 ms per query,
+  roughly 2,000 queries/s per process on 5,000 products (`python bench.py`; was about 290/s before optimisation).
+* Python threads share one GIL, so more threads do not add throughput. Scale with worker processes (for example
+  `uvicorn app:app --workers N`, one index copy each) rather than threads.
+* Build with `measure_tokens=False` (the default) when serving; the token estimates exist for `evaluate.py` reports.
+
 ## Caveats
 
 * Known gap: "do you ship to Dubai?" returns the shipping section but not necessarily the sentence about shipping outside

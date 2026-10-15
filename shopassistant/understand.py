@@ -4,7 +4,6 @@ Handles short, ungrammatical, code-mixed (English/Hinglish) shopper queries.
 """
 from __future__ import annotations
 
-import difflib
 import re
 from dataclasses import dataclass, field
 
@@ -24,6 +23,8 @@ GREET_W = {"hi", "hello", "hey", "hii", "namaste", "helo"}
 WH_W = {"what", "whats", "which", "kya", "kaun", "kaunsa", "kaunsi", "kis"}
 RESET_PHRASES = ("start over", "new search", "reset", "forget it", "clear all", "never mind", "nevermind")
 
+_IGNORE = (PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W | STOPWORDS)
+
 _CUR = r"(?:₹|rs\.?|inr|rupees?|rupaye)?"
 _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|hazar|hajar)?(?![a-z])"
 _AMT = rf"{_CUR}\s*{_NUM}"
@@ -41,7 +42,7 @@ _BARE = re.compile(rf"(?:₹|rs\.?|inr)\s*{_NUM}")
 _SIZE = re.compile(r"\bsize\s*[:\-]?\s*([a-z]{1,3}|\d{1,2})\b")
 
 
-@dataclass
+@dataclass(slots=True)
 class Parsed:
     raw: str
     intents: set[str] = field(default_factory=set)
@@ -65,46 +66,40 @@ class Parsed:
 
 
 def _amount(num: str, unit: str | None) -> float:
-    value = float(num.rstrip(",").replace(",", ""))
-    return value * 1000 if unit else value
+    return float(num.replace(",", "").rstrip(".")) * (1000 if unit else 1)
 
 
 def _extract_money(text: str):
     """Pull budget expressions out of the text; returns (remaining_text, price_min, price_max)."""
-    lo = hi = None
+    if not any(c.isdigit() for c in text):
+        return text, None, None
+    found: dict[str, float] = {}
 
-    def sub(pattern, text, handler):
+    def between(m):
+        a, b = _amount(m[1], m[2]), _amount(m[3], m[4])
+        found["lo"], found["hi"] = min(a, b), max(a, b)
+        return " "
+
+    def strip(pattern, key):
         def repl(m):
-            handler(m)
+            found[key] = _amount(m[1], m[2])
             return " "
         return pattern.sub(repl, text)
 
-    def set_between(m):
-        nonlocal lo, hi
-        lo, hi = _amount(m.group(1), m.group(2)), _amount(m.group(3), m.group(4))
-        if lo > hi:
-            lo, hi = hi, lo
-
-    def set_max(m):
-        nonlocal hi
-        hi = _amount(m.group(1), m.group(2))
-
-    def set_min(m):
-        nonlocal lo
-        lo = _amount(m.group(1), m.group(2))
-
-    text = sub(_BETWEEN, text, set_between)
-    for pat in _MAX:
-        text = sub(pat, text, set_max)
-    for pat in _MIN:
-        text = sub(pat, text, set_min)
-    text = sub(_BARE, text, set_max if hi is None else (lambda m: None))
-    return text, lo, hi
+    text = _BETWEEN.sub(between, text)
+    for patterns, key in ((_MAX, "hi"), (_MIN, "lo")):
+        for pattern in patterns:
+            text = strip(pattern, key)
+    explicit_max = found.get("hi")
+    text = strip(_BARE, "hi")  # a bare "₹500" is a budget unless a limit was already given
+    if explicit_max is not None:
+        found["hi"] = explicit_max
+    return text, found.get("lo"), found.get("hi")
 
 
 def _repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
     """Fix word-boundary mistakes: "smart watch" -> smartwatch, "powerbank" -> power bank."""
-    vocab = index.type_vocab | index.desc_vocab
+    vocab = index.vocab
     out, i = [], 0
     while i < len(tokens):
         tok = tokens[i]
@@ -154,9 +149,7 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     consumed = [False] * len(tokens)
 
     # attribute-value filters (colour, material, brand, ...); longest values first
-    candidates = [(len(toks), toks, key, val) for key, vals in index.attr_values.items() for toks, val in vals.items()]
-    for _, toks, key, val in sorted(candidates, key=lambda c: -c[0]):
-        n = len(toks)
+    for n, toks, key, val in index.attr_candidates:
         for i in range(len(tokens) - n + 1):
             if tuple(tokens[i:i + n]) == toks and not any(consumed[i:i + n]):
                 if i > 0 and tokens[i - 1] in NEG_W:
@@ -194,16 +187,13 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         parsed.spec.sort = "price_asc"
 
     # remaining content tokens -> type / description / unknown
-    ignore = (PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W
-              | set(index.attr_keys) | STOPWORDS)
     for i, tok in enumerate(tokens):
         if tok not in STOPWORDS and not tok.isdigit():
             parsed.keywords.append(tok)
-        if consumed[i] or tok in ignore or tok.isdigit() or len(tok) < 2:
+        if consumed[i] or tok in _IGNORE or tok in index.attr_keys or tok.isdigit() or len(tok) < 2:
             continue
         if tok not in index.type_vocab and tok not in index.desc_vocab and len(tok) >= 5:
-            close = difflib.get_close_matches(tok, index.type_vocab, n=1, cutoff=0.85)  # typos: "runing"
-            tok = close[0] if close else tok
+            tok = index.closest(tok) or tok  # typos: "runing"
         if tok in index.type_vocab:
             if tok not in parsed.spec.type_tokens:
                 parsed.spec.type_tokens.append(tok)

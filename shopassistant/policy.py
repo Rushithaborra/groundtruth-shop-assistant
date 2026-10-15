@@ -1,18 +1,25 @@
 """Policy document: split plain text into cited sections and answer questions with extracted sentences."""
 from __future__ import annotations
 
+import heapq
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .text import content_tokens, split_sentences, tokenize
 
 
-@dataclass
+@dataclass(slots=True)
 class Section:
     id: str
     heading: str
     body: str
+    sentences: list[tuple[str, frozenset[str]]] = field(default_factory=list)  # (sentence, content tokens)
+    heading_tokens: frozenset[str] = frozenset()
+
+    def __post_init__(self):
+        self.sentences = [(s, frozenset(content_tokens(s))) for s in split_sentences(self.body)]
+        self.heading_tokens = frozenset(tokenize(self.heading))
 
 
 def _slug(heading: str) -> str:
@@ -39,20 +46,14 @@ def load_policy(path: str | Path) -> list[Section]:
 
 def best_sentences(sections: list[Section], keywords: list[str], limit: int = 2):
     """Return (section, [sentences]) for the best-matching section, or None when nothing fits."""
-    wanted = set(keywords)
+    wanted = frozenset(keywords)
     best = None
     for sec in sections:
-        heading_hit = bool(wanted & set(tokenize(sec.heading)))
-        scored = []
-        for sent in split_sentences(sec.body):
-            overlap = len(wanted & set(content_tokens(sent)))
-            score = overlap + (1 if heading_hit else 0)
-            if overlap and score >= 2:
-                scored.append((score, sent))
-        if scored:
-            top = max(s for s, _ in scored)
-            if best is None or top > best[0]:
-                keep = sorted(range(len(scored)), key=lambda i: -scored[i][0])[:limit]
-                picked = [scored[i][1] for i in sorted(keep) if scored[i][0] >= top - 1]
-                best = (top, sec, picked)
+        bonus = bool(wanted & sec.heading_tokens)
+        scored = [(len(wanted & toks) + bonus, i, sent) for i, (sent, toks) in enumerate(sec.sentences)
+                  if wanted & toks and len(wanted & toks) + bonus >= 2]
+        if scored and (best is None or max(scored)[0] > best[0]):
+            top = max(sc for sc, _, _ in scored)
+            keep = sorted(heapq.nlargest(limit, scored, key=lambda t: (t[0], -t[1])), key=lambda t: t[1])
+            best = (top, sec, [sent for sc, _, sent in keep if sc >= top - 1])
     return (best[1], best[2]) if best else None

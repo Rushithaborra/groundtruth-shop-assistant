@@ -142,11 +142,6 @@ def helpfulness(resp, exp: dict, cited: list[str]) -> float:
     return sum(checks) / len(checks) if checks else 1.0
 
 
-def percentile(values: list[float], q: float) -> float:
-    ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(round(q * (len(ordered) - 1))))]
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalogue", default="data/catalogue.jsonl")
@@ -158,7 +153,7 @@ def main() -> None:
     ap.add_argument("--verbose", action="store_true", help="print every failing case")
     args = ap.parse_args()
 
-    assistant = build_assistant(args.catalogue, args.policy)
+    assistant = build_assistant(args.catalogue, args.policy, measure_tokens=True)
     grounding = Grounding(assistant)
     cases = load_cases(Path(args.questions))
     rows, confusion = [], {}
@@ -202,8 +197,8 @@ def main() -> None:
         "refusal_accuracy": round(refusal_acc, 4), "hallucinated_prices": hallucinated, "final_score": round(final, 4),
         "correct_answer_rate": rate("answer")[0], "correct_clarify_rate": rate("clarify")[0],
         "correct_refusal_rate": rate("refuse")[0],
-        "latency_ms": {"mean": round(statistics.mean(lat), 3), "p50": round(percentile(lat, .5), 3),
-                       "p95": round(percentile(lat, .95), 3), "max": round(max(lat), 3)},
+        "latency_ms": {"mean": round(statistics.mean(lat), 3), "p50": round(statistics.median(lat), 3),
+                       "p95": round(statistics.quantiles(lat, n=20)[-1], 3), "max": round(max(lat), 3)},
         "tokens_per_query": {"context_mean": round(statistics.mean(ctx), 1), "output_mean": round(statistics.mean(out), 1),
                              "context_total": sum(ctx), "output_total": sum(out),
                              "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "

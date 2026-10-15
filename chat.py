@@ -16,7 +16,7 @@ def main() -> None:
     ap.add_argument("--policy", default="data/policy.txt")
     ap.add_argument("--meta", action="store_true", help="show action, latency and token estimates per reply")
     args = ap.parse_args()
-    assistant = build_assistant(args.catalogue, args.policy)
+    assistant = build_assistant(args.catalogue, args.policy, measure_tokens=args.meta)
     session = Session()
     print("Shopping assistant ready. Type a question (or 'quit'). Say 'start over' to clear context.")
     while True:
