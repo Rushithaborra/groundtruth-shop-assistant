@@ -1,0 +1,63 @@
+{"id": "q001", "turns": ["price of Velora Orbit Running Shoes?"], "expected": {"behaviour": "answer", "product_ids": ["P0005"], "must_include": ["1,589"]}}
+{"id": "q002", "turns": ["price of Soundora Echo Wireless Earbuds?"], "expected": {"behaviour": "answer", "product_ids": ["P0060"], "must_include": ["1,109"]}}
+{"id": "q003", "turns": ["price of Aerotrek Orbit Running Shoes?"], "expected": {"behaviour": "answer", "product_ids": ["P0009"], "must_include": ["4,019"]}}
+{"id": "q004", "turns": ["price of Stridex Zephyr Running Shoes?"], "expected": {"behaviour": "answer", "product_ids": ["P0008"], "must_include": ["2,009"]}}
+{"id": "q005", "turns": ["price of Indigo Lane Zephyr Shirt?"], "expected": {"behaviour": "answer", "product_ids": ["P0033"], "must_include": ["1,949"]}}
+{"id": "q006", "turns": ["price of Indigo Lane Glide T-Shirt?"], "expected": {"behaviour": "answer", "product_ids": ["P0025"], "must_include": ["1,449"]}}
+{"id": "q007", "turns": ["price of Wearwell Pulse Backpack?"], "expected": {"behaviour": "answer", "product_ids": ["P0096"], "must_include": ["1,649"]}}
+{"id": "q008", "turns": ["price of Kettlecraft Lumen Bedsheet?"], "expected": {"behaviour": "answer", "product_ids": ["P0078"], "must_include": ["1,879"]}}
+{"id": "q009", "turns": ["Threadly Glide Jeans kitne ka hai"], "expected": {"behaviour": "answer", "product_ids": ["P0044"], "must_include": ["2,389"]}}
+{"id": "q010", "turns": ["Lomax Glide Jeans kitne ka hai"], "expected": {"behaviour": "answer", "product_ids": ["P0047"], "must_include": ["2,009"]}}
+{"id": "q011", "turns": ["Indigo Lane Nova Kurta kitne ka hai"], "expected": {"behaviour": "answer", "product_ids": ["P0035"], "must_include": ["1,399"]}}
+{"id": "q012", "turns": ["Lomax Flex Jeans kitne ka hai"], "expected": {"behaviour": "answer", "product_ids": ["P0043"], "must_include": ["2,699"]}}
+{"id": "q013", "turns": ["is Homebase Breeze Bedsheet in stock"], "expected": {"behaviour": "answer", "product_ids": ["P0079"], "must_include": ["in stock"]}}
+{"id": "q014", "turns": ["is Kicksy Orbit Running Shoes in stock"], "expected": {"behaviour": "answer", "product_ids": ["P0006"], "must_include": ["in stock"]}}
+{"id": "q015", "turns": ["is Threadly Breeze Kurta in stock"], "expected": {"behaviour": "answer", "product_ids": ["P0034"], "must_include": ["out of stock"]}}
+{"id": "q016", "turns": ["is Wearwell Pulse Backpack in stock"], "expected": {"behaviour": "answer", "product_ids": ["P0096"], "must_include": ["in stock"]}}
+{"id": "q017", "turns": ["rating of Velora Glide Backpack"], "expected": {"behaviour": "answer", "product_ids": ["P0092"], "must_include": ["3.3"]}}
+{"id": "q018", "turns": ["rating of Kettlecraft Zephyr Water Bottle"], "expected": {"behaviour": "answer", "product_ids": ["P0089"], "must_include": ["3.2"]}}
+{"id": "q019", "turns": ["rating of Wearwell Pulse Kurta"], "expected": {"behaviour": "answer", "product_ids": ["P0041"], "must_include": ["3.7"]}}
+{"id": "q020", "turns": ["what is the material of P0036"], "expected": {"behaviour": "answer", "product_ids": ["P0036"], "must_include": ["linen"]}}
+{"id": "q021", "turns": ["cotton shirts under ₹2000"], "expected": {"behaviour": "answer", "valid_ids": ["P0016", "P0018", "P0021", "P0024", "P0025", "P0026", "P0029", "P0031", "P0033"]}}
+{"id": "q022", "turns": ["show me earbuds"], "expected": {"behaviour": "answer", "valid_ids": ["P0054", "P0055", "P0056", "P0057", "P0058", "P0059", "P0060"]}}
+{"id": "q023", "turns": ["sasta running shoe dikhao"], "expected": {"behaviour": "answer", "valid_ids": ["P0001", "P0002", "P0003", "P0004", "P0005", "P0006", "P0007", "P0008", "P0009"]}}
+{"id": "q024", "turns": ["cotton kurta 1500 ke andar"], "expected": {"behaviour": "refuse", "valid_ids": []}}
+{"id": "q025", "turns": ["black hoodie under 2500"], "expected": {"behaviour": "answer", "valid_ids": ["P0048"]}}
+{"id": "q026", "turns": ["power bank between 1000 and 2500"], "expected": {"behaviour": "answer", "valid_ids": ["P0064", "P0065"]}}
+{"id": "q027", "turns": ["leather wallet for men"], "expected": {"behaviour": "answer", "valid_ids": ["P0097", "P0099"]}}
+{"id": "q028", "turns": ["backpack above ₹1500"], "expected": {"behaviour": "answer", "valid_ids": ["P0092", "P0093", "P0094", "P0095", "P0096"]}}
+{"id": "q029", "turns": ["waterproof speaker"], "expected": {"behaviour": "answer", "valid_ids": ["P0071", "P0072", "P0073", "P0074", "P0075"]}}
+{"id": "q030", "turns": ["smartwatch"], "expected": {"behaviour": "answer", "valid_ids": ["P0066", "P0067", "P0068", "P0069", "P0070"]}}
+{"id": "q031", "turns": ["best rated bedsheet"], "expected": {"behaviour": "answer", "valid_ids": ["P0076", "P0077", "P0078", "P0079", "P0080", "P0081"]}}
+{"id": "q032", "turns": ["cheapest power bank price"], "expected": {"behaviour": "answer", "product_ids": ["P0065"], "must_include": ["1,869"]}}
+{"id": "q033", "turns": ["what's the price of the blue running shoe?"], "expected": {"behaviour": "clarify"}}
+{"id": "q034", "turns": ["kitna hai blue running shoe ka price"], "expected": {"behaviour": "clarify"}}
+{"id": "q035", "turns": ["rating of the white t-shirt"], "expected": {"behaviour": "clarify"}}
+{"id": "q036", "turns": ["how much is the kettle"], "expected": {"behaviour": "clarify"}}
+{"id": "q037", "turns": ["price?"], "expected": {"behaviour": "clarify"}}
+{"id": "q038", "turns": ["I want something good"], "expected": {"behaviour": "clarify"}}
+{"id": "q039", "turns": ["do you sell iPhones?"], "expected": {"behaviour": "refuse"}}
+{"id": "q040", "turns": ["price of macbook air"], "expected": {"behaviour": "refuse"}}
+{"id": "q041", "turns": ["do you have a PS5"], "expected": {"behaviour": "refuse"}}
+{"id": "q042", "turns": ["Rolex watch price"], "expected": {"behaviour": "refuse"}}
+{"id": "q043", "turns": ["ferrari toy car"], "expected": {"behaviour": "refuse"}}
+{"id": "q044", "turns": ["sell me a laptop"], "expected": {"behaviour": "refuse"}}
+{"id": "q045", "turns": ["cotton shirts under ₹100"], "expected": {"behaviour": "refuse"}}
+{"id": "q046", "turns": ["red running shoes under ₹300"], "expected": {"behaviour": "refuse"}}
+{"id": "q047", "turns": ["is there a 55 inch TV"], "expected": {"behaviour": "refuse"}}
+{"id": "q048", "turns": ["yoga mat"], "expected": {"behaviour": "refuse"}}
+{"id": "q049", "turns": ["blue wallet in size 99"], "expected": {"behaviour": "refuse"}}
+{"id": "q050", "turns": ["can I return earbuds after opening"], "expected": {"behaviour": "answer", "policy_sections": ["returns"], "must_include": ["cannot be returned"]}}
+{"id": "q051", "turns": ["how many days to return"], "expected": {"behaviour": "answer", "policy_sections": ["returns"], "must_include": ["30 days"]}}
+{"id": "q052", "turns": ["return kitne din me"], "expected": {"behaviour": "answer", "policy_sections": ["returns"], "must_include": ["30 days"]}}
+{"id": "q053", "turns": ["do you ship outside India"], "expected": {"behaviour": "answer", "policy_sections": ["shipping"], "must_include": ["do not ship outside India"]}}
+{"id": "q054", "turns": ["is cod available"], "expected": {"behaviour": "answer", "policy_sections": ["shipping"], "must_include": ["Cash on delivery"]}}
+{"id": "q055", "turns": ["warranty on electronics"], "expected": {"behaviour": "answer", "policy_sections": ["warranty"], "must_include": ["warranty"]}}
+{"id": "q056", "turns": ["can I cancel after dispatch"], "expected": {"behaviour": "answer", "policy_sections": ["cancellations"], "must_include": ["cannot be cancelled"]}}
+{"id": "q057", "turns": ["do you offer gift wrapping?"], "expected": {"behaviour": "refuse"}}
+{"id": "q058", "turns": ["do you have a loyalty program"], "expected": {"behaviour": "refuse"}}
+{"id": "q059", "turns": ["show me shirts", "only cotton ones", "under ₹2,000, and I already said I want cotton"], "expected": {"behaviour": "answer", "valid_ids": ["P0016", "P0018", "P0021", "P0024", "P0025", "P0026", "P0029", "P0031", "P0033"]}}
+{"id": "q060", "turns": ["running shoes", "blue ones"], "expected": {"behaviour": "answer", "valid_ids": ["P0001", "P0002", "P0003"]}}
+{"id": "q061", "turns": ["I want a kurta", "cotton", "under 1000"], "expected": {"behaviour": "refuse", "valid_ids": []}}
+{"id": "q062", "turns": ["tell me about P0039", "what's the price?"], "expected": {"behaviour": "answer", "product_ids": ["P0039"], "must_include": ["1,469"]}}
+{"id": "q063", "turns": ["running shoes", "blue ones", "the cheapest"], "expected": {"behaviour": "answer"}}
