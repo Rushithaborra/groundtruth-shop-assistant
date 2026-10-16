@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from .catalogue import Product
 from .index import SIZE_KEY, CatalogueIndex, Spec
 from .policy import Section, best_sentences
-from .text import approx_tokens, format_inr
+from .text import EXTERNAL_DISPLAY, approx_tokens, format_inr
 from .understand import Parsed, understand
 
 ANSWER, CLARIFY, REFUSE = "answer", "clarify", "refuse"
@@ -26,20 +26,23 @@ SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "ra
 FACTS = frozenset({"price", "stock", "rating", "detail"})
 
 
-@dataclass(slots=True)
+@dataclass
 class Response:
     text: str
     action: str
     latency_ms: float = 0.0
     context_tokens: int = 0
     output_tokens: int = 0
+    path: str = "rules"        # rules | semantic | llm: which understanding path resolved the query
+    llm_input_tokens: int = 0  # real tokens sent to / produced by the instruct model (0 on other paths)
+    llm_output_tokens: int = 0
 
     @property
     def citations(self) -> list[str]:
         return list(dict.fromkeys(CITATION.findall(self.text)))
 
 
-@dataclass(slots=True)
+@dataclass
 class Session:
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
@@ -49,6 +52,8 @@ class Session:
 
 
 def _stock(p: Product) -> str:
+    if p.in_stock is None:
+        return "stock status not listed"
     return "in stock" if p.in_stock else "out of stock"
 
 
@@ -64,8 +69,10 @@ def _line(p: Product, price=True, rating=True, stock=True) -> str:
 
 class ShoppingAssistant:
     def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int = 3, clarify_limit: int = 5,
-                 measure_tokens: bool = False):
+                 measure_tokens: bool = False, semantic=None, normaliser=None):
         self.index, self.policy = index, policy
+        self.semantic = semantic      # optional SemanticFallback (embedding model), miss path only
+        self.normaliser = normaliser  # optional LLMNormaliser (instruct model), last resort on the miss path
         self.sections = {s.id: s for s in policy}
         self.list_limit, self.clarify_limit = list_limit, clarify_limit
         self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
@@ -79,12 +86,27 @@ class ShoppingAssistant:
     def ask(self, query: str, session: Session | None = None) -> Response:
         session = session if session is not None else Session()
         start = time.perf_counter()
-        resp = self._route(understand(query, self.index), session)
+        parsed, path, llm_usage = understand(query, self.index), "rules", (0, 0)
+        if self._missed(parsed) and self.semantic is not None and self.semantic.resolve(parsed):
+            path = "semantic"
+        if self._missed(parsed) and self.normaliser is not None:
+            llm_usage = self.normaliser.apply(parsed, self.index)
+            if llm_usage != (0, 0):
+                path = "llm"
+        resp = self._route(parsed, session)
+        if resp.path == "rules":  # a policy answer found by the embedding fallback has already marked itself
+            resp.path = path
+        resp.llm_input_tokens, resp.llm_output_tokens = llm_usage
         resp.latency_ms = (time.perf_counter() - start) * 1000
         if self.measure_tokens:
             resp.output_tokens = approx_tokens(resp.text)
             resp.context_tokens = approx_tokens(query) + sum(approx_tokens(self._source_text(c)) for c in resp.citations)
         return resp
+
+    @staticmethod
+    def _missed(p: Parsed) -> bool:
+        """The rule-based parser left product words it couldn't place (and it isn't a brand we know we lack)."""
+        return bool(set(p.unknown) - set(p.external)) and not p.product_id and not p.mentioned
 
     def _source_text(self, citation: str) -> str:
         if citation.startswith("policy:"):
@@ -105,6 +127,8 @@ class ShoppingAssistant:
             return Response("Hi! I can help you find products, check price, stock and ratings, and answer "
                             "questions about returns, shipping and warranty. What do you need?", CLARIFY)
         if "policy" in p.intents:
+            if p.external and not (p.product_id or p.mentioned):  # "warranty on samsung tv"
+                return self._external_policy(p)
             return self._policy(p)
         resp = self._product_route(p, session)
         if "policy_q" in p.intents and resp.action != CLARIFY:  # "price of X and what is the return policy"
@@ -116,6 +140,8 @@ class ShoppingAssistant:
     def _product_route(self, p: Parsed, session: Session) -> Response:
         if len(p.mentioned) >= 2 and not p.product_id:
             return self._compare(p.mentioned, p)
+        if p.external and not (p.product_id or p.mentioned):
+            return self._external(p)
         forced, spec = self._resolve(p, session)
         if forced is not None:
             session.last_product = forced.id
@@ -126,8 +152,14 @@ class ShoppingAssistant:
             p.unknown = p.unknown + spec.desc_tokens
             p.spec.desc_tokens = spec.desc_tokens = []
         known = len(p.spec.type_tokens) + len(p.spec.desc_tokens) + len(p.spec.filters)
-        if p.unknown and len(p.unknown) >= max(known, 1):
-            return Response(f"I don't have anything in the catalogue matching \"{' '.join(p.unknown)}\".", REFUSE)
+        names_product = bool(p.spec.type_tokens)  # "sneakers for gym": shoes are sold, gym is a modifier; a colour alone is not
+        if p.unknown and not names_product and len(p.unknown) >= max(known, 1):
+            if self.semantic is not None and not p.external:  # "money back timeline": a policy question in other words
+                hit = self.semantic.policy_sentence(p.raw)
+                if hit:
+                    sec, sentence, _ = hit
+                    return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic")
+            return self._unknown_refusal(p)
         if spec.is_empty():
             return Response("What are you looking for? Tell me the kind of product, and a brand, colour or budget "
                             "if you have one.", CLARIFY)
@@ -138,6 +170,8 @@ class ShoppingAssistant:
         session.spec = spec
 
         specific = p.intents & {"price", "rating", "detail"}
+        if "stock" in p.intents and {"the", "this", "that"} & p.all_tokens:  # "is the grey backpack in stock"
+            specific = specific | {"stock"}
         lead = SORT_LABELS.get(spec.sort)
         pick = None
         if len(hits) == 1 and specific:
@@ -180,13 +214,17 @@ class ShoppingAssistant:
         for attr in ("price_min", "price_max", "size", "sort"):
             if getattr(s, attr) is not None:
                 setattr(merged, attr, getattr(s, attr))
+        if s.size is not None:
+            merged.size_soft = s.size_soft
         return None, merged
 
     # -- answer builders -----------------------------------------------------------------------
     def _product_answer(self, prod: Product, p: Parsed, lead: str | None = None) -> Response:
         cite = f"[{prod.id}]"
         want = p.intents & FACTS
-        facts_only = not want and bool(p.spec.desc_tokens or p.unknown)  # "is X waterproof?" asks about one thing
+        # catalogue words that don't describe this product ("does <kettle> have bluetooth") are questions about it
+        foreign = [t for t in p.spec.type_tokens if not self.index.has_text_token(prod.id, t)]
+        facts_only = not want and bool(p.spec.desc_tokens or p.unknown or foreign)  # "is X waterproof?"
         defaults = not want and not facts_only
         sentences, supported, named = [], False, False
 
@@ -201,7 +239,7 @@ class ShoppingAssistant:
             say(f"is priced at {format_inr(prod.price)}")
             supported = True
         if "stock" in want or defaults:
-            say(f"is {_stock(prod)}")
+            say(f"is {_stock(prod)}" if prod.in_stock is not None else "has no stock status in the catalogue")
             supported = True
         if "rating" in want or defaults:
             if prod.rating is not None:
@@ -217,8 +255,8 @@ class ShoppingAssistant:
                 supported = True
             else:
                 sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
-        if "detail" in want or p.spec.desc_tokens or p.unknown:
-            extra, ok = self._description_check(prod, p)
+        if "detail" in want or p.spec.desc_tokens or p.unknown or foreign:
+            extra, ok = self._description_check(prod, p, foreign)
             sentences += extra
             supported = supported or ok
         return Response(" ".join(sentences), ANSWER if supported else REFUSE)
@@ -241,10 +279,10 @@ class ShoppingAssistant:
             lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
         return Response("\n".join(lines), ANSWER)
 
-    def _description_check(self, prod: Product, p: Parsed) -> tuple[list[str], bool]:
+    def _description_check(self, prod: Product, p: Parsed, foreign: list[str] = ()) -> tuple[list[str], bool]:
         out, ok = [], False
         in_description = self.index.desc_tokens[prod.id]
-        for tok in dict.fromkeys(p.spec.desc_tokens + p.unknown):
+        for tok in dict.fromkeys(p.spec.desc_tokens + p.unknown + list(foreign)):
             if tok in in_description:
                 sentence = next((s for s in re.split(r"(?<=[.!?])\s+", prod.description) if tok in s.lower()),
                                 prod.description)
@@ -260,6 +298,8 @@ class ShoppingAssistant:
         lines = [f"Here are the {kind} matches:"] + [_line(h) for h in shown]
         if len(hits) > len(shown):
             lines.append("There are more matches; tell me a brand, colour or budget to narrow them down.")
+        if p.mapped:
+            lines.insert(0, "(I read " + ", ".join(f'"{w}" as "{t}"' for w, t in p.mapped) + ".)")
         if relaxed and spec.desc_tokens:
             lines.append(f"I could not confirm \"{' '.join(spec.desc_tokens)}\" in the product descriptions, "
                          "so these are the closest matches.")
@@ -302,8 +342,43 @@ class ShoppingAssistant:
                 return Response("\n".join(lines), REFUSE)
         return Response(base, REFUSE)
 
+    def _alternatives(self, spec: Spec, p: Parsed, header: str) -> list[str]:
+        hits, _ = self.index.search(spec, p.all_tokens)
+        if not hits:
+            return []
+        return [header] + [_line(h) for h in hits[: self.list_limit]]
+
+    def _external(self, p: Parsed) -> Response:
+        names = " ".join(EXTERNAL_DISPLAY.get(w, w).capitalize() for w in dict.fromkeys(p.external))
+        lines = [f"I don't have {names} products in the catalogue."]
+        if p.spec.type_tokens:
+            other = p.spec.copy()
+            other.desc_tokens = []
+            lines += self._alternatives(other, p, "Similar products from brands I do carry:")
+        return Response("\n".join(lines), REFUSE)
+
+    def _external_policy(self, p: Parsed) -> Response:
+        names = " ".join(EXTERNAL_DISPLAY.get(w, w).capitalize() for w in dict.fromkeys(p.external))
+        text = f"I don't have {names} products in the catalogue, so I can't say what applies to one."
+        pol = self._policy(p)
+        if pol.action == ANSWER:
+            text += f" The general policy is: {pol.text}"
+        return Response(text, REFUSE)
+
+    def _unknown_refusal(self, p: Parsed) -> Response:
+        lines = [f"I don't have anything in the catalogue matching \"{' '.join(p.unknown)}\"."]
+        for alt in dict.fromkeys(p.alternatives):
+            lines += self._alternatives(Spec(type_tokens=[alt]), p, "The closest products I do have:")
+            break
+        return Response("\n".join(lines), REFUSE)
+
     def _policy(self, p: Parsed) -> Response:
         found = best_sentences(self.policy, p.keywords)
+        if not found and self.semantic is not None:
+            hit = self.semantic.policy_sentence(p.raw)
+            if hit:
+                sec, sentence, _ = hit
+                return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic")
         if not found:
             return Response("I don't have that in our policy information.", REFUSE)
         sec, sentences = found

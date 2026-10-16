@@ -19,7 +19,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalogue", default="data/scale/catalogue.jsonl")
     ap.add_argument("--policy", default="data/scale/policy.txt")
-    ap.add_argument("--questions", default="data/scale/hard_questions.jsonl")
+    ap.add_argument("--questions", default="data/scale/test_questions.jsonl")
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--profile", action="store_true")

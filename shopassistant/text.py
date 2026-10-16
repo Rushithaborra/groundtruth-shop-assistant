@@ -26,7 +26,16 @@ SYNONYMS = {
     "colour": "color", "colours": "color", "colors": "color",
     "cost": "price", "costs": "price", "keemat": "price", "kimat": "price",
     "daam": "price", "din": "day", "prices": "price", "pricing": "price",
-    "shipping": "ship", "shipped": "ship", "delivery": "deliver", "deliveries": "deliver",
+    # delivery and shipping are the same thing to a shopper; one token lets the policy heading bonus apply
+    "shipping": "ship", "shipped": "ship", "delivery": "ship", "deliveries": "ship", "deliver": "ship",
+    "delivered": "ship", "courier": "ship",
+    "cancelled": "cancel", "canceled": "cancel", "cancellation": "cancel", "cancellations": "cancel",
+    "refunds": "refund", "refunded": "refund", "wapas": "return", "vapas": "return",
+    "jogging": "running", "jog": "running", "jogger": "running",
+    "chappal": "sandal", "chappals": "sandal", "slipper": "sandal", "slippers": "sandal", "floaters": "sandal",
+    "kurti": "kurta", "kurtis": "kurta", "earphone": "earbud", "earphones": "earbud",
+    "ladies": "women", "lady": "women", "womens": "women", "female": "women", "girls": "women",
+    "gents": "men", "mens": "men", "male": "men", "boys": "men",
     "suti": "cotton", "sooti": "cotton",
     "run": "running", "runner": "running", "runners": "running",
     "lal": "red", "neela": "blue", "nila": "blue", "kala": "black", "safed": "white", "hara": "green",
@@ -51,7 +60,41 @@ def stem(tok: str) -> str:
 
 def normalise_word(word: str) -> str:
     word = word.lower()
-    return stem(SYNONYMS.get(word, word))
+    if word in SYNONYMS:
+        return stem(SYNONYMS[word])
+    if word in STOPWORDS:  # don't stem function words ("does" -> "doe")
+        return word
+    return stem(word)
+
+
+# Well-known brands and products the shop may not carry. Used only for words the catalogue's own vocabulary does
+# not contain, so a real catalogue that sells one of these brands parses it as a normal brand filter instead.
+_EXTERNAL_RAW = frozenset("""
+    nike adidas puma reebok skechers asics bata woodland apple iphone ipad macbook airpods samsung galaxy oneplus
+    xiaomi redmi realme oppo vivo sony boat jbl bose noise fireboltt fastrack titan casio lg whirlpool philips
+    prestige milton tupperware levis zara biba fabindia
+""".split())
+# stored in tokenised form, because query words are stemmed before this check ("adidas" -> "adida")
+EXTERNAL_DISPLAY = {stem(w): w for w in _EXTERNAL_RAW}  # stemmed form -> name to show the shopper
+EXTERNAL_BRANDS = frozenset(EXTERNAL_DISPLAY)
+
+# Places outside India: a question about delivering there is answered by the "outside India" shipping sentence.
+ABROAD = frozenset("""
+    abroad international internationally overseas foreign bahar videsh dubai uae usa america uk london england
+    canada singapore australia nepal bangladesh srilanka lanka germany europe
+""".split())
+ABROAD = frozenset(normalise_word(w) for w in ABROAD)
+
+# Spoken size words -> catalogue size values (only applied when the value exists in the catalogue).
+SIZE_WORDS = {"small": "S", "medium": "M", "large": "L", "xl": "XL", "xxl": "XXL", "xs": "XS",
+              "king": "king", "queen": "queen", "double": "double", "single": "single"}
+
+# Product words the catalogue may not sell, mapped to the nearest thing it does sell. Used only to suggest a cited
+# alternative alongside a refusal, never to answer as if the shopper asked for the alternative.
+RELATED = {"headphone": "earbud", "headset": "earbud", "airpod": "earbud", "watch": "smartwatch",
+           "bag": "backpack", "purse": "wallet", "flask": "bottle", "jacket": "hoodie", "sweatshirt": "hoodie",
+           "trousers": "jeans", "pant": "jeans", "bedcover": "bedsheet", "charger": "power"}
+RELATED = {normalise_word(k): v for k, v in RELATED.items()}
 
 
 def tokenize(text: str) -> list[str]:

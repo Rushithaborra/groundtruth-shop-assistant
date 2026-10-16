@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from .index import CatalogueIndex, Spec
-from .text import STOPWORDS, tokenize
+from .text import ABROAD, EXTERNAL_BRANDS, RELATED, SIZE_WORDS, STOPWORDS, tokenize
 
 PRICE_W = {"price", "kitna", "kitne", "kitni", "much"}
 STOCK_W = {"stock", "available", "availability", "milega", "milegi", "milenge", "instock", "left"}
@@ -39,10 +39,12 @@ _MIN = [
     re.compile(rf"{_AMT}\s*(?:se upar|se zyada|se jyada|or more|or above|and above|plus)\b"),
 ]
 _BARE = re.compile(rf"(?:₹|rs\.?|inr)\s*{_NUM}")
-_SIZE = re.compile(r"\bsize\s*[:\-]?\s*([a-z]{1,3}|\d{1,2})\b")
+_SIZE = re.compile(r"\bsize\s*[:\-]?\s*([a-z]{1,6}|\d{1,2})\b")
+_SIZE_AFTER = re.compile(r"\b([a-z]{1,6}|\d{1,2})[\s-]*size(?:d)?\b")
+_SIZE_WORD = re.compile(r"\b(" + "|".join(sorted(SIZE_WORDS, key=len, reverse=True)) + r")\b")
 
 
-@dataclass(slots=True)
+@dataclass
 class Parsed:
     raw: str
     intents: set[str] = field(default_factory=set)
@@ -52,6 +54,9 @@ class Parsed:
     detail_keys: list[str] = field(default_factory=list)
     mentioned: list[str] = field(default_factory=list)  # products whose full title is in the query
     keywords: list[str] = field(default_factory=list)   # tokens left after stopword removal (policy matching)
+    external: list[str] = field(default_factory=list)   # well-known brands/products the catalogue doesn't contain
+    alternatives: list[str] = field(default_factory=list)  # catalogue type words related to an unknown product word
+    mapped: list[tuple[str, str]] = field(default_factory=list)  # (shopper word, catalogue word) from the fallback
     all_tokens: set[str] = field(default_factory=set)   # every token (exact title matching)
 
     @property
@@ -120,6 +125,30 @@ def _repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
     return out
 
 
+def _size_value(word: str, index: CatalogueIndex) -> str | None:
+    """Map a size word to a size the catalogue actually has (\"medium\" -> \"M\", \"9\" -> \"9\")."""
+    for cand in (word, SIZE_WORDS.get(word, "")):
+        if cand and cand.lower() in index.size_values:
+            return cand
+    return None
+
+
+def _extract_size(low: str, index: CatalogueIndex) -> tuple[str | None, str, bool]:
+    """Find \"size 9\", \"size medium\", \"M size\", \"king size\", or a bare size word like \"medium\"."""
+    for pattern in (_SIZE, _SIZE_AFTER):
+        for m in pattern.finditer(low):
+            word = m.group(1)
+            value = _size_value(word, index)
+            if value is None and pattern is _SIZE and (word.isdigit() or len(word) <= 3):
+                value = word  # an explicit "size 50" the catalogue doesn't stock must still constrain (-> refuse)
+            if value:
+                return value, low[:m.start()] + " " + low[m.end():], False
+    m = _SIZE_WORD.search(low)
+    if m and (value := _size_value(m.group(1), index)):
+        return value, low[:m.start()] + " " + low[m.end():], True
+    return None, low, False
+
+
 def understand(query: str, index: CatalogueIndex) -> Parsed:
     parsed = Parsed(raw=query)
     low = " ".join(query.lower().replace("t-shirt", "tshirt").split())
@@ -135,10 +164,7 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
             low = re.sub(rf"\b{re.escape(word)}\b", " ", low, count=1)
             break
 
-    size = _SIZE.search(low)
-    if size:
-        parsed.spec.size = size.group(1)
-        low = _SIZE.sub(" ", low)
+    parsed.spec.size, low, parsed.spec.size_soft = _extract_size(low, index)
 
     low, parsed.spec.price_min, parsed.spec.price_max = _extract_money(low)
 
@@ -202,6 +228,13 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
                 parsed.spec.desc_tokens.append(tok)
         else:
             parsed.unknown.append(tok)
+            if tok in EXTERNAL_BRANDS:
+                parsed.external.append(tok)
+            elif tok in RELATED and RELATED[tok] in index.type_vocab:
+                parsed.alternatives.append(RELATED[tok])
+
+    if token_set & ABROAD:  # "delivery to dubai" is the "outside India" shipping question
+        parsed.keywords += ["outside", "india"]
 
     explicit_price = bool(token_set & {"price", "much"})
     product_ref = parsed.has_product_ref

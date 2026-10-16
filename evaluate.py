@@ -146,6 +146,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalogue", default="data/catalogue.jsonl")
     ap.add_argument("--policy", default="data/policy.txt")
+    ap.add_argument("--embed-model", help="path to the provided embedding model (needs semantic_config.json)")
+    ap.add_argument("--llm-model", help="path to the provided instruct model (last-resort query normaliser)")
     ap.add_argument("--questions", default="data/test_questions.jsonl")
     ap.add_argument("--out", default="reports")
     ap.add_argument("--price-in", type=float, default=0.0, help="USD per 1M input tokens (0 for the rules-based assistant)")
@@ -153,7 +155,8 @@ def main() -> None:
     ap.add_argument("--verbose", action="store_true", help="print every failing case")
     args = ap.parse_args()
 
-    assistant = build_assistant(args.catalogue, args.policy, measure_tokens=True)
+    assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model,
+                                measure_tokens=True)
     grounding = Grounding(assistant)
     cases = load_cases(Path(args.questions))
     rows, confusion = [], {}
@@ -172,7 +175,8 @@ def main() -> None:
             "action": resp.action, "behaviour_ok": behaviour_ok, "grounded": not g["problems"],
             "hallucinated_prices": g["hallucinated_prices"], "helpfulness": helpfulness(resp, exp, g["cited"]),
             "problems": "; ".join(g["problems"]), "latency_ms": round(resp.latency_ms, 3),
-            "context_tokens": resp.context_tokens, "output_tokens": resp.output_tokens, "reply": resp.text,
+            "context_tokens": resp.context_tokens, "output_tokens": resp.output_tokens, "path": resp.path,
+            "llm_input_tokens": resp.llm_input_tokens, "llm_output_tokens": resp.llm_output_tokens, "reply": resp.text,
         })
 
     n = len(rows)
@@ -203,6 +207,11 @@ def main() -> None:
                              "context_total": sum(ctx), "output_total": sum(out),
                              "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "
                                      "this assistant makes zero LLM calls"},
+        "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
+        "llm_tokens_real": {"input_total": sum(r["llm_input_tokens"] for r in rows),
+                            "output_total": sum(r["llm_output_tokens"] for r in rows),
+                            "calls": sum(r["path"] == "llm" for r in rows),
+                            "note": "measured from the instruct model's tokenizer; 0 when no model is configured"},
         "estimated_cost_usd": round(cost, 6),
         "confusion": {f"{a}->{b}": c for (a, b), c in sorted(confusion.items(), key=str)},
     }

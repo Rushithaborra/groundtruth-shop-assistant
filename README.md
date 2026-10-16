@@ -14,7 +14,15 @@ python -m unittest discover -s tests
 python data/generate_hard.py          # adversarial questions (typos, negation, comparisons, multi-turn, ...)
 python evaluate.py --questions data/hard_questions.jsonl --verbose
 python data/generate_scale.py         # 5,000 messy products in data/scale/ (git-ignored)
-python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt                    --questions data/scale/hard_questions.jsonl
+python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/test_questions.jsonl
+
+python data/generate_independent.py   # 60 shopper-style questions written independently of the code (data/scale/)
+python data/generate_heldout.py       # 37 held-out questions never used for tuning (data/scale/)
+python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/heldout_questions.jsonl --verbose
+
+# with the provided offline models (see "Fallbacks" below)
+python calibrate_semantic.py --embed-model PATH/TO/EMBEDDING_MODEL --catalogue PATH --policy PATH
+python chat.py --meta --embed-model PATH/TO/EMBEDDING_MODEL --llm-model PATH/TO/INSTRUCT_MODEL
 ```
 
 Swap in the real data with `--catalogue`, `--policy` and `--questions` on `chat.py` / `evaluate.py`.
@@ -38,10 +46,45 @@ cannot be produced.
 | Policy question the document doesn't cover | **Refuse** |
 | Follow-ups ("under ₹2,000, and I already said cotton", "what's the price?") | Session keeps type, filters, budget, last product |
 
-Pipeline: `understand.py` (budget, size, attribute filters, intent, typo/Hinglish handling) -> `index.py` (hard-constraint
+Pipeline: `understand.py` (budget, size, attribute filters, intent, typo/Hinglish handling) -> [miss path only:
+`semantic.py` embedding fallback -> `llm_normaliser.py` instruct-model normaliser] -> `index.py` (hard-constraint
 filtering and ranking) -> `assistant.py` (answer / clarify / refuse). The attribute vocabulary (colours, brands, materials, ...)
 is derived from the catalogue itself, so new catalogues need little configuration. Hinglish words and synonyms live in
 `shopassistant/text.py` (`SYNONYMS`, `STOPWORDS`); extend them for the real queries.
+
+## Fallbacks (provided models, miss path only)
+
+The rule-based path answers most queries in under a millisecond with no model call. Only when it leaves product
+words unrecognised do the optional fallbacks run, in this order:
+
+1. **Embedding fallback** (`shopassistant/semantic.py`, `--embed-model`). Maps an unknown shopper word to the nearest
+   catalogue product-type word ("jogging" -> "running"), never to a brand, model, colour or material. Above
+   `map_threshold` it searches for that type and says so in the reply (`(I read "jogging" as "running".)`); between
+   `alt_threshold` and `map_threshold` it refuses but lists cited alternatives; below, it refuses. It also retrieves
+   policy sentences for policy questions phrased without policy keywords. Brands the shop doesn't carry are never
+   mapped.
+2. **LLM normaliser** (`shopassistant/llm_normaliser.py`, `--llm-model`). Asks the instruct model for JSON (type,
+   filters, budget). Every field is checked against the catalogue's vocabulary, and a budget is accepted only if it is
+   one of the shopper's own numbers. The model's text never reaches the shopper. Garbage output or a model error falls
+   back to the rule-based answer.
+
+**Thresholds must be calibrated**: `python calibrate_semantic.py --embed-model PATH` sets `map_threshold` just above
+the best score of any listed word the shop doesn't sell (iphone, saree, laptop, ...), prints the evidence table and
+writes `semantic_config.json`. Without that file the embedding fallback stays off. If `should_map_recall` is low, keep
+it off rather than lowering the threshold by hand.
+
+`evaluate.py` reports `path_share` (rules / semantic / llm) and the instruct model's real token counts
+(`llm_tokens_real`), separately from the estimated context tokens.
+
+## Evaluation sets
+
+| Set | Written | What its score means |
+|---|---|---|
+| `data/test_questions.jsonl`, `data/hard_questions.jsonl`, `data/scale/test_questions.jsonl` | with the code | regression check only |
+| `data/scale/independent_questions.jsonl` (`generate_independent.py`) | before the vocabulary fixes, from a shopper's view | was 0.827 before fixes; fixes were tuned on it, so now also a regression check |
+| `data/scale/heldout_questions.jsonl` (`generate_heldout.py`) | after the fixes, never tuned on | the only generalisation estimate here: see CHANGES.md |
+
+Expected answers in the last two are derived by plain filtering of the catalogue, never by calling the assistant.
 
 ## Scoring (`evaluate.py`)
 
@@ -79,7 +122,6 @@ own bookkeeping.
 * The bundled 100-product catalogue and 63 questions are synthetic and were written together with the assistant, so
   the perfect score on them is a regression check, not evidence of accuracy. Expect real misses on the 5,000-product catalogue
   and the 150 hidden questions, mostly around vocabulary (synonyms, spellings, Hinglish), ambiguity thresholds, and policy wording.
-* The provided embedding and instruct models are not used yet. Natural extension points: embedding fallback in
-  `CatalogueIndex.search` for queries the keyword vocabulary misses, and an LLM phrasing layer that may only rephrase
-  already-cited sentences (keep the evaluator's checks as the gate).
+* The fallbacks below were tested only with fake models (`tests/test_fallbacks.py`); their real effect on the score is
+  unmeasured until they are run with the provided models.
 * `evaluate.py` `load_cases` guesses the test-file field names; adjust once the real format is known.

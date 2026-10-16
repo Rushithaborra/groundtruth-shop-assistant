@@ -14,9 +14,10 @@ from .catalogue import Product
 from .text import tokenize
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
+GENDER_KEY = "gender"
 
 
-@dataclass(slots=True)
+@dataclass
 class Spec:
     """A hard-constraint search request."""
     type_tokens: list[str] = field(default_factory=list)   # must appear in title/category/attributes
@@ -27,10 +28,12 @@ class Spec:
     price_max: float | None = None
     size: str | None = None
     sort: str | None = None  # price_asc | price_desc | rating_desc
+    size_soft: bool = False  # size came from a bare word ("large"), not "size X"; dropped for unsized products
 
     def copy(self) -> "Spec":
         return Spec(self.type_tokens[:], self.desc_tokens[:], dict(self.filters),
-                    {k: v[:] for k, v in self.exclude.items()}, self.price_min, self.price_max, self.size, self.sort)
+                    {k: v[:] for k, v in self.exclude.items()}, self.price_min, self.price_max, self.size, self.sort,
+                    self.size_soft)
 
     def is_empty(self) -> bool:
         return not (self.type_tokens or self.desc_tokens or self.filters or self.exclude or self.size
@@ -74,6 +77,7 @@ class CatalogueIndex:
             for tok in title:
                 self._title_postings[tok].add(p.id)
             df.update(text | desc)
+        self.size_values = {low for (key, low) in self._attr_postings if key == SIZE_KEY}
         n = len(products)
         self.idf = {t: math.log((n + 1) / (c + 0.5)) + 1 for t, c in df.items()}
         self.type_vocab = set(self._text_postings)
@@ -98,7 +102,11 @@ class CatalogueIndex:
     def _candidate_ids(self, spec: Spec) -> set[str]:
         """Narrow the catalogue with postings before the per-product checks."""
         sets = [self._text_postings.get(t, set()) for t in spec.type_tokens]
-        sets += [self._attr_postings.get((k, v.lower()), set()) for k, v in spec.filters.items()]
+        for k, v in spec.filters.items():
+            hit = self._attr_postings.get((k, v.lower()), set())
+            if k == GENDER_KEY and v.lower() in ("men", "women"):  # unisex items suit everyone
+                hit = hit | self._attr_postings.get((k, "unisex"), set())
+            sets.append(hit)
         if not sets:
             return set(self.products)
         sets.sort(key=len)
@@ -126,6 +134,11 @@ class CatalogueIndex:
         if not hits and spec.desc_tokens:
             hits = [p for p in pool if self._matches(p, spec, use_desc=False)]
             relaxed = bool(hits)
+        if not hits and spec.size and spec.size_soft and pool and not any(self.attr_lower[p.id].get(SIZE_KEY) for p in pool):
+            # "large water bottle": bottles have no sizes at all, so the size word was descriptive, not a filter
+            unsized = spec.copy()
+            unsized.size = None
+            return self.search(unsized, query_tokens)
         return self.rank(hits, spec, query_tokens), relaxed
 
     def rank(self, hits: list[Product], spec: Spec, query_tokens: set[str] | frozenset[str]) -> list[Product]:
@@ -140,6 +153,10 @@ class CatalogueIndex:
             rel = sum(self.idf.get(t, 1.0) for t in query_tokens & self.title_tokens[p.id])
             return (not p.in_stock, -rel, -(p.rating or 0), p.price, p.id)
         return sorted(hits, key=score)
+
+    def has_text_token(self, pid: str, token: str) -> bool:
+        """Whether a token appears in this product's title, category or attribute values."""
+        return pid in self._text_postings.get(token, ())
 
     def mentioned(self, query_tokens: set[str]) -> list[str]:
         """Products whose full title appears in the query (a longer title wins over a contained shorter one)."""
