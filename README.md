@@ -52,6 +52,45 @@ filtering and ranking) -> `assistant.py` (answer / clarify / refuse). The attrib
 is derived from the catalogue itself, so new catalogues need little configuration. Hinglish words and synonyms live in
 `shopassistant/text.py` (`SYNONYMS`, `STOPWORDS`); extend them for the real queries.
 
+## Web UI
+
+```bash
+python3 web.py                       # then open http://127.0.0.1:8000
+python3 web.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --snapshot 2026-10-01
+# retailer view: http://127.0.0.1:8000/insights
+```
+
+![Chat with cited answers, a clarifying question and a policy answer](docs/ui-chat.png)
+
+![Tapping a citation flips the answer to show the catalogue record behind it](docs/ui-receipt.png)
+
+![Comparing three cited products side by side](docs/ui-compare.png)
+
+![Retailer view: what shoppers asked for and how it was handled](docs/ui-insights.png)
+
+Standard library only and fully offline: no CDN scripts, no web fonts, no new dependencies. What it shows:
+
+* **Receipts.** Every citation is a chip. Tap it and the answer card flips over to show the exact catalogue record,
+  or the policy section with the sentence the answer used highlighted.
+* **A check on every reply.** Each reply is re-run through the same independent grounding checker `evaluate.py`
+  uses, and the result is shown next to it ("3 sources checked", or the problem if a check ever fails).
+* **Remembered from this chat.** The filters and budget carried between turns, with a "Start over" control.
+* **How I read your last message.** The product, filters, budget and unrecognised words picked out of the query.
+* **This answer.** Which path answered it (rules, embedding or language model), time taken, and model tokens.
+* **Asked for, not stocked.** Refused requests collected per chat, as a demand signal for the retailer.
+* **Compare.** "Add to compare" on up to three product records, then one tap asks the assistant to compare them.
+  The reply is the normal cited answer, plus a side-by-side table built from the cited records (differences shaded).
+* **Prices as of a date.** The catalogue snapshot date is shown in the header and next to every price. Pass
+  `--snapshot 2026-10-01`; otherwise the catalogue file's last-modified date is used and labelled as such.
+* **Retailer view** at `/insights`: how questions were handled (answered, clarified, refused), replies that failed
+  the grounding check (should stay 0), median and slow-tail latency, share needing a model, the most-requested items
+  that aren't stocked (downloadable CSV), and the products that most often needed a clarifying question. Counts and
+  short product labels only, in memory; full messages and session ids are never stored.
+* A roadmap of features that are not built, labelled as such.
+
+Light and dark mode, keyboard accessible, works on mobile, respects reduced motion. `tests/test_web.py` covers the
+server.
+
 ## Fallbacks (provided models, miss path only)
 
 The rule-based path answers most queries in under a millisecond with no model call. Only when it leaves product

@@ -15,6 +15,7 @@ STOPWORDS = set(
     ander rs inr rupee rupees rupaye ruppees stock available availability already said told mentioned earlier before still ones now instead
     rather kitne kitna kitni din abhi something anything good nice great cool decent quality product most least actually anyway okay ok yes yeah hmm except without excluding nahi
     products item items thing things recommend suggestion
+    compare comparison vs versus between
     """.split()
 )
 
@@ -75,7 +76,9 @@ _EXTERNAL_RAW = frozenset("""
     prestige milton tupperware levis zara biba fabindia
 """.split())
 # stored in tokenised form, because query words are stemmed before this check ("adidas" -> "adida")
-EXTERNAL_DISPLAY = {stem(w): w for w in _EXTERNAL_RAW}  # stemmed form -> name to show the shopper
+_BRAND_CASE = {"iphone": "iPhone", "ipad": "iPad", "macbook": "MacBook", "airpods": "AirPods", "oneplus": "OnePlus",
+               "jbl": "JBL", "lg": "LG", "boat": "boAt", "fireboltt": "Fire-Boltt", "levis": "Levis"}
+EXTERNAL_DISPLAY = {stem(w): _BRAND_CASE.get(w, w.capitalize()) for w in _EXTERNAL_RAW}  # stemmed -> shown name
 EXTERNAL_BRANDS = frozenset(EXTERNAL_DISPLAY)
 
 # Places outside India: a question about delivering there is answered by the "outside India" shipping sentence.

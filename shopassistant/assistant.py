@@ -167,6 +167,14 @@ class ShoppingAssistant:
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
             return self._no_match(spec, p)
+        new_words = p.spec.desc_tokens
+        only_words = not (p.spec.filters or p.spec.size or p.spec.sort or p.spec.price_min is not None
+                          or p.spec.price_max is not None)
+        if p.refined and relaxed and new_words and only_words and \
+                not any(t in self.index.desc_tokens[h.id] for h in hits for t in new_words):
+            # "laptop" after "black hoodie": none of the products being discussed match, so don't re-show them
+            return Response(f"I don't have anything matching \"{' '.join(new_words)}\" among the products we were "
+                            "looking at. Tell me what you'd like instead, or say \"start over\".", REFUSE)
         session.spec = spec
 
         specific = p.intents & {"price", "rating", "detail"}
@@ -216,6 +224,7 @@ class ShoppingAssistant:
                 setattr(merged, attr, getattr(s, attr))
         if s.size is not None:
             merged.size_soft = s.size_soft
+        p.refined = True
         return None, merged
 
     # -- answer builders -----------------------------------------------------------------------
@@ -349,7 +358,7 @@ class ShoppingAssistant:
         return [header] + [_line(h) for h in hits[: self.list_limit]]
 
     def _external(self, p: Parsed) -> Response:
-        names = " ".join(EXTERNAL_DISPLAY.get(w, w).capitalize() for w in dict.fromkeys(p.external))
+        names = " ".join(EXTERNAL_DISPLAY.get(w, w.capitalize()) for w in dict.fromkeys(p.external))
         lines = [f"I don't have {names} products in the catalogue."]
         if p.spec.type_tokens:
             other = p.spec.copy()
@@ -358,7 +367,7 @@ class ShoppingAssistant:
         return Response("\n".join(lines), REFUSE)
 
     def _external_policy(self, p: Parsed) -> Response:
-        names = " ".join(EXTERNAL_DISPLAY.get(w, w).capitalize() for w in dict.fromkeys(p.external))
+        names = " ".join(EXTERNAL_DISPLAY.get(w, w.capitalize()) for w in dict.fromkeys(p.external))
         text = f"I don't have {names} products in the catalogue, so I can't say what applies to one."
         pol = self._policy(p)
         if pol.action == ANSWER:

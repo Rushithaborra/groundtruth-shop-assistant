@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GroundTruth — the shopping assistant that shows its receipts</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%BE%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  --paper: #eef0fa;
+  --surface: #ffffff;
+  --surface-2: #f6f7fd;
+  --ink: #1c1f3b;
+  --ink-2: #545879;
+  --line: #d8dbef;
+  --accent: #4549cf;
+  --accent-soft: #e4e5fb;
+  --answer: #0d8574;
+  --answer-soft: #dcf3ef;
+  --clarify: #9a6410;
+  --clarify-soft: #fbefd9;
+  --refuse: #b83a52;
+  --refuse-soft: #fbe3e8;
+  --shadow: 0 1px 0 rgba(28, 31, 59, .04), 0 12px 32px -18px rgba(28, 31, 59, .35);
+  --radius-lg: 22px;
+  --radius-sm: 10px;
+  --font: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #11132a;
+    --surface: #1b1e3d;
+    --surface-2: #22264a;
+    --ink: #eceefe;
+    --ink-2: #a9add3;
+    --line: #333867;
+    --accent: #9da0ff;
+    --accent-soft: #2b2f63;
+    --answer: #5fd3bf;
+    --answer-soft: #163d3c;
+    --clarify: #f0be6a;
+    --clarify-soft: #3e3220;
+    --refuse: #f38aa0;
+    --refuse-soft: #42222f;
+    --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 14px 36px -18px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1100px 600px at 85% -10%, var(--accent-soft), transparent 70%), var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* ---------- layout ---------- */
+.app > * { min-width: 0; }
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 24px 0;
+}
+header.top {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: 12px;
+  display: grid; place-items: center;
+  background: var(--ink); color: var(--surface);
+  font-weight: 800; font-size: 19px; letter-spacing: -.04em;
+}
+.brand h1 { margin: 0; font-size: 20px; letter-spacing: -.02em; font-weight: 750; }
+.brand p { margin: 0; color: var(--ink-2); font-size: 13.5px; overflow-wrap: anywhere; }
+.catalogue-size { color: var(--ink-2); font-size: 13.5px; text-align: right; line-height: 1.45; }
+.catalogue-size a { color: var(--accent); font-weight: 700; text-decoration: none; }
+.catalogue-size a:hover { text-decoration: underline; }
+.tray { display: none; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 8px 10px 8px 14px;
+  background: var(--surface); border: 1px dashed var(--accent); border-radius: 14px; font-size: 13.5px; }
+.tray.show { display: flex; }
+.tray strong { font-weight: 700; margin-right: 2px; }
+.tray .pick { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.tray .pick button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+.tray .go { margin-left: auto; border: 0; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 5px 14px; font-weight: 700; cursor: pointer; }
+.tray .go:disabled { opacity: .45; cursor: default; }
+.evidence-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.evidence-actions .ask-about { margin-top: 0; }
+.add-compare { border: 1px solid var(--ink); background: transparent; border-radius: 999px; padding: 5px 14px; font-weight: 650; font-size: 13.5px; cursor: pointer; }
+.add-compare[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.as-of { font-size: 12.5px; color: var(--ink-2); }
+.compare-wrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; }
+table.compare { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 420px; }
+table.compare caption { text-align: left; padding: 8px 12px; color: var(--ink-2); font-size: 12.5px; caption-side: top; }
+table.compare th, table.compare td { padding: 7px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.compare thead th { font-weight: 750; background: var(--surface-2); }
+table.compare tbody th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+table.compare tr.differs td { background: var(--accent-soft); }
+table.compare td.best { font-weight: 800; }
+
+main.chat { display: flex; flex-direction: column; min-height: calc(100vh - 110px); }
+.messages { flex: 1; display: flex; flex-direction: column; gap: 18px; padding-bottom: 24px; }
+
+/* ---------- hero (empty state) ---------- */
+.hero { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; padding: 48px 4px 24px; }
+.hero h2 { margin: 0 0 12px; font-size: clamp(30px, 4.2vw, 46px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; max-width: 17ch; }
+.hero p { margin: 0; color: var(--ink-2); max-width: 46ch; }
+.prism-stage { width: 150px; height: 150px; perspective: 700px; }
+.prism {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  animation: turn 14s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+.face {
+  position: absolute; inset: 0;
+  border-radius: 26px;
+  display: grid; place-items: center; align-content: center; gap: 4px;
+  font-weight: 800; letter-spacing: -.03em;
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25), var(--shadow);
+}
+.face b { font-size: 54px; line-height: 1; }
+.face small { font-size: 13px; font-weight: 650; opacity: .92; letter-spacing: 0; text-align: center; padding: 0 14px; line-height: 1.25; }
+.face.f1 { background: #0d8574; color: #fff; transform: rotateY(0deg) translateZ(75px); }
+.face.f2 { background: #a86c12; color: #fff; transform: rotateY(90deg) translateZ(75px); }
+.face.f3 { background: #b83a52; color: #fff; transform: rotateY(180deg) translateZ(75px); }
+.face.f4 { background: #3a3eb8; color: #fff; transform: rotateY(270deg) translateZ(75px); }
+@keyframes turn {
+  0%, 18% { transform: rotateX(-12deg) rotateY(0deg); }
+  25%, 43% { transform: rotateX(-12deg) rotateY(-90deg); }
+  50%, 68% { transform: rotateX(-12deg) rotateY(-180deg); }
+  75%, 93% { transform: rotateX(-12deg) rotateY(-270deg); }
+  100% { transform: rotateX(-12deg) rotateY(-360deg); }
+}
+
+/* ---------- messages ---------- */
+.msg-user, .card { scroll-margin-bottom: 190px; }
+.msg-user {
+  align-self: flex-end; max-width: 78%;
+  background: var(--ink); color: var(--surface);
+  padding: 10px 16px; border-radius: 18px 18px 4px 18px;
+  overflow-wrap: anywhere;
+}
+.card { perspective: 1400px; max-width: 92%; }
+.card .inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform .7s cubic-bezier(.2, .75, .25, 1), height .35s ease;
+  animation: arrive .6s cubic-bezier(.2, .75, .25, 1);
+}
+@keyframes arrive { from { transform: rotateX(14deg) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+.card.flipped .inner { transform: rotateY(180deg); }
+.side {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 16px 18px 14px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.back { position: absolute; inset: 0; transform: rotateY(180deg); overflow: auto; background: var(--surface-2); }
+.card.flipped .front { pointer-events: none; }
+.card:not(.flipped) .back { pointer-events: none; }
+
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.badge.answer { background: var(--answer-soft); color: var(--answer); }
+.badge.clarify { background: var(--clarify-soft); color: var(--clarify); }
+.badge.refuse { background: var(--refuse-soft); color: var(--refuse); }
+.seal { font-size: 13px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+.seal svg { width: 15px; height: 15px; }
+.seal.ok svg { color: var(--answer); }
+.seal.bad { color: var(--refuse); font-weight: 650; }
+.meta { margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+
+.reply p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.reply ul, .reply ol { margin: 4px 0 8px; padding-left: 20px; }
+.reply li { margin: 4px 0; overflow-wrap: anywhere; }
+.reply .note { color: var(--ink-2); font-size: 14.5px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin: 0 2px; padding: 1px 9px 1px 7px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 12.5px; font-weight: 700; cursor: pointer; vertical-align: 1px;
+  transition: transform .15s ease, background .15s ease;
+}
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .6; }
+.chip:hover { transform: translateY(-1px); }
+.chip.policy { color: var(--answer); background: var(--answer-soft); }
+
+.evidence-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.evidence-head h3 { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
+.evidence-head span { font-size: 12.5px; color: var(--ink-2); }
+.flip-back {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 4px 12px; font-size: 13px; font-weight: 650; cursor: pointer; white-space: nowrap;
+}
+.record { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+.record dt { color: var(--ink-2); }
+.record dd { margin: 0; overflow-wrap: anywhere; }
+.record .price { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.policy-body { font-size: 14.5px; margin: 0; }
+.policy-body mark { background: var(--answer-soft); color: inherit; border-radius: 4px; padding: 0 2px; box-shadow: 0 0 0 1px var(--answer); }
+.ask-about { margin-top: 12px; border: 0; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 6px 14px; font-weight: 650; font-size: 13.5px; cursor: pointer; }
+
+.typing { display: inline-flex; gap: 5px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px 18px 18px 18px; align-self: flex-start; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-2); animation: blink 1s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* ---------- composer ---------- */
+.composer {
+  position: sticky; bottom: 0; z-index: 2;
+  padding: 10px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--paper);
+}
+.composer::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -28px; height: 28px;
+  background: linear-gradient(transparent, var(--paper)); pointer-events: none;
+}
+.examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: thin; }
+.examples button {
+  flex: none; border: 1px solid var(--line); background: var(--surface);
+  border-radius: 999px; padding: 6px 13px; font-size: 13.5px; cursor: pointer; color: var(--ink-2);
+}
+.examples button:hover { color: var(--ink); border-color: var(--accent); }
+form.ask { display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 6px 6px 6px 16px; box-shadow: var(--shadow); }
+form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; }
+form.ask:focus-within { border-color: var(--accent); }
+form.ask button { border: 0; background: var(--accent); color: #fff; border-radius: 13px; padding: 0 20px; font-weight: 700; cursor: pointer; }
+form.ask button:disabled { opacity: .5; cursor: default; }
+@media (prefers-color-scheme: dark) { form.ask button { color: #11132a; } }
+
+/* ---------- side panel ---------- */
+aside.panel { position: sticky; top: 20px; align-self: start; display: flex; flex-direction: column; gap: 14px; padding-bottom: 24px; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.box h2 { margin: 0 0 8px; font-size: 14.5px; font-weight: 750; letter-spacing: -.01em; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.box .empty { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 13px; padding: 3px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); }
+.tag.minus { text-decoration: line-through; text-decoration-color: var(--refuse); }
+.link-btn { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; white-space: nowrap; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13.5px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.gaps { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+.gaps li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.gaps li:last-child { border-bottom: 0; }
+.gaps span { color: var(--ink-2); }
+details.roadmap summary { cursor: pointer; font-size: 14.5px; font-weight: 750; list-style: none; display: flex; justify-content: space-between; }
+details.roadmap summary::-webkit-details-marker { display: none; }
+details.roadmap summary::after { content: "Show"; color: var(--accent); font-size: 13px; }
+details.roadmap[open] summary::after { content: "Hide"; }
+details.roadmap p { font-size: 13px; color: var(--ink-2); margin: 8px 0; }
+details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
+details.roadmap li { margin: 5px 0; }
+
+@media (max-width: 920px) {
+  .app { grid-template-columns: 1fr; }
+  aside.panel { position: static; order: 3; }
+  .hero { grid-template-columns: 1fr; justify-items: start; padding-top: 24px; }
+  .prism-stage { width: 110px; height: 110px; }
+  .face.f1 { transform: rotateY(0deg) translateZ(55px); }
+  .face.f2 { transform: rotateY(90deg) translateZ(55px); }
+  .face.f3 { transform: rotateY(180deg) translateZ(55px); }
+  .face.f4 { transform: rotateY(270deg) translateZ(55px); }
+  .face b { font-size: 40px; }
+  .card, .msg-user { max-width: 100%; }
+  .catalogue-size { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prism { animation: none; transform: rotateX(-12deg) rotateY(-24deg); }
+  .card .inner { animation: none; transition: none; }
+  .typing i { animation: none; opacity: .6; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">G</div>
+      <div>
+        <h1>GroundTruth</h1>
+        <p>Answers only from the catalogue, with a receipt for every claim</p>
+      </div>
+    </div>
+    <div class="catalogue-size"><span id="catalogue-size"></span><br><a href="/insights">Retailer view</a></div>
+  </header>
+
+  <main class="chat">
+    <div class="messages" id="messages" aria-live="polite">
+      <section class="hero" id="hero">
+        <div class="prism-stage" aria-hidden="true">
+          <div class="prism">
+            <div class="face f1"><b>₹</b><small>Answers with a source</small></div>
+            <div class="face f2"><b>?</b><small>Asks which one</small></div>
+            <div class="face f3"><b>✕</b><small>Says when it can't</small></div>
+            <div class="face f4"><b>✓</b><small>Checks every reply</small></div>
+          </div>
+        </div>
+        <div>
+          <h2>Ask the catalogue. It won’t make anything up.</h2>
+          <p>Every price, stock status and policy line links to the record it came from. Tap a citation to flip the answer over and see it. Hinglish is fine.</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="composer">
+      <div class="tray" id="tray" aria-live="polite"></div>
+      <div class="examples" id="examples" aria-label="Example questions">
+        <button type="button">price of the blue running shoe</button>
+        <button type="button">cotton kurta 1500 ke andar</button>
+        <button type="button">do you sell iPhones?</button>
+        <button type="button">refund kab milega</button>
+        <button type="button">sneakers for gym under 3k</button>
+        <button type="button">headphones</button>
+        <button type="button">delivery to dubai?</button>
+      </div>
+      <form class="ask" id="ask">
+        <label for="q" class="visually-hidden" style="position:absolute;left:-9999px">Your question</label>
+        <input id="q" autocomplete="off" maxlength="500" placeholder="Ask about a product, a price or a policy" required>
+        <button type="submit" id="send">Ask</button>
+      </form>
+    </div>
+  </main>
+
+  <aside class="panel" aria-label="Conversation details">
+    <section class="box">
+      <h2>Remembered from this chat <button class="link-btn" id="reset" type="button">Start over</button></h2>
+      <div id="remembered"><p class="empty">Nothing yet. Follow-ups like “under 2000” or “only cotton” build on what you asked before.</p></div>
+    </section>
+    <section class="box">
+      <h2>How I read your last message</h2>
+      <div id="reading"><p class="empty">Shows the product, filters and budget picked out of your words, and any word that matched nothing.</p></div>
+    </section>
+    <section class="box">
+      <h2>This answer</h2>
+      <div id="metrics"><p class="empty">Time taken, how it was answered, and model tokens used.</p></div>
+    </section>
+    <section class="box">
+      <h2>Asked for, not stocked</h2>
+      <div id="gaps"><p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p></div>
+    </section>
+    <section class="box">
+      <details class="roadmap">
+        <summary>Roadmap</summary>
+        <p>Not built yet. Each keeps the same rule: nothing is said without a catalogue or policy source.</p>
+        <ul>
+          <li>Voice questions in Hindi and Telugu, answered with the same citations</li>
+          <li>Search by photo, matched only to catalogue items</li>
+          <li>Live price and stock sync, replacing the fixed snapshot date</li>
+          <li>Price-drop alerts for an item a shopper asked about</li>
+          <li>Size help from the catalogue’s own size charts</li>
+        </ul>
+      </details>
+    </section>
+  </aside>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const messages = $("messages"), form = $("ask"), input = $("q"), send = $("send");
+  let sessionId = null, snapshot = "";
+  const compareSet = new Map();  // id -> title, at most 3
+  try { sessionId = sessionStorage.getItem("gt-session"); } catch (e) { sessionId = null; }
+
+  const ACTION_LABEL = { answer: "Answered", clarify: "Asked which one", refuse: "Can’t answer" };
+  const PATH_LABEL = { rules: "Catalogue rules", semantic: "Embedding fallback", llm: "Language-model fallback" };
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const el = (tag, attrs = {}, html = "") => { const n = document.createElement(tag); Object.assign(n, attrs); if (html) n.innerHTML = html; return n; };
+  const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+  fetch("/api/info").then((r) => r.json()).then((info) => {
+    snapshot = info.snapshot ? new Date(info.snapshot + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+    $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? `, prices as of ${snapshot}` : ""}`;
+  }).catch(() => {});
+
+  function chipFor(cite, sources) {
+    const src = sources[cite];
+    const isPolicy = cite.startsWith("policy:");
+    const label = isPolicy ? (src ? src.title : cite.slice(7)) + " policy" : cite;
+    return `<button type="button" class="chip${isPolicy ? " policy" : ""}" data-cite="${esc(cite)}" aria-label="Show source ${esc(label)}">${esc(label)}</button>`;
+  }
+
+  function renderReply(text, sources) {
+    const lines = text.split("\n");
+    let html = "", inList = null;
+    const close = () => { if (inList) { html += `</${inList}>`; inList = null; } };
+    for (const raw of lines) {
+      if (!raw.trim()) { close(); continue; }
+      let line = esc(raw).replace(/\[([^\]]+)\]/g, (m, c) => (sources[c] ? chipFor(c, sources) : m));
+      const bullet = raw.match(/^\s*-\s+/), numbered = raw.match(/^\s*\d+[.)]\s+/);
+      if (bullet || numbered) {
+        const kind = bullet ? "ul" : "ol";
+        if (inList !== kind) { close(); html += `<${kind}>`; inList = kind; }
+        html += `<li>${line.replace(/^\s*(-|\d+[.)])\s+/, "")}</li>`;
+      } else {
+        close();
+        const note = /^\(I read /.test(raw) ? ' class="note"' : "";
+        html += `<p${note}>${line}</p>`;
+      }
+    }
+    close();
+    return html;
+  }
+
+  function evidenceHTML(src, replyText) {
+    if (src.kind === "policy") {
+      const parts = src.body.split(/(?<=[.!?])\s+/).map((s) => (s && replyText.includes(s) ? `<mark>${esc(s)}</mark>` : esc(s)));
+      return `<div class="evidence-head"><div><h3>${esc(src.title)}</h3><span>Store policy. The highlighted sentence is the one the answer used.</span></div><button type="button" class="flip-back">Back to answer</button></div>
+              <p class="policy-body">${parts.join(" ")}</p>`;
+    }
+    const stock = src.in_stock === null ? "Not listed" : src.in_stock ? "In stock" : "Out of stock";
+    const rating = src.rating === null ? "Not rated" : `${src.rating} stars${src.rating_count ? ` from ${Number(src.rating_count).toLocaleString("en-IN")} ratings` : ""}`;
+    const attrs = Object.entries(src.attributes).map(([k, v]) => `<dt>${esc(k[0].toUpperCase() + k.slice(1))}</dt><dd>${esc(v.join(", "))}</dd>`).join("");
+    return `<div class="evidence-head"><div><h3>${esc(src.title)}</h3><span>Catalogue record ${esc(src.id)}</span></div><button type="button" class="flip-back">Back to answer</button></div>
+            <dl class="record">
+              <dt>Price</dt><dd><span class="price">${esc(src.price)}</span>${snapshot ? ` <span class="as-of">as of ${esc(snapshot)}</span>` : ""}</dd>
+              <dt>Stock</dt><dd>${stock}</dd>
+              <dt>Rating</dt><dd>${esc(rating)}</dd>
+              <dt>Category</dt><dd>${esc(src.category || "Not listed")}</dd>
+              ${attrs}
+              ${src.description ? `<dt>Description</dt><dd>${esc(src.description)}</dd>` : ""}
+            </dl>
+            <div class="evidence-actions">
+              <button type="button" class="ask-about" data-ask="${esc(src.title)}">Ask about this one</button>
+              <button type="button" class="add-compare" data-id="${esc(src.id)}" data-title="${esc(src.title)}" aria-pressed="${compareSet.has(src.id)}">${compareSet.has(src.id) ? "Added to compare" : "Add to compare"}</button>
+            </div>`;
+  }
+
+  function sealHTML(v, action) {
+    if (!v.ok) return `<span class="seal bad">Check failed: ${esc(v.problems[0] || "unsupported claim")}</span>`;
+    const icon = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const what = v.cited ? `${v.cited} source${v.cited > 1 ? "s" : ""} checked` : action === "refuse" ? "Nothing asserted" : "No claims to check";
+    return `<span class="seal ok">${icon}${what}</span>`;
+  }
+
+  function addCard(data) {
+    const card = el("article", { className: "card" });
+    const inner = el("div", { className: "inner" });
+    const front = el("div", { className: "side front" });
+    const back = el("div", { className: "side back" });
+    back.setAttribute("aria-hidden", "true");
+    front.innerHTML = `<div class="status"><span class="badge ${data.action}">${ACTION_LABEL[data.action] || data.action}</span>${sealHTML(data.verified, data.action)}
+        <span class="meta">${data.metrics.engine_ms.toFixed(2)} ms</span></div><div class="reply">${renderReply(data.text, data.sources)}</div>${compareTable(data)}`;
+    inner.append(front, back);
+    card.append(inner);
+
+    const flipTo = (cite) => {
+      back.innerHTML = evidenceHTML(data.sources[cite], data.text);
+      back.setAttribute("aria-hidden", "false");
+      front.setAttribute("aria-hidden", "true");
+      inner.style.height = Math.max(front.offsetHeight, back.scrollHeight) + "px";
+      card.classList.add("flipped");
+      back.querySelector(".flip-back").focus({ preventScroll: true });
+    };
+    const flipBack = () => {
+      card.classList.remove("flipped");
+      back.setAttribute("aria-hidden", "true");
+      front.setAttribute("aria-hidden", "false");
+      inner.style.height = front.offsetHeight + "px";
+      const reset = () => { inner.style.height = ""; };
+      setTimeout(reset, 400);
+    };
+    card.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip");
+      if (chip) { flipTo(chip.dataset.cite); return; }
+      if (e.target.closest(".flip-back")) { flipBack(); front.querySelector(`.chip`)?.focus({ preventScroll: true }); return; }
+      const cmp = e.target.closest(".add-compare");
+      if (cmp) { toggleCompare(cmp.dataset.id, cmp.dataset.title); cmp.setAttribute("aria-pressed", compareSet.has(cmp.dataset.id)); cmp.textContent = compareSet.has(cmp.dataset.id) ? "Added to compare" : "Add to compare"; return; }
+      const askBtn = e.target.closest(".ask-about");
+      if (askBtn) { flipBack(); ask(`tell me about ${askBtn.dataset.ask}`); }
+    });
+    card.addEventListener("keydown", (e) => { if (e.key === "Escape" && card.classList.contains("flipped")) flipBack(); });
+    messages.append(card);
+    return card;
+  }
+
+  function compareTable(data) {
+    const prods = Object.values(data.sources).filter((x) => x.kind === "product");
+    if (!/^Here is the comparison/.test(data.text) || prods.length < 2) return "";
+    const num = (p) => Number(String(p).replace(/[^\d.]/g, ""));
+    const keys = [...new Set(prods.flatMap((p) => Object.keys(p.attributes)))];
+    const minPrice = Math.min(...prods.map((p) => num(p.price)));
+    const maxRating = Math.max(...prods.map((p) => p.rating ?? -1));
+    const row = (label, cells, bestIdx = []) => {
+      const differs = new Set(cells).size > 1;
+      return `<tr class="${differs ? "differs" : ""}"><th scope="row">${esc(label)}</th>${cells.map((c, i) => `<td class="${bestIdx.includes(i) ? "best" : ""}">${esc(c)}</td>`).join("")}</tr>`;
+    };
+    const stock = (p) => (p.in_stock === null ? "Not listed" : p.in_stock ? "In stock" : "Out of stock");
+    let body = row("Price", prods.map((p) => p.price), prods.map((p, i) => (num(p.price) === minPrice ? i : -1)));
+    body += row("Rating", prods.map((p) => (p.rating === null ? "Not rated" : `${p.rating} (${Number(p.rating_count || 0).toLocaleString("en-IN")})`)), prods.map((p, i) => (p.rating === maxRating ? i : -1)));
+    body += row("Stock", prods.map(stock));
+    keys.forEach((k) => { body += row(k[0].toUpperCase() + k.slice(1), prods.map((p) => (p.attributes[k] || ["—"]).join(", "))); });
+    return `<div class="compare-wrap"><table class="compare"><caption>Side by side from the cited catalogue records. Shaded rows differ; bold is lowest price or highest rating.</caption>
+      <thead><tr><th scope="col"></th>${prods.map((p) => `<th scope="col">${esc(p.title)} <button type="button" class="chip" data-cite="${esc(p.id)}">${esc(p.id)}</button></th>`).join("")}</tr></thead>
+      <tbody>${body}</tbody></table></div>`;
+  }
+
+  function renderTray() {
+    const tray = $("tray");
+    if (!compareSet.size) { tray.classList.remove("show"); tray.innerHTML = ""; return; }
+    tray.classList.add("show");
+    tray.innerHTML = `<strong>Compare</strong>${[...compareSet].map(([id, title]) => `<span class="pick" title="${esc(title)}">${esc(id)}<button type="button" data-remove="${esc(id)}" aria-label="Remove ${esc(title)}">×</button></span>`).join("")}
+      <button type="button" class="go" ${compareSet.size < 2 ? "disabled" : ""}>${compareSet.size < 2 ? "Pick one more" : `Compare ${compareSet.size}`}</button>`;
+  }
+
+  function toggleCompare(id, title) {
+    if (compareSet.has(id)) compareSet.delete(id);
+    else {
+      if (compareSet.size >= 3) compareSet.delete(compareSet.keys().next().value);
+      compareSet.set(id, title);
+    }
+    renderTray();
+  }
+
+  $("tray").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-remove]");
+    if (rm) { compareSet.delete(rm.dataset.remove); renderTray(); document.querySelectorAll(`.add-compare[data-id="${rm.dataset.remove}"]`).forEach((b) => { b.setAttribute("aria-pressed", "false"); b.textContent = "Add to compare"; }); return; }
+    if (e.target.closest(".go") && compareSet.size >= 2) {
+      const ids = [...compareSet.keys()];
+      compareSet.clear(); renderTray();
+      document.querySelectorAll(".add-compare").forEach((b) => { b.setAttribute("aria-pressed", "false"); b.textContent = "Add to compare"; });
+      ask(`compare ${ids.join(" and ")} price rating stock`);
+    }
+  });
+
+  function tagsHTML(r) {
+    const tags = [];
+    r.looking_for.forEach((t) => tags.push(`<span class="tag">${esc(t)}</span>`));
+    r.features.forEach((t) => tags.push(`<span class="tag">${esc(t)}</span>`));
+    Object.entries(r.filters).forEach(([k, v]) => tags.push(`<span class="tag">${esc(k)}: ${esc(v)}</span>`));
+    Object.entries(r.excluding || {}).forEach(([k, vs]) => vs.forEach((v) => tags.push(`<span class="tag minus" title="excluded">${esc(k)}: ${esc(v)}</span>`)));
+    if (r.budget_min != null && r.budget_max != null) tags.push(`<span class="tag">${rupees(r.budget_min)}–${rupees(r.budget_max)}</span>`);
+    else if (r.budget_max != null) tags.push(`<span class="tag">Under ${rupees(r.budget_max)}</span>`);
+    else if (r.budget_min != null) tags.push(`<span class="tag">Over ${rupees(r.budget_min)}</span>`);
+    if (r.size) tags.push(`<span class="tag">Size ${esc(r.size)}</span>`);
+    if (r.sort) tags.push(`<span class="tag">${esc(r.sort.replace("_", " ").replace("asc", "low to high").replace("desc", "high to low"))}</span>`);
+    return tags.join("");
+  }
+
+  function updatePanel(d) {
+    const rem = tagsHTML(d.remembered) + (d.remembered.last_product ? `<span class="tag">Talking about ${esc(d.remembered.last_product)}</span>` : "");
+    $("remembered").innerHTML = rem ? `<div class="tags">${rem}</div>` : `<p class="empty">Nothing remembered. Your next message starts fresh.</p>`;
+
+    const r = d.reading, rows = [];
+    const add = (k, v) => v && rows.push(`<dt>${k}</dt><dd>${v}</dd>`);
+    add("Looking for", esc(r.looking_for.join(", ")));
+    add("Features", esc(r.features.join(", ")));
+    add("Filters", esc(Object.entries(r.filters).map(([k, v]) => `${k} ${v}`).join(", ")));
+    add("Budget", r.budget_max != null ? `up to ${rupees(r.budget_max)}` + (r.budget_min != null ? ` from ${rupees(r.budget_min)}` : "") : r.budget_min != null ? `from ${rupees(r.budget_min)}` : "");
+    add("Size", esc(r.size || ""));
+    const INTENT = { search: "finding products", price: "price", stock: "stock", rating: "ratings", detail: "details", policy: "a policy", compare: "a comparison" };
+    add("Asking about", esc(r.asking_about.map((i) => INTENT[i] || i).join(", ")));
+    add("Read as", esc(r.read_as.map(([a, b]) => `“${a}” → ${b}`).join(", ")));
+    add("Brands not carried", esc(r.brands_not_carried.join(", ")));
+    add("No match for", esc(r.not_recognised.filter((w) => !r.brands_not_carried.includes(w)).join(", ")));
+    $("reading").innerHTML = rows.length ? `<dl class="kv">${rows.join("")}</dl>` : `<p class="empty">Nothing specific picked out of that message.</p>`;
+
+    const m = d.metrics, t = d.totals;
+    const llm = m.llm_input_tokens + m.llm_output_tokens;
+    $("metrics").innerHTML = `<dl class="kv">
+        <dt>Answered by</dt><dd>${PATH_LABEL[m.path] || esc(m.path)}</dd>
+        <dt>Time</dt><dd>${m.engine_ms.toFixed(2)} ms (${m.with_checks_ms.toFixed(2)} ms with checks)</dd>
+        <dt>Model tokens</dt><dd>${llm ? `${m.llm_input_tokens} in, ${m.llm_output_tokens} out` : "0 — no model call needed"}</dd>
+        <dt>This chat</dt><dd>${t.queries} question${t.queries > 1 ? "s" : ""}, ${t.mean_ms.toFixed(2)} ms average, ${t.llm_tokens} model tokens</dd>
+      </dl>`;
+
+    $("gaps").innerHTML = d.gaps.length
+      ? `<ul class="gaps">${d.gaps.map(([w, n]) => `<li>${esc(w)}<span>${n}×</span></li>`).join("")}</ul>`
+      : `<p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p>`;
+  }
+
+  async function ask(text) {
+    text = text.trim();
+    if (!text) return;
+    $("hero")?.remove();
+    messages.append(el("div", { className: "msg-user", textContent: text }));
+    const typing = el("div", { className: "typing" }, "<i></i><i></i><i></i>");
+    typing.setAttribute("aria-label", "Checking the catalogue");
+    messages.append(typing);
+    typing.scrollIntoView({ behavior: "smooth", block: "end" });
+    send.disabled = true;
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId, message: text }) });
+      const data = await res.json();
+      typing.remove();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      sessionId = data.session_id;
+      try { sessionStorage.setItem("gt-session", sessionId); } catch (e) {}
+      const card = addCard(data);
+      updatePanel(data);
+      card.scrollIntoView({ behavior: "smooth", block: "end" });
+    } catch (err) {
+      typing.remove();
+      const card = el("article", { className: "card" });
+      card.innerHTML = `<div class="inner"><div class="side front"><div class="status"><span class="badge refuse">Not sent</span></div><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that web.py is still running, then try again." : err.message)}</p></div></div>`;
+      messages.append(card);
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  }
+
+  form.addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; ask(t); });
+  $("examples").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) ask(b.textContent); });
+  $("reset").addEventListener("click", async () => {
+    try {
+      const res = await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) });
+      const data = await res.json();
+      sessionId = data.session_id;
+      $("remembered").innerHTML = `<p class="empty">Cleared. Your next message starts fresh.</p>`;
+      messages.append(el("p", { className: "seal", textContent: "Started over: earlier filters and budget are forgotten." }));
+    } catch (e) {}
+  });
+  input.focus();
+})();
+</script>
+</body>
+</html>

@@ -57,6 +57,7 @@ class Parsed:
     external: list[str] = field(default_factory=list)   # well-known brands/products the catalogue doesn't contain
     alternatives: list[str] = field(default_factory=list)  # catalogue type words related to an unknown product word
     mapped: list[tuple[str, str]] = field(default_factory=list)  # (shopper word, catalogue word) from the fallback
+    refined: bool = False  # set by the assistant when this turn was merged into the previous search
     all_tokens: set[str] = field(default_factory=set)   # every token (exact title matching)
 
     @property
@@ -157,12 +158,15 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         parsed.intents.add("reset")
         return parsed
 
-    # explicit product id (e.g. "P0042")
+    # explicit product ids ("P0042"); two or more ("compare P0042 and P0057") are a comparison
+    ids = []
     for word in re.findall(r"[a-z0-9_-]+", low):
-        if word.upper() in index.ids_upper:
-            parsed.product_id = index.ids_upper[word.upper()]
+        pid = index.ids_upper.get(word.upper())
+        if pid and pid not in ids:
+            ids.append(pid)
             low = re.sub(rf"\b{re.escape(word)}\b", " ", low, count=1)
-            break
+    if len(ids) == 1:
+        parsed.product_id = ids[0]
 
     parsed.spec.size, low, parsed.spec.size_soft = _extract_size(low, index)
 
@@ -171,7 +175,8 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     tokens = _repair_tokens(tokenize(low), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
-    parsed.mentioned = index.mentioned(token_set)
+    parsed.mentioned = ids + [m for m in index.mentioned(token_set) if m not in ids] if len(ids) > 1 \
+        else index.mentioned(token_set)
     consumed = [False] * len(tokens)
 
     # attribute-value filters (colour, material, brand, ...); longest values first

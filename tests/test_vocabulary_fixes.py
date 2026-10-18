@@ -115,6 +115,29 @@ class VocabularyFixTests(unittest.TestCase):
             self.assertEqual(r.action, REFUSE, q)
             self.assertIn(q.split()[0].capitalize(), r.text)  # shown unstemmed: "Adidas", not "Adida"
 
+    def test_brand_names_keep_their_own_spelling(self):
+        self.assertTrue(self.ask("do you sell iPhones?").text.startswith("I don't have iPhone"))
+
+    def test_follow_up_naming_something_unsold_is_refused_not_relisted(self):
+        r = self.ask("black hoodie", "laptop")
+        self.assertEqual(r.action, REFUSE)  # never a fresh listing presented as an answer
+        s = Session()
+        for t in ("black hoodie", "laptop", "under 3000"):  # the earlier search is kept, not polluted
+            r = self.a.ask(t, s)
+        self.assertEqual(r.action, ANSWER)
+        self.assertTrue(all("Hoodie" in p.title and p.price <= 3000 for p in self.cited_products(r)))
+
+    def test_compare_by_product_ids(self):
+        ids = sorted(self.products)[:3]
+        r = self.ask(f"compare {ids[0]} and {ids[1]} vs {ids[2]}")
+        self.assertEqual(r.action, ANSWER)
+        self.assertEqual(set(r.citations), set(ids))
+
+    def test_single_product_id_still_answers_about_that_product(self):
+        pid = sorted(self.products)[0]
+        r = self.ask(f"{pid} price")
+        self.assertEqual((r.action, r.citations), (ANSWER, [pid]))
+
     def test_unsold_product_offers_closest_alternative(self):
         r = self.ask("headphones")
         self.assertEqual(r.action, REFUSE)

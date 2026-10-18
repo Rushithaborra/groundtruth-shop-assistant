@@ -70,6 +70,28 @@ and the brand list itself is hand-written world knowledge.
    `tests/test_fallbacks.py`.
 4. **Docs**: README commands fixed and extended, and this file.
 
+## Web UI (later commit)
+
+`web.py` and `web/index.html`: a local, offline web interface (see README "Web UI"). The problem statement scores a
+notebook, CLI and web page equally, so this does not change `evaluate.py`'s score; it exists to make grounding visible
+to a human reviewer. Also in this commit: brand names in refusals keep their own spelling ("iPhone", not "Iphone").
+Tests: `tests/test_web.py`. Scores on all evaluation sets are unchanged.
+
+## Compare, retailer view, snapshot date, and two engine fixes (later commit)
+
+* **Engine fix: comparing by product id.** "compare P0001 and P0002" used to recognise only the first id and refuse.
+  All ids in a message are now read; two or more make a comparison. Comparison words ("compare", "vs") are filler.
+* **Engine fix: unsold item as a follow-up.** After "black hoodie", asking "laptop" used to re-show the black hoodies
+  as an answer (present in the original code too). Now, when a follow-up's new words match none of the products
+  being discussed, the assistant refuses and keeps the earlier search intact. Found by testing the UI, not from the
+  held-out set, so the held-out score (0.942, unchanged) is not affected by it.
+* **Compare in the UI**, built on the engine's existing comparison: the table only shows fields from cited records.
+* **Retailer view** (`/insights`) and CSV export of refused requests; counts and short labels only.
+* **Snapshot date** on every price (`--snapshot`, default: catalogue file date, labelled as such).
+* Roadmap trimmed to what is not built. Not built, deliberately: voice input (browser speech recognition sends audio
+  to a cloud service, which breaks the offline requirement), photo search (no vision model is provided), price-drop
+  alerts and live sync (no live price feed; it would be a mock).
+
 ## Before submitting
 
 1. Run `calibrate_semantic.py` with the provided embedding model and read its table. Add words from the real
