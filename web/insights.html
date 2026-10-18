@@ -2,32 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GroundTruth — retailer view</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E">
 <style>
 :root {
-  --paper: #eef0fa; --surface: #ffffff; --surface-2: #f6f7fd; --ink: #1c1f3b; --ink-2: #545879; --line: #d8dbef;
-  --accent: #4549cf; --accent-soft: #e4e5fb; --answer: #0d8574; --clarify: #a86c12; --refuse: #b83a52;
+  --paper: #f4ece1; --surface: #fffaf3; --surface-2: #f6ede1; --ink: #3a2a20; --ink-2: #7a6556; --line: #e8dccb;
+  --accent: #6f4630; --accent-soft: #f1e3d1; --answer: #8b5a3c; --clarify: #d9bf9f; --refuse: #6e3524;
   --font: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
   color-scheme: light; box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-@media (prefers-color-scheme: dark) {
-  :root { --paper: #11132a; --surface: #1b1e3d; --surface-2: #22264a; --ink: #eceefe; --ink-2: #a9add3; --line: #333867;
-    --accent: #9da0ff; --accent-soft: #2b2f63; --answer: #5fd3bf; --clarify: #f0be6a; --refuse: #f38aa0; color-scheme: dark; }
-}
 *, *::before, *::after { box-sizing: inherit; }
+body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background:
+    radial-gradient(900px 640px at 0% 0%, rgba(232, 206, 172, .9) 0%, rgba(232, 206, 172, 0) 65%),
+    radial-gradient(860px 680px at 100% 0%, rgba(240, 224, 200, .9) 0%, rgba(240, 224, 200, 0) 62%),
+    radial-gradient(980px 760px at 100% 100%, rgba(222, 192, 158, .85) 0%, rgba(222, 192, 158, 0) 64%),
+    radial-gradient(820px 660px at 0% 100%, rgba(246, 232, 210, .9) 0%, rgba(246, 232, 210, 0) 62%); }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 24px; }
 header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
-h1 { margin: 0; font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.03em; font-weight: 800; }
+h1 { margin: 0; font-size: clamp(28px, 3.6vw, 40px); letter-spacing: -.04em; font-weight: 900; }
 header p { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; max-width: 60ch; }
-a.back { color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
+a.back { color: var(--ink); background: var(--surface); border: 1px solid var(--line); font-weight: 750; text-decoration: none; font-size: 14px; padding: 7px 14px; border-radius: 999px; }
 a.back:hover { text-decoration: underline; }
 
-.mix { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; margin-bottom: 16px; }
+.mix { background: rgba(255, 250, 243, .62); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; margin-bottom: 16px; }
 .mix-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .mix-top h2 { margin: 0; font-size: 16px; font-weight: 750; }
 .mix-top span { color: var(--ink-2); font-size: 14px; }
@@ -37,14 +39,14 @@ a.back:hover { text-decoration: underline; }
 .legend li::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; background: var(--c); vertical-align: 0; }
 
 .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.fact { background: rgba(255, 250, 243, .62); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
 .fact dt { color: var(--ink-2); font-size: 13px; }
-.fact dd { margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.fact dd { margin: 2px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.03em; }
 .fact dd small { font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
-.fact.good dd { color: var(--answer); }
+.fact.good dd { color: #6f4630; }
 
 .cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
-.box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+.box { background: rgba(255, 250, 243, .62); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
 .box h2 { margin: 0 0 4px; font-size: 16px; font-weight: 750; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .box > p { margin: 0 0 12px; color: var(--ink-2); font-size: 13.5px; }
 .dl { border: 1px solid var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; color: var(--ink); text-decoration: none; white-space: nowrap; }
@@ -53,7 +55,7 @@ ol.rank li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padd
 ol.rank li:first-child { border-top: 0; }
 ol.rank .label { overflow-wrap: anywhere; }
 ol.rank .n { color: var(--ink-2); }
-ol.rank .meter { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+ol.rank .meter { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: rgba(255, 250, 243, .8); overflow: hidden; }
 ol.rank .meter i { display: block; height: 100%; background: var(--refuse); border-radius: 999px; }
 ol.rank.amber .meter i { background: var(--clarify); }
 .empty { color: var(--ink-2); font-size: 14px; margin: 6px 0 0; }
@@ -106,7 +108,7 @@ ol.rank.amber .meter i { background: var(--clarify); }
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pct = (n, t) => (t ? Math.round((n / t) * 100) : 0);
-  const KINDS = [["answer", "Answered", "var(--answer)"], ["clarify", "Asked which one", "var(--clarify)"], ["refuse", "Couldn’t answer", "var(--refuse)"]];
+  const KINDS = [["answer", "Answered", "var(--answer)"], ["clarify", "Asked which one", "var(--clarify)"], ["refuse", "Not in catalogue", "var(--refuse)"]];
 
   function rank(items, cls) {
     if (!items.length) return null;

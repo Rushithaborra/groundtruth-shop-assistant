@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from .catalogue import Product
 from .index import SIZE_KEY, CatalogueIndex, Spec
 from .policy import Section, best_sentences
-from .text import EXTERNAL_DISPLAY, approx_tokens, format_inr
+from .text import EXTERNAL_DISPLAY, approx_tokens, format_inr, tokenize
 from .understand import Parsed, understand
 
 ANSWER, CLARIFY, REFUSE = "answer", "clarify", "refuse"
@@ -51,6 +51,18 @@ class Session:
         self.spec, self.last_product = Spec(), None
 
 
+def _head_nouns(index: CatalogueIndex) -> frozenset:
+    """Words that name what a product is: the last word of each title (\"... Running Shoes (Blue)\" -> \"shoe\")."""
+    nouns = set()
+    for p in index.products.values():
+        words = [w.replace("-", "") for w in p.title.split("(")[0].split()]  # "T-Shirt" -> "TShirt"
+        words = [w for w in words if w.isalpha()]
+        if words:
+            toks = tokenize(words[-1])
+            nouns.update(toks[-1:])
+    return frozenset(nouns)
+
+
 def _stock(p: Product) -> str:
     if p.in_stock is None:
         return "stock status not listed"
@@ -72,6 +84,7 @@ class ShoppingAssistant:
                  measure_tokens: bool = False, semantic=None, normaliser=None):
         self.index, self.policy = index, policy
         self.semantic = semantic      # optional SemanticFallback (embedding model), miss path only
+        self.head_nouns = _head_nouns(index)
         self.normaliser = normaliser  # optional LLMNormaliser (instruct model), last resort on the miss path
         self.sections = {s.id: s for s in policy}
         self.list_limit, self.clarify_limit = list_limit, clarify_limit
@@ -123,6 +136,13 @@ class ShoppingAssistant:
         if "reset" in p.intents:
             session.clear()
             return Response("Okay, starting fresh. What are you looking for?", CLARIFY)
+        if "thanks" in p.intents:
+            return Response("You're welcome! Ask me about another product, a price or a store policy whenever you like.",
+                            CLARIFY)
+        if "account" in p.intents:
+            return Response("I can't see orders, accounts, payments, stores or offers. I can only answer from the product "
+                            "catalogue and the store's returns, exchange, shipping, cancellation and warranty policies.",
+                            REFUSE)
         if "greet" in p.intents:
             return Response("Hi! I can help you find products, check price, stock and ratings, and answer "
                             "questions about returns, shipping and warranty. What do you need?", CLARIFY)
@@ -152,7 +172,10 @@ class ShoppingAssistant:
             p.unknown = p.unknown + spec.desc_tokens
             p.spec.desc_tokens = spec.desc_tokens = []
         known = len(p.spec.type_tokens) + len(p.spec.desc_tokens) + len(p.spec.filters)
-        names_product = bool(p.spec.type_tokens)  # "sneakers for gym": shoes are sold, gym is a modifier; a colour alone is not
+        # "sneakers for gym": shoes are sold, gym is a modifier. But a describing word alone ("wireless mouse",
+        # "electric scooter") doesn't name a product we sell, and neither does a colour.
+        # (a fallback that already identified the product type counts as naming it)
+        names_product = any(t in self.head_nouns for t in p.spec.type_tokens) or bool(p.mapped)
         if p.unknown and not names_product and len(p.unknown) >= max(known, 1):
             if self.semantic is not None and not p.external:  # "money back timeline": a policy question in other words
                 hit = self.semantic.policy_sentence(p.raw)
@@ -160,10 +183,13 @@ class ShoppingAssistant:
                     sec, sentence, _ = hit
                     return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic")
             return self._unknown_refusal(p)
-        if spec.is_empty():
+        only_exclusions = not (spec.type_tokens or spec.filters or spec.desc_tokens or spec.size or spec.sort
+                               or spec.price_min is not None or spec.price_max is not None)
+        if (spec.is_empty() or only_exclusions) and not spec.sort:  # "not nike" alone says what isn't wanted
             return Response("What are you looking for? Tell me the kind of product, and a brand, colour or budget "
                             "if you have one.", CLARIFY)
 
+        unlisted = self._unlisted_filters(spec, p)
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
             return self._no_match(spec, p)
@@ -200,7 +226,11 @@ class ShoppingAssistant:
             return self._product_answer(pick, p, lead=lead)
 
         session.last_product = hits[0].id if len(hits) == 1 else None
-        return self._listing(hits, p, spec, relaxed)
+        resp = self._listing(hits, p, spec, relaxed)
+        if unlisted:
+            resp.text += (f"\n(The catalogue doesn't list {' or '.join(unlisted)} for these products, so I couldn't "
+                          "filter by it.)")
+        return resp
 
     def _resolve(self, p: Parsed, session: Session) -> tuple[Product | None, Spec]:
         """Decide whether the turn is about one known product, a new search, or a refinement."""
@@ -303,7 +333,7 @@ class ShoppingAssistant:
 
     def _listing(self, hits: list[Product], p: Parsed, spec: Spec, relaxed: bool) -> Response:
         shown = hits[: self.list_limit]
-        kind = {"price_asc": "lowest-priced", "rating_desc": "highest-rated"}.get(spec.sort, "best")
+        kind = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}.get(spec.sort, "best")
         lines = [f"Here are the {kind} matches:"] + [_line(h) for h in shown]
         if len(hits) > len(shown):
             lines.append("There are more matches; tell me a brand, colour or budget to narrow them down.")
@@ -330,6 +360,13 @@ class ShoppingAssistant:
             lines.append("You can tell me the " + " or ".join(varying) + " to pick one.")
         return Response("\n".join(lines), CLARIFY)
 
+    @staticmethod
+    def _describe(spec: Spec) -> str:
+        """The shopper's request in their own terms, e.g. \"cotton kurta\" or \"blue running shoe\"."""
+        words = list(dict.fromkeys([str(v).lower() for v in spec.filters.values()] + spec.type_tokens
+                                   + spec.desc_tokens))
+        return " ".join(words)
+
     def _no_match(self, spec: Spec, p: Parsed) -> Response:
         base = "I don't have that in the catalogue."
         if spec.price_max is not None or spec.price_min is not None:
@@ -339,6 +376,17 @@ class ShoppingAssistant:
             if alt:
                 lowest = spec.price_max is not None
                 pick = (min if lowest else max)(alt, key=lambda x: x.price)
+                what = self._describe(spec)
+                if what:
+                    if spec.price_min is not None and spec.price_max is not None:
+                        budget = f"between {format_inr(spec.price_min)} and {format_inr(spec.price_max)}"
+                    elif lowest:
+                        budget = f"under {format_inr(spec.price_max)}"
+                    else:
+                        budget = f"over {format_inr(spec.price_min)}"
+                    return Response(f"No {what} {budget} in the catalogue; the "
+                                    f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
+                                    f"at {format_inr(pick.price)} [{pick.id}].", REFUSE)
                 return Response(f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
                                 f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].", REFUSE)
         if spec.filters or spec.size:
@@ -350,6 +398,19 @@ class ShoppingAssistant:
                 lines += [f"- {h.title} [{h.id}]" for h in alt[: self.list_limit]]
                 return Response("\n".join(lines), REFUSE)
         return Response(base, REFUSE)
+
+    def _unlisted_filters(self, spec: Spec, p: Parsed) -> list[str]:
+        """Drop filters on an attribute that none of the requested products has (\"smartwatch for women\" when
+        smartwatches list no gender): filtering by it would wrongly refuse. Returns the dropped attribute names."""
+        if not (spec.filters and spec.type_tokens):
+            return []
+        base = spec.copy()
+        base.filters, base.price_min, base.price_max, base.size = {}, None, None, None
+        pool, _ = self.index.search(base, p.all_tokens)
+        dropped = [k for k in spec.filters if pool and not any(x.attr_values(k) for x in pool)]
+        for k in dropped:
+            del spec.filters[k]
+        return dropped
 
     def _alternatives(self, spec: Spec, p: Parsed, header: str) -> list[str]:
         hits, _ = self.index.search(spec, p.all_tokens)

@@ -73,8 +73,9 @@ class LLMNormaliser:
         if flagged & set(parsed.unknown):
             return (n_in, n_out)  # the model agrees these words aren't sold: keep the refusal path
         ptype = data.get("product_type")
-        if isinstance(ptype, str) and ptype.lower() in types and ptype.lower() not in parsed.spec.type_tokens:
-            parsed.spec.type_tokens.append(ptype.lower())
+        if isinstance(ptype, str) and ptype.lower() in types:  # validated; recorded even if the rules agreed
+            if ptype.lower() not in parsed.spec.type_tokens:
+                parsed.spec.type_tokens.append(ptype.lower())
             parsed.mapped.append((" ".join(parsed.unknown) or parsed.raw, ptype.lower()))
         filters = data.get("filters") if isinstance(data.get("filters"), dict) else {}
         for key, value in filters.items():

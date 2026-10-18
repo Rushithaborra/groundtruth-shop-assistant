@@ -16,14 +16,28 @@ RATING_W = {"rating", "rated", "review", "star", "feedback"}
 POLICY_W = {"return", "cash", "refund", "exchange", "replace", "replacement", "warranty", "guarantee", "shipping", "ship",
             "delivery", "deliver", "cod", "cancel", "cancellation", "wapas", "policy", "courier", "dispatch"}
 CHEAP_W = {"cheapest", "cheap", "cheaper", "sasta", "sasti", "lowest", "affordable"}
-EXPENSIVE_W = {"costliest", "costlier", "expensive", "priciest", "pricier", "mehnga", "mehnge", "premium"}
+EXPENSIVE_W = {"costliest", "costlier", "expensive", "priciest", "pricier", "mehnga", "mehnge", "mehenga", "mehenge",
+               "mahanga", "mehngi", "mehengi", "premium"}
 NEG_W = {"not", "except", "without", "excluding", "nahi", "no", "non"}
-BEST_W = {"best", "top", "highest", "popular"}
+BEST_W = {"best", "top", "highest", "popular", "accha", "acchi", "achha", "achhi", "acha", "achi", "badhiya", "badiya",
+          "behtareen", "mast"}
+# Indian shoppers' names for a backpack ("school bag"); a plain "bag" still searches the bags category
+_BACKPACK = re.compile(r"\b(school|college|laptop|office|travel|tuition)\s*bags?\b")
 GREET_W = {"hi", "hello", "hey", "hii", "namaste", "helo"}
+THANKS_W = {"thanks", "thank", "thankyou", "thx", "ty", "dhanyavad", "dhanyawad", "shukriya", "great", "cool", "ok",
+            "okay", "done", "bye", "goodbye", "much", "lot", "alot", "very", "so"}
+HELP_PHRASES = ("what can you do", "how does this work", "help me", "what do you do", "what can i ask", "how to use")
+HELP_W = {"help", "madad"}
+# Things outside the catalogue and policy: orders, accounts, payments, offers. Answered with one clear refusal.
+ACCOUNT_W = {"track", "tracking", "coupon", "coupons", "discount", "discounts", "offer", "offers", "promo", "voucher",
+             "login", "password", "account", "emi", "upi", "paytm", "gpay", "phonepe", "wallet balance", "cashback"}
+ACCOUNT_PHRASES = ("order status", "my order", "mera order", "mere order", "order kaha", "order kahan", "gift card",
+                   "store near", "store in", "shop near", "customer care", "phone number", "contact number")
 WH_W = {"what", "whats", "which", "kya", "kaun", "kaunsa", "kaunsi", "kis"}
 RESET_PHRASES = ("start over", "new search", "reset", "forget it", "clear all", "never mind", "nevermind")
 
-_IGNORE = (PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W | STOPWORDS)
+_IGNORE = (PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W | STOPWORDS
+           | {"size"})  # "what size" is a question about sizes, not a product word
 
 _CUR = r"(?:₹|rs\.?|inr|rupees?|rupaye)?"
 _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|hazar|hajar)?(?![a-z])"
@@ -39,7 +53,8 @@ _MIN = [
     re.compile(rf"{_AMT}\s*(?:se upar|se zyada|se jyada|or more|or above|and above|plus)\b"),
 ]
 _BARE = re.compile(rf"(?:₹|rs\.?|inr)\s*{_NUM}")
-_SIZE = re.compile(r"\bsize\s*[:\-]?\s*([a-z]{1,6}|\d{1,2})\b")
+_SIZE = re.compile(r"\bsize(?:\s*[:\-]\s*|\s+)([a-z]{1,6}|\d{1,2})\b")  # "size 9", "size: M"; not "sizes"
+_SIZE_LETTERS = {"XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "3XL", "4XL"}
 _SIZE_AFTER = re.compile(r"\b([a-z]{1,6}|\d{1,2})[\s-]*size(?:d)?\b")
 _SIZE_WORD = re.compile(r"\b(" + "|".join(sorted(SIZE_WORDS, key=len, reverse=True)) + r")\b")
 
@@ -68,7 +83,7 @@ class Parsed:
     @property
     def has_constraint(self) -> bool:
         s = self.spec
-        return self.has_product_ref or s.price_min is not None or s.price_max is not None
+        return self.has_product_ref or s.price_min is not None or s.price_max is not None or bool(s.exclude)
 
 
 def _amount(num: str, unit: str | None) -> float:
@@ -140,10 +155,14 @@ def _extract_size(low: str, index: CatalogueIndex) -> tuple[str | None, str, boo
         for m in pattern.finditer(low):
             word = m.group(1)
             value = _size_value(word, index)
-            if value is None and pattern is _SIZE and (word.isdigit() or len(word) <= 3):
+            if value is None and pattern is _SIZE and (word.isdigit() or word.upper() in _SIZE_LETTERS):
                 value = word  # an explicit "size 50" the catalogue doesn't stock must still constrain (-> refuse)
-            if value:
-                return value, low[:m.start()] + " " + low[m.end():], False
+            if value is None and word in SIZE_WORDS:
+                # "queen size" when nothing comes in queen: still a constraint (-> "no queen size"); soft, so it's
+                # ignored for products that have no sizes at all ("large size bottle")
+                return SIZE_WORDS[word], low[:m.start()] + " " + low[m.end():], True
+            if value:  # spoken size words ("large size") stay soft: ignored for products that have no sizes
+                return value, low[:m.start()] + " " + low[m.end():], word in SIZE_WORDS
     m = _SIZE_WORD.search(low)
     if m and (value := _size_value(m.group(1), index)):
         return value, low[:m.start()] + " " + low[m.end():], True
@@ -153,6 +172,11 @@ def _extract_size(low: str, index: CatalogueIndex) -> tuple[str | None, str, boo
 def understand(query: str, index: CatalogueIndex) -> Parsed:
     parsed = Parsed(raw=query)
     low = " ".join(query.lower().replace("t-shirt", "tshirt").split())
+    low = re.sub(r"\bnoise[\s-]*(cancel\w*|isolat\w*|reduc\w*)", "anc", low)  # a feature, not the brand Noise
+    account = any(ph in low for ph in ACCOUNT_PHRASES)
+    helpq = any(ph in low for ph in HELP_PHRASES)
+    if "backpack" in index.type_vocab:
+        low = _BACKPACK.sub(lambda m: f"{m.group(1)} backpack", low)
 
     if any(phrase in low for phrase in RESET_PHRASES):
         parsed.intents.add("reset")
@@ -199,9 +223,13 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     if token_set & RATING_W:
         parsed.intents.add("rating")
     wh = bool(token_set & WH_W) or "?" in query
+    about_one = bool(parsed.product_id)  # "colour of P0042" asks about that product even without a question word
     for ktok, key in index.attr_keys.items():
-        if ktok in token_set and key not in parsed.spec.filters and key not in parsed.spec.exclude and wh and ktok not in PRICE_W:
+        if ktok in token_set and key not in parsed.spec.filters and key not in parsed.spec.exclude and (wh or about_one) \
+                and ktok not in PRICE_W:
             parsed.detail_keys.append(key)
+    if "size" in token_set and not parsed.spec.size and (wh or about_one) and "size" not in parsed.detail_keys:
+        parsed.detail_keys.append("size")
     if parsed.detail_keys:
         parsed.intents.add("detail")
 
@@ -232,6 +260,11 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
             if tok not in parsed.spec.desc_tokens:
                 parsed.spec.desc_tokens.append(tok)
         else:
+            if tok in EXTERNAL_BRANDS and i and tokens[i - 1] in NEG_W:
+                # "not nike": a brand the shop doesn't carry is excluded by definition; keep it as an exclusion so a
+                # follow-up turn still refines the earlier search instead of looking empty
+                parsed.spec.exclude.setdefault("brand", []).append(tok)
+                continue
             parsed.unknown.append(tok)
             if tok in EXTERNAL_BRANDS:
                 parsed.external.append(tok)
@@ -249,6 +282,13 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         parsed.intents.add("policy_q" if asks_fact and product_ref else "policy")
     if token_set & GREET_W and not (parsed.has_constraint or parsed.intents):
         parsed.intents.add("greet")
+    if (helpq or token_set & HELP_W) and not (parsed.has_constraint or parsed.intents - {"search"}):
+        parsed.intents.add("greet")
+    content = token_set - STOPWORDS - THANKS_W - GREET_W
+    if token_set & THANKS_W and not content and not parsed.has_constraint:
+        parsed.intents.add("thanks")
+    if (account or (token_set & ACCOUNT_W and not parsed.has_product_ref)) and not (token_set & POLICY_W):
+        parsed.intents.add("account")
     if not parsed.intents:
         parsed.intents.add("search")
     return parsed

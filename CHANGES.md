@@ -88,9 +88,54 @@ Tests: `tests/test_web.py`. Scores on all evaluation sets are unchanged.
 * **Compare in the UI**, built on the engine's existing comparison: the table only shows fields from cited records.
 * **Retailer view** (`/insights`) and CSV export of refused requests; counts and short labels only.
 * **Snapshot date** on every price (`--snapshot`, default: catalogue file date, labelled as such).
+* **Budget refusals say what was missing and what exists**: "No cotton kurta under ₹1,500 in the catalogue; the
+  cheapest cotton kurta I have is ... at ₹2,509 [P0034]" instead of "I don't have that in the catalogue".
+* **Most relevant policy sentence first** ("delivery to dubai" now opens with "We do not ship outside India").
+* `web.py` defaults to the 5,000-product demo catalogue (generated on first run); example questions are built from
+  whichever catalogue is loaded and checked at start-up; refusals are labelled "Not in catalogue", not as failures;
+  the grounding check in the UI sees the whole chat, as `evaluate.py` does.
+* **Web UI redesigned as a retail app in beige and brown tones.** Cited product lines render as product cards (colour swatch from the
+  product's own colour attribute, price tag, rating, stock, key attributes, all from the cited record) that flip to
+  the full record; clarifying replies get a "This one" button per card; the exact reply text the evaluation scores
+  stays one tap away under every reply. The retailer view matches. Hinglish question words ("kab", "kaise") are
+  treated as filler.
 * Roadmap trimmed to what is not built. Not built, deliberately: voice input (browser speech recognition sends audio
   to a cloud service, which breaks the offline requirement), photo search (no vision model is provided), price-drop
   alerts and live sync (no live price feed; it would be a mock).
+
+## Round 3: shopper phrasing (later commit)
+
+Found by probing with new, realistic messages, then fixed (tests: `tests/test_shopper_phrasing.py`):
+
+* The three known held-out failures: "school/college/laptop bag" means backpack; Hinglish ranking words ("sabse
+  acchi", "sabse sasta", "sabse mehenga", "badhiya") sort the results; an exclusion-only follow-up ("not black")
+  refines the earlier search instead of searching everything.
+* "not nike" excludes a brand the shop doesn't carry instead of refusing; on its own it asks what is wanted.
+* "noise cancellation" is a feature, not the brand Noise and not the cancellation policy.
+* Size and attribute questions about one product ("P00725 ka size kya hai", "colour of P00725") are answered from
+  the record. A bug where "size kya" read "kya" as a size, and "sizes" as size S, is fixed.
+* A filter on an attribute the product type doesn't have ("smartwatch for women" when smartwatches list no gender) is
+  dropped with a note instead of causing a refusal.
+* Orders, tracking, coupons, discounts, payments, gift cards and store locations get one clear refusal: the assistant
+  can only see the catalogue and policies. "thanks" and "help" get a short reply. "cheapest thing you have" lists the
+  cheapest items overall. Hindi filler ("kya aapke paas ... hai") is ignored.
+* **A describing word alone no longer makes an unsold product answerable**: "wireless mouse" used to list wireless
+  earbuds. Unknown words now count as modifiers only when the message also names what a product is ("shoes",
+  "kettle"). Trade-off: an unusual synonym with only a describing word may now be refused ("trainers" was added as a
+  synonym for shoes).
+* "queen size bedsheet" refuses when no bedsheet comes in queen; spoken size words stay soft for products without
+  sizes ("large size water bottle").
+
+### Honest numbers for this round
+
+| Set | Before round 3 | After | Note |
+|---|---|---|---|
+| `heldout_questions.jsonl` (37) | 0.942 | 1.000 | its failures were fixed here, so it is now a regression set |
+| **`heldout2_questions.jsonl` (45)** | **0.987** | 1.000 | **written after the other fixes, scored once (0.987), then its two failures (wireless mouse, queen size) were fixed; it is now contaminated too** |
+
+The last clean generalisation estimate is therefore **0.987** (groundedness 1.0, helpfulness 1.0, refusal accuracy
+0.956, zero hallucinated prices), on synthetic data, with questions written by one person. Write a new held-out set,
+ideally by someone who hasn't seen the code, before trusting a higher number.
 
 ## Before submitting
 

@@ -17,7 +17,8 @@ python data/generate_scale.py         # 5,000 messy products in data/scale/ (git
 python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/test_questions.jsonl
 
 python data/generate_independent.py   # 60 shopper-style questions written independently of the code (data/scale/)
-python data/generate_heldout.py       # 37 held-out questions never used for tuning (data/scale/)
+python data/generate_heldout.py       # 37 questions; was held out, now a regression set (see CHANGES.md)
+python data/generate_heldout2.py      # 45 questions; scored once before tuning: 0.987 (see CHANGES.md)
 python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/heldout_questions.jsonl --verbose
 
 # with the provided offline models (see "Fallbacks" below)
@@ -55,14 +56,14 @@ is derived from the catalogue itself, so new catalogues need little configuratio
 ## Web UI
 
 ```bash
-python3 web.py                       # then open http://127.0.0.1:8000
+python3 web.py                       # 5,000-product demo catalogue (generated on first run); open http://127.0.0.1:8000
 python3 web.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --snapshot 2026-10-01
 # retailer view: http://127.0.0.1:8000/insights
 ```
 
-![Chat with cited answers, a clarifying question and a policy answer](docs/ui-chat.png)
+![A Hinglish budget question answered with cited product cards](docs/ui-chat.png)
 
-![Tapping a citation flips the answer to show the catalogue record behind it](docs/ui-receipt.png)
+![Tapping Details flips a product card to show its full catalogue record](docs/ui-receipt.png)
 
 ![Comparing three cited products side by side](docs/ui-compare.png)
 
@@ -70,6 +71,9 @@ python3 web.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy
 
 Standard library only and fully offline: no CDN scripts, no web fonts, no new dependencies. What it shows:
 
+* **Product cards.** Each cited product appears as a card built only from its catalogue record: price, rating,
+  stock, key attributes. In a clarifying reply, "This one" on a card picks it. The exact reply text the evaluation
+  scores is under every reply ("Answer as text").
 * **Receipts.** Every citation is a chip. Tap it and the answer card flips over to show the exact catalogue record,
   or the policy section with the sentence the answer used highlighted.
 * **A check on every reply.** Each reply is re-run through the same independent grounding checker `evaluate.py`
@@ -80,6 +84,9 @@ Standard library only and fully offline: no CDN scripts, no web fonts, no new de
 * **Asked for, not stocked.** Refused requests collected per chat, as a demand signal for the retailer.
 * **Compare.** "Add to compare" on up to three product records, then one tap asks the assistant to compare them.
   The reply is the normal cited answer, plus a side-by-side table built from the cited records (differences shaded).
+* **Example questions built from the loaded catalogue**, labelled by what they show (trap, Hinglish budget, not
+  sold, policy, closest match, too cheap). Each is run at start-up and kept only if it does what its label says,
+  so the examples also work on the real catalogue.
 * **Prices as of a date.** The catalogue snapshot date is shown in the header and next to every price. Pass
   `--snapshot 2026-10-01`; otherwise the catalogue file's last-modified date is used and labelled as such.
 * **Retailer view** at `/insights`: how questions were handled (answered, clarified, refused), replies that failed
@@ -121,7 +128,8 @@ it off rather than lowering the threshold by hand.
 |---|---|---|
 | `data/test_questions.jsonl`, `data/hard_questions.jsonl`, `data/scale/test_questions.jsonl` | with the code | regression check only |
 | `data/scale/independent_questions.jsonl` (`generate_independent.py`) | before the vocabulary fixes, from a shopper's view | was 0.827 before fixes; fixes were tuned on it, so now also a regression check |
-| `data/scale/heldout_questions.jsonl` (`generate_heldout.py`) | after the fixes, never tuned on | the only generalisation estimate here: see CHANGES.md |
+| `data/scale/heldout_questions.jsonl` (`generate_heldout.py`) | after round-1 fixes | scored 0.769 before and 0.942 after round 1; tuned on in round 3, now regression only |
+| `data/scale/heldout2_questions.jsonl` (`generate_heldout2.py`) | after round-3 fixes | scored once at 0.987 (the latest clean estimate), then its 2 failures were fixed |
 
 Expected answers in the last two are derived by plain filtering of the catalogue, never by calling the assistant.
 

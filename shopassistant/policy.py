@@ -58,6 +58,6 @@ def best_sentences(sections: list[Section], keywords: list[str], limit: int = 2)
                   if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & STRONG)]
         if scored and (best is None or max(scored)[0] > best[0]):
             top = max(sc for sc, _, _ in scored)
-            keep = sorted(heapq.nlargest(limit, scored, key=lambda t: (t[0], -t[1])), key=lambda t: t[1])
+            keep = heapq.nlargest(limit, scored, key=lambda t: (t[0], -t[1]))  # most relevant sentence first
             best = (top, sec, [sent for sc, _, sent in keep if sc >= top - 1])
     return (best[1], best[2]) if best else None

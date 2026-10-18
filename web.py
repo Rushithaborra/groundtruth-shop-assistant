@@ -17,8 +17,10 @@ import argparse
 import csv
 import io
 import json
+import re
 import secrets
 import statistics
+import subprocess
 import sys
 import threading
 import time
@@ -29,16 +31,99 @@ from pathlib import Path
 
 from evaluate import Grounding
 from shopassistant import CLARIFY, REFUSE, Session, build_assistant
-from shopassistant.text import format_inr
+from shopassistant.semantic import type_words
+from shopassistant.text import format_inr, tokenize
 from shopassistant.understand import understand
 
 ROOT = Path(__file__).resolve().parent
 MAX_SESSIONS = 500
 MAX_MESSAGE = 500
+DEMO_CATALOGUE, DEMO_POLICY = ROOT / "data" / "scale" / "catalogue.jsonl", ROOT / "data" / "scale" / "policy.txt"
 
 
-def product_record(p) -> dict:
-    return {"kind": "product", "id": p.id, "title": p.title, "price": format_inr(p.price), "category": p.category,
+def pick_data(catalogue: str | None, policy: str | None) -> tuple[str, str]:
+    """Use what was passed; otherwise the 5,000-product demo catalogue, generating it on first run."""
+    if catalogue:
+        return catalogue, policy or str(ROOT / "data" / "policy.txt")
+    if not DEMO_CATALOGUE.exists():
+        print("Generating the 5,000-product demo catalogue (first run only)...")
+        subprocess.run([sys.executable, str(ROOT / "data" / "generate_scale.py")], check=True, cwd=ROOT,
+                       stdout=subprocess.DEVNULL)
+    return str(DEMO_CATALOGUE), policy or str(DEMO_POLICY)
+
+
+def build_examples(assistant) -> list[dict]:
+    """Example questions built from the loaded catalogue, each kept only if it shows what its label says.
+
+    Built from the data rather than hard-coded, so on any catalogue (including the real one) every example works.
+    """
+    index, found = assistant.index, []
+
+    def keep(label: str, question: str, want: str) -> bool:
+        if any(e["q"] == question for e in found):
+            return False
+        if assistant.ask(question, Session()).action == want:
+            found.append({"label": label, "q": question, "shows": want})
+            return True
+        return False
+
+    groups = product_nouns(index)
+    # a trap: "the <colour> <product>" when several products fit
+    for t, pids in groups:
+        colours = Counter(v for pid in pids for v in index.products[pid].attr_values("color"))
+        if any(n >= 3 and keep("Trap", f"price of the {c.lower()} {t}", "clarify") for c, n in colours.most_common(3)):
+            break
+    # Hinglish with a budget that has matches
+    for t, pids in groups:
+        materials = Counter(v for pid in pids for v in index.products[pid].attr_values("material"))
+        done = False
+        for m, n in materials.most_common(2):
+            prices = sorted(index.products[p].price for p in pids if m in index.products[p].attr_values("material"))
+            if n >= 3:
+                budget = int(-(-prices[len(prices) // 2] // 500) * 500)
+                done = keep("Hinglish", f"{m.lower()} {t} {budget} ke andar", "answer")
+            if done:
+                break
+        if done:
+            break
+    for label, q, want in [("Not sold", "do you sell iPhones?", "refuse"), ("Policy", "refund kab milega", "answer"),
+                           ("Closest match", "headphones", "refuse"), ("Policy", "delivery to dubai?", "answer"),
+                           ("Not sold", "red saree", "refuse")]:
+        keep(label, q, want)
+    # a budget that's too low: a useful refusal
+    for t, pids in groups[:3]:
+        cheapest = min(index.products[p].price for p in pids)
+        if cheapest > 100 and keep("Too cheap", f"{t} under 100", "refuse"):
+            break
+    return found
+
+
+def product_nouns(index) -> list[tuple[str, list[str]]]:
+    """What products are called, read from the end of their titles ("... Running Shoes (Blue)" -> "running shoes").
+
+    Two words when the first also names a product type ("power bank", "running shoes"), else one. Most common first.
+    """
+    kinds = set(type_words(index))
+    groups: dict[str, list[str]] = {}
+    for p in index.products.values():
+        noun = noun_of(p.title, kinds).lower()
+        if noun:
+            groups.setdefault(noun, []).append(p.id)
+    return sorted(((n, ids) for n, ids in groups.items() if len(ids) >= 3), key=lambda g: -len(g[1]))
+
+
+def noun_of(title: str, kinds) -> str:
+    """What a product is called, from the end of its title: "... Running Shoes (Blue)" -> "Running Shoes"."""
+    words = [w for w in re.sub(r"\(.*?\)", " ", title).split() if w.isalpha()]
+    if not words:
+        return ""
+    if len(words) >= 2 and tokenize(words[-2]) and tokenize(words[-2])[0] in kinds:
+        return f"{words[-2]} {words[-1]}"
+    return words[-1]
+
+
+def product_record(p, kinds=frozenset()) -> dict:
+    return {"kind": "product", "id": p.id, "title": p.title, "noun": noun_of(p.title, kinds), "price": format_inr(p.price), "category": p.category,
             "in_stock": p.in_stock, "rating": p.rating, "rating_count": p.rating_count,
             "description": p.description, "attributes": {k: p.attr_values(k) for k in p.attributes}}
 
@@ -124,12 +209,14 @@ class State:
         self.sessions: OrderedDict[str, dict] = OrderedDict()
         self.lock = threading.Lock()
         self.insights = Insights()
+        self.kinds = frozenset(type_words(assistant.index))
 
     def session(self, sid: str | None) -> tuple[str, dict]:
         with self.lock:
             if not sid or sid not in self.sessions:
                 sid = secrets.token_urlsafe(12)
                 self.sessions[sid] = {"session": Session(), "lock": threading.Lock(), "gaps": Counter(),
+                                      "said": deque(maxlen=30),
                                       "totals": {"queries": 0, "ms": 0.0, "llm_tokens": 0}}
                 while len(self.sessions) > MAX_SESSIONS:
                     self.sessions.popitem(last=False)
@@ -142,7 +229,9 @@ class State:
         with entry["lock"]:
             start = time.perf_counter()
             resp = a.ask(message, entry["session"])
-            check = self.grounding.check(resp.text, message)
+            entry["said"].append(message)
+            # like evaluate.py, numbers the shopper said earlier in the chat (a budget) are theirs, not invented
+            check = self.grounding.check(resp.text, " ".join(entry["said"]))
             parsed = understand(message, a.index)
             total_ms = (time.perf_counter() - start) * 1000
             sources = {}
@@ -150,9 +239,9 @@ class State:
                 if c.startswith("policy:") and c[7:] in a.sections:
                     sources[c] = policy_record(a.sections[c[7:]])
                 elif c in a.index.products:
-                    sources[c] = product_record(a.index.products[c])
+                    sources[c] = product_record(a.index.products[c], self.kinds)
             gap_labels = []
-            if resp.action == REFUSE:
+            if resp.action == REFUSE and "account" not in parsed.intents:  # orders/coupons aren't products
                 gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
                 for w in gap_labels:
                     entry["gaps"][w] += 1
@@ -182,6 +271,8 @@ class State:
         s = session.spec
         if parsed.spec.desc_tokens and not (parsed.spec.type_tokens or parsed.spec.filters):
             return " ".join(parsed.spec.desc_tokens)  # "laptop" after "black hoodie" is a request for a laptop
+        if parsed.spec.type_tokens:  # a product named in this message is a new request: earlier filters don't apply
+            s = type(s)()
         words = list(dict.fromkeys(list(parsed.spec.filters.values()) + list(s.filters.values())
                                    + (parsed.spec.type_tokens or s.type_tokens) + parsed.spec.desc_tokens))
         budget = parsed.spec.price_max if parsed.spec.price_max is not None else s.price_max
@@ -194,6 +285,7 @@ class State:
         sid, entry = self.session(sid)
         with entry["lock"]:
             entry["session"].clear()
+            entry["said"].clear()
         return {"session_id": sid, "remembered": remembered(entry["session"])}
 
 
@@ -257,8 +349,8 @@ def make_handler(state: State, page: bytes, info: dict, insights_page: bytes = b
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--catalogue", default="data/catalogue.jsonl")
-    ap.add_argument("--policy", default="data/policy.txt")
+    ap.add_argument("--catalogue", help="catalogue file (default: the 5,000-product demo, generated on first run)")
+    ap.add_argument("--policy", help="policy file (default: the one that goes with the catalogue)")
     ap.add_argument("--embed-model")
     ap.add_argument("--llm-model")
     ap.add_argument("--host", default="127.0.0.1")
@@ -266,13 +358,14 @@ def main() -> None:
     ap.add_argument("--snapshot", help="date the catalogue prices were taken, e.g. 2026-10-01 "
                                        "(default: the catalogue file's last-modified date)")
     args = ap.parse_args()
+    args.catalogue, args.policy = pick_data(args.catalogue, args.policy)
     assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model)
     snapshot, source = args.snapshot, "given"
     if not snapshot:
         snapshot, source = datetime.fromtimestamp(Path(args.catalogue).stat().st_mtime).date().isoformat(), "file date"
     info = {"products": len(assistant.index.products), "policy_sections": len(assistant.sections),
             "semantic": assistant.semantic is not None, "llm": assistant.normaliser is not None,
-            "snapshot": snapshot, "snapshot_source": source}
+            "snapshot": snapshot, "snapshot_source": source, "examples": build_examples(assistant)}
     page = (ROOT / "web" / "index.html").read_bytes()
     insights_page = (ROOT / "web" / "insights.html").read_bytes()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(State(assistant), page, info, insights_page))

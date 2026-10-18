@@ -3,325 +3,273 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
 <title>GroundTruth — the shopping assistant that shows its receipts</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%BE%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%B7%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
 :root {
-  --paper: #eef0fa;
-  --surface: #ffffff;
-  --surface-2: #f6f7fd;
-  --ink: #1c1f3b;
-  --ink-2: #545879;
-  --line: #d8dbef;
-  --accent: #4549cf;
-  --accent-soft: #e4e5fb;
-  --answer: #0d8574;
-  --answer-soft: #dcf3ef;
-  --clarify: #9a6410;
-  --clarify-soft: #fbefd9;
-  --refuse: #b83a52;
-  --refuse-soft: #fbe3e8;
-  --shadow: 0 1px 0 rgba(28, 31, 59, .04), 0 12px 32px -18px rgba(28, 31, 59, .35);
-  --radius-lg: 22px;
-  --radius-sm: 10px;
+  --bg: #f4ece1;
+  --card: #fffaf3;
+  --ink: #3a2a20;
+  --ink-2: #7a6556;
+  --line: #e8dccb;
+  --accent: #8b5a3c;
+  --accent-dark: #6f4630;
+  --btn: #e6d2bb;
+  --btn-hover: #dcc4a8;
+  --btn-ink: #4a2e1c;
+  --accent-soft: #f1e3d1;
+  --lilac: #ead9c3;
+  --tag: #f3dcc0;
+  --tag-ink: #6b3a1a;
+  --green: #6f4630;
+  --green-soft: #efe1cf;
+  --amber: #7a5232;
+  --amber-soft: #fbf5ec;
+  --red: #6e3524;
+  --red-soft: #ecd3c6;
+  --differs: #f7ecdd;
+  --shadow: 0 1px 2px rgba(110, 75, 45, .05), 0 12px 30px -16px rgba(110, 75, 45, .25);
   --font: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
   color-scheme: light;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #11132a;
-    --surface: #1b1e3d;
-    --surface-2: #22264a;
-    --ink: #eceefe;
-    --ink-2: #a9add3;
-    --line: #333867;
-    --accent: #9da0ff;
-    --accent-soft: #2b2f63;
-    --answer: #5fd3bf;
-    --answer-soft: #163d3c;
-    --clarify: #f0be6a;
-    --clarify-soft: #3e3220;
-    --refuse: #f38aa0;
-    --refuse-soft: #42222f;
-    --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 14px 36px -18px rgba(0, 0, 0, .8);
-    color-scheme: dark;
-  }
-}
 *, *::before, *::after { box-sizing: inherit; }
 html { scroll-padding-top: env(safe-area-inset-top, 0px); }
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: radial-gradient(1100px 600px at 85% -10%, var(--accent-soft), transparent 70%), var(--paper);
-  color: var(--ink);
-  font: 16px/1.5 var(--font);
-  font-variant-numeric: tabular-nums;
-  -webkit-font-smoothing: antialiased;
-}
+body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background:
+    radial-gradient(900px 640px at 0% 0%, rgba(232, 206, 172, .9) 0%, rgba(232, 206, 172, 0) 65%),
+    radial-gradient(860px 680px at 100% 0%, rgba(240, 224, 200, .9) 0%, rgba(240, 224, 200, 0) 62%),
+    radial-gradient(980px 760px at 100% 100%, rgba(222, 192, 158, .85) 0%, rgba(222, 192, 158, 0) 64%),
+    radial-gradient(820px 660px at 0% 100%, rgba(246, 232, 210, .9) 0%, rgba(246, 232, 210, 0) 62%); }
+html { overflow-x: clip; }
+body { margin: 0; min-height: 100vh; overflow-x: hidden; overflow-x: clip; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 button, input { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
-/* ---------- layout ---------- */
-.app > * { min-width: 0; }
-.app {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 28px;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 24px 24px 0;
-}
-header.top {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand-mark {
-  width: 38px; height: 38px; border-radius: 12px;
-  display: grid; place-items: center;
-  background: var(--ink); color: var(--surface);
-  font-weight: 800; font-size: 19px; letter-spacing: -.04em;
-}
-.brand h1 { margin: 0; font-size: 20px; letter-spacing: -.02em; font-weight: 750; }
-.brand p { margin: 0; color: var(--ink-2); font-size: 13.5px; overflow-wrap: anywhere; }
-.catalogue-size { color: var(--ink-2); font-size: 13.5px; text-align: right; line-height: 1.45; }
-.catalogue-size a { color: var(--accent); font-weight: 700; text-decoration: none; }
-.catalogue-size a:hover { text-decoration: underline; }
-.tray { display: none; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 8px 10px 8px 14px;
-  background: var(--surface); border: 1px dashed var(--accent); border-radius: 14px; font-size: 13.5px; }
-.tray.show { display: flex; }
-.tray strong { font-weight: 700; margin-right: 2px; }
-.tray .pick { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-.tray .pick button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
-.tray .go { margin-left: auto; border: 0; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 5px 14px; font-weight: 700; cursor: pointer; }
-.tray .go:disabled { opacity: .45; cursor: default; }
-.evidence-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
-.evidence-actions .ask-about { margin-top: 0; }
-.add-compare { border: 1px solid var(--ink); background: transparent; border-radius: 999px; padding: 5px 14px; font-weight: 650; font-size: 13.5px; cursor: pointer; }
-.add-compare[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.as-of { font-size: 12.5px; color: var(--ink-2); }
-.compare-wrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; }
-table.compare { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 420px; }
-table.compare caption { text-align: left; padding: 8px 12px; color: var(--ink-2); font-size: 12.5px; caption-side: top; }
-table.compare th, table.compare td { padding: 7px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
-table.compare thead th { font-weight: 750; background: var(--surface-2); }
-table.compare tbody th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
-table.compare tr.differs td { background: var(--accent-soft); }
-table.compare td.best { font-weight: 800; }
+/* ---------- top bar ---------- */
+.bar { position: sticky; top: 0; z-index: 5; background: rgba(250, 244, 236, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(222, 200, 172, .7); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: rgba(250, 244, 236, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.bar-in { max-width: 1240px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.logo-mark { width: 36px; height: 36px; border-radius: 12px; background: var(--lilac); color: var(--accent-dark); display: grid; place-items: center; font-weight: 900; font-size: 18px; transform: rotate(-6deg); box-shadow: 3px 3px 0 var(--tag); }
+.logo b { font-size: 20px; font-weight: 850; letter-spacing: -.03em; }
+.logo small { display: block; font-size: 12.5px; color: var(--ink-2); font-weight: 500; letter-spacing: 0; margin-top: -2px; }
+.bar-meta { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 13.5px; color: var(--ink-2); }
+.bar-meta a { color: var(--ink); background: #fff; border: 1px solid var(--line); text-decoration: none; font-weight: 700; padding: 7px 14px; border-radius: 999px; white-space: nowrap; }
+.bar-meta a:hover { border-color: var(--ink); }
 
-main.chat { display: flex; flex-direction: column; min-height: calc(100vh - 110px); }
+/* ---------- layout ---------- */
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; max-width: 1240px; margin: 0 auto; padding: 22px 24px 0; }
+.app > * { min-width: 0; }
+main.chat { display: flex; flex-direction: column; min-height: calc(100vh - 90px); }
 .messages { flex: 1; display: flex; flex-direction: column; gap: 18px; padding-bottom: 24px; }
 
-/* ---------- hero (empty state) ---------- */
-.hero { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; padding: 48px 4px 24px; }
-.hero h2 { margin: 0 0 12px; font-size: clamp(30px, 4.2vw, 46px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; max-width: 17ch; }
-.hero p { margin: 0; color: var(--ink-2); max-width: 46ch; }
-.prism-stage { width: 150px; height: 150px; perspective: 700px; }
-.prism {
-  position: relative; width: 100%; height: 100%;
-  transform-style: preserve-3d;
-  animation: turn 14s cubic-bezier(.65, 0, .35, 1) infinite;
-}
-.face {
-  position: absolute; inset: 0;
-  border-radius: 26px;
-  display: grid; place-items: center; align-content: center; gap: 4px;
-  font-weight: 800; letter-spacing: -.03em;
-  backface-visibility: hidden;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25), var(--shadow);
-}
-.face b { font-size: 54px; line-height: 1; }
-.face small { font-size: 13px; font-weight: 650; opacity: .92; letter-spacing: 0; text-align: center; padding: 0 14px; line-height: 1.25; }
-.face.f1 { background: #0d8574; color: #fff; transform: rotateY(0deg) translateZ(75px); }
-.face.f2 { background: #a86c12; color: #fff; transform: rotateY(90deg) translateZ(75px); }
-.face.f3 { background: #b83a52; color: #fff; transform: rotateY(180deg) translateZ(75px); }
-.face.f4 { background: #3a3eb8; color: #fff; transform: rotateY(270deg) translateZ(75px); }
-@keyframes turn {
-  0%, 18% { transform: rotateX(-12deg) rotateY(0deg); }
-  25%, 43% { transform: rotateX(-12deg) rotateY(-90deg); }
-  50%, 68% { transform: rotateX(-12deg) rotateY(-180deg); }
-  75%, 93% { transform: rotateX(-12deg) rotateY(-270deg); }
-  100% { transform: rotateX(-12deg) rotateY(-360deg); }
-}
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; background: rgba(255, 250, 243, .58); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255, 250, 243, .85); border-radius: 24px; padding: 36px 40px; box-shadow: var(--shadow); margin-top: 8px; overflow: hidden; }
+.hero h1 { margin: 0 0 12px; font-size: clamp(30px, 4vw, 48px); line-height: 1.02; letter-spacing: -.04em; font-weight: 900; max-width: 17ch; }
+.hero p { margin: 0 0 20px; color: var(--ink-2); max-width: 48ch; }
+.promise { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; font-weight: 650; }
+.promise li { padding: 6px 12px; border-radius: 999px; background: rgba(255, 250, 243, .85); }
+.promise li::before { content: "✓ "; color: var(--green); font-weight: 900; }
+.stage { width: 190px; height: 190px; perspective: 800px; }
+.tag3d { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: spin 12s cubic-bezier(.65, 0, .35, 1) infinite; }
+.tag3d .f { position: absolute; inset: 14px; border-radius: 30px; display: grid; place-items: center; align-content: center; gap: 6px; font-weight: 900; backface-visibility: hidden; box-shadow: inset 0 0 0 1px rgba(255,250,243,.7), 0 18px 40px -20px rgba(110, 75, 45, .35); }
+.tag3d .f b { font-size: 64px; line-height: 1; letter-spacing: -.04em; }
+.tag3d .f small { font-size: 14px; font-weight: 750; text-align: center; padding: 0 14px; line-height: 1.2; }
+.tag3d .f1 { background: var(--tag); color: var(--tag-ink); transform: rotateY(0deg) translateZ(81px); }
+.tag3d .f2 { background: #e6d2bb; color: var(--accent-dark); transform: rotateY(90deg) translateZ(81px); }
+.tag3d .f3 { background: var(--red-soft); color: var(--red); transform: rotateY(180deg) translateZ(81px); }
+.tag3d .f4 { background: var(--green-soft); color: var(--green); transform: rotateY(270deg) translateZ(81px); }
+@keyframes spin { 0%, 18% { transform: rotateX(-10deg) rotateY(0); } 25%, 43% { transform: rotateX(-10deg) rotateY(-90deg); } 50%, 68% { transform: rotateX(-10deg) rotateY(-180deg); } 75%, 93% { transform: rotateX(-10deg) rotateY(-270deg); } 100% { transform: rotateX(-10deg) rotateY(-360deg); } }
 
 /* ---------- messages ---------- */
-.msg-user, .card { scroll-margin-bottom: 190px; }
-.msg-user {
-  align-self: flex-end; max-width: 78%;
-  background: var(--ink); color: var(--surface);
-  padding: 10px 16px; border-radius: 18px 18px 4px 18px;
-  overflow-wrap: anywhere;
-}
-.card { perspective: 1400px; max-width: 92%; }
-.card .inner {
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform .7s cubic-bezier(.2, .75, .25, 1), height .35s ease;
-  animation: arrive .6s cubic-bezier(.2, .75, .25, 1);
-}
-@keyframes arrive { from { transform: rotateX(14deg) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
-.card.flipped .inner { transform: rotateY(180deg); }
-.side {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 16px 18px 14px;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-.back { position: absolute; inset: 0; transform: rotateY(180deg); overflow: auto; background: var(--surface-2); }
-.card.flipped .front { pointer-events: none; }
-.card:not(.flipped) .back { pointer-events: none; }
+.msg-user, .reply { scroll-margin-bottom: 200px; }
+.msg-user { align-self: flex-end; max-width: 75%; background: #e6d2bb; color: #3a2a20; padding: 10px 16px; border-radius: 18px 18px 4px 18px; font-weight: 550; overflow-wrap: anywhere; }
+.reply { perspective: 1600px; }
+.reply-in { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .75, .25, 1), height .35s ease; animation: rise .5s cubic-bezier(.2, .75, .25, 1); }
+@keyframes rise { from { transform: translateY(12px) rotateX(10deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.reply.flipped .reply-in { transform: rotateY(180deg); }
+.face { background: rgba(255, 250, 243, .62); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255, 250, 243, .85); border-radius: 4px 22px 22px 22px; box-shadow: 0 1px 2px rgba(110, 75, 45, .05), 0 14px 34px -18px rgba(110, 75, 45, .28); padding: 16px 18px; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face.back { position: absolute; inset: 0; transform: rotateY(180deg); overflow: auto; background: #fbf4ea; }
+.reply.flipped .face.front, .reply:not(.flipped) .face.back { pointer-events: none; }
 
 .status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
-.badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-.badge.answer { background: var(--answer-soft); color: var(--answer); }
-.badge.clarify { background: var(--clarify-soft); color: var(--clarify); }
-.badge.refuse { background: var(--refuse-soft); color: var(--refuse); }
-.seal { font-size: 13px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
-.seal svg { width: 15px; height: 15px; }
-.seal.ok svg { color: var(--answer); }
-.seal.bad { color: var(--refuse); font-weight: 650; }
-.meta { margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.badge { font-size: 13px; font-weight: 800; padding: 4px 11px; border-radius: 8px; }
+.badge.answer { background: var(--green-soft); color: var(--green); }
+.badge.answer::before { content: "✓ "; }
+.badge.clarify { background: var(--amber-soft); color: var(--amber); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.badge.clarify::before { content: "? "; }
+.badge.refuse { background: var(--red-soft); color: var(--red); }
+.badge.refuse::before { content: "✕ "; }
+.seal { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.seal svg { width: 15px; height: 15px; color: var(--green); }
+.seal.bad { color: var(--red); }
+.ms { margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.lead p { margin: 0 0 8px; font-size: 16.5px; overflow-wrap: anywhere; }
+.lead p.note { font-size: 14.5px; color: var(--ink-2); }
+.lead ul { margin: 4px 0 8px; padding-left: 20px; }
+.lead li { margin: 4px 0; overflow-wrap: anywhere; }
+.cite { display: inline-flex; align-items: center; margin: 0 2px; padding: 1px 8px; border: 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent-dark); font-size: 12.5px; font-weight: 800; cursor: pointer; vertical-align: 1px; }
+.cite.policy { background: var(--green-soft); color: var(--green); }
+.cite:hover { text-decoration: underline; }
 
-.reply p { margin: 0 0 8px; overflow-wrap: anywhere; }
-.reply ul, .reply ol { margin: 4px 0 8px; padding-left: 20px; }
-.reply li { margin: 4px 0; overflow-wrap: anywhere; }
-.reply .note { color: var(--ink-2); font-size: 14.5px; }
-.chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  margin: 0 2px; padding: 1px 9px 1px 7px;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 12.5px; font-weight: 700; cursor: pointer; vertical-align: 1px;
-  transition: transform .15s ease, background .15s ease;
-}
-.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .6; }
-.chip:hover { transform: translateY(-1px); }
-.chip.policy { color: var(--answer); background: var(--answer-soft); }
-
-.evidence-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.evidence-head h3 { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
-.evidence-head span { font-size: 12.5px; color: var(--ink-2); }
-.flip-back {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 4px 12px; font-size: 13px; font-weight: 650; cursor: pointer; white-space: nowrap;
-}
-.record { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+/* ---------- product cards ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin: 6px 0 10px; }
+.pcard { perspective: 1000px; min-height: 368px; }
+.pcard-in { position: relative; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2, .75, .25, 1); }
+.pcard.flipped .pcard-in { transform: rotateY(180deg); }
+.pside { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--card); border: 1px solid rgba(255, 250, 243, .9); box-shadow: 0 8px 22px -14px rgba(110, 75, 45, .35); border-radius: 18px; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; transition: box-shadow .2s ease, transform .2s ease; }
+.pcard:not(.flipped) .pside.p-front:hover { box-shadow: 0 16px 34px -16px rgba(110, 75, 45, .4); transform: translateY(-3px); }
+.pside.p-back { transform: rotateY(180deg); padding: 14px; overflow: auto; }
+.pcard.flipped .p-front, .pcard:not(.flipped) .p-back { pointer-events: none; }
+.swatch { position: relative; height: 112px; display: flex; align-items: flex-end; padding: 12px 14px; background: linear-gradient(140deg, #f1e2cf, #e4cdb2); color: #4a2e1c; }
+.grid .pcard:nth-child(3n+2) .swatch { background: linear-gradient(140deg, #f5e9d8, #dcc1a2); }
+.grid .pcard:nth-child(3n) .swatch { background: linear-gradient(140deg, #ecdac3, #f6ecdf); }
+.swatch .kind { font-size: 22px; font-weight: 900; letter-spacing: -.03em; line-height: 1; text-transform: capitalize; }
+.swatch .stock { position: absolute; top: 10px; right: 10px; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(255,250,243,.85); color: var(--green); }
+.swatch .stock.out { color: var(--red); }
+.swatch .stock.unk { color: var(--ink-2); }
+.pbody { padding: 12px 14px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.ptitle { font-weight: 750; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.prow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.price { display: inline-block; background: var(--tag); color: var(--tag-ink); font-weight: 900; font-size: 20px; letter-spacing: -.02em; padding: 2px 11px; border-radius: 10px; transform: rotate(-2deg); }
+.stars { font-size: 13.5px; font-weight: 700; }
+.stars span { color: var(--ink-2); font-weight: 500; }
+.attrs { display: flex; flex-wrap: wrap; gap: 4px; }
+.attrs span { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #f6ede1; color: var(--ink-2); }
+.pactions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: auto; padding-top: 6px; }
+.pactions .primary { grid-column: 1 / -1; }
+.pactions button { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 6px; font-size: 13px; font-weight: 750; cursor: pointer; white-space: nowrap; }
+.pactions button:hover { border-color: var(--ink); }
+.pactions .primary { background: var(--btn); border-color: var(--btn); color: var(--btn-ink); }
+.pactions .primary:hover { background: var(--btn-hover); border-color: var(--btn-hover); }
+.pactions [aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+.pid { font-size: 12px; color: var(--ink-2); font-weight: 650; }
+.record { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; font-size: 13.5px; }
 .record dt { color: var(--ink-2); }
 .record dd { margin: 0; overflow-wrap: anywhere; }
-.record .price { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
-.policy-body { font-size: 14.5px; margin: 0; }
-.policy-body mark { background: var(--answer-soft); color: inherit; border-radius: 4px; padding: 0 2px; box-shadow: 0 0 0 1px var(--answer); }
-.ask-about { margin-top: 12px; border: 0; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 6px 14px; font-weight: 650; font-size: 13.5px; cursor: pointer; }
+.back-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.back-head b { font-size: 14.5px; line-height: 1.3; }
+.flipback { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 750; cursor: pointer; white-space: nowrap; }
+.as-of { font-size: 12px; color: var(--ink-2); }
 
-.typing { display: inline-flex; gap: 5px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px 18px 18px 18px; align-self: flex-start; }
-.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-2); animation: blink 1s infinite ease-in-out; }
-.typing i:nth-child(2) { animation-delay: .15s; }
-.typing i:nth-child(3) { animation-delay: .3s; }
+/* policy evidence on the reply's back face */
+.evidence-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.evidence-head h3 { margin: 0; font-size: 16px; font-weight: 800; }
+.evidence-head span { font-size: 12.5px; color: var(--ink-2); }
+.policy-body { margin: 0; font-size: 15px; }
+.policy-body mark { background: var(--tag); color: var(--ink); border-radius: 4px; padding: 0 3px; }
+
+details.raw { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+details.raw summary { cursor: pointer; font-weight: 650; width: max-content; }
+details.raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 var(--font); background: rgba(255, 250, 243, .7); border-radius: 10px; padding: 10px 12px; margin: 6px 0 0; color: var(--ink); }
+
+/* comparison */
+.compare-wrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+table.compare { border-collapse: collapse; width: 100%; min-width: 440px; font-size: 13.5px; }
+table.compare caption { text-align: left; padding: 8px 12px; color: var(--ink-2); font-size: 12.5px; }
+table.compare th, table.compare td { padding: 8px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.compare thead th { background: #f6ede1; font-weight: 800; }
+table.compare tbody th { color: var(--ink-2); font-weight: 650; white-space: nowrap; }
+table.compare tr.differs td { background: var(--differs); }
+table.compare td.best { font-weight: 900; }
+
+.typing { align-self: flex-start; display: inline-flex; gap: 5px; padding: 14px 18px; background: rgba(255, 250, 243, .7); border: 1px solid rgba(255, 250, 243, .85); border-radius: 4px 18px 18px 18px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: #c8a98a; animation: blink 1s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 
 /* ---------- composer ---------- */
-.composer {
-  position: sticky; bottom: 0; z-index: 2;
-  padding: 10px 0 calc(16px + env(safe-area-inset-bottom, 0px));
-  background: var(--paper);
-}
-.composer::before {
-  content: ""; position: absolute; left: 0; right: 0; top: -28px; height: 28px;
-  background: linear-gradient(transparent, var(--paper)); pointer-events: none;
-}
+.composer { position: sticky; bottom: 0; z-index: 3; padding: 10px 0 calc(14px + env(safe-area-inset-bottom, 0px)); background: rgba(255, 250, 243, .16); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(14px); }
+.tray { display: none; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 8px 10px 8px 14px; background: var(--card); border: 2px dashed #cfae8a; border-radius: 14px; font-size: 13.5px; }
+.tray.show { display: flex; }
+.tray strong { font-weight: 800; }
+.tray .pick { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-weight: 800; }
+.tray .pick button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
+.tray .go { margin-left: auto; border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 999px; padding: 6px 16px; font-weight: 800; cursor: pointer; }
+.tray .go:disabled { opacity: .45; cursor: default; }
 .examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: thin; }
-.examples button {
-  flex: none; border: 1px solid var(--line); background: var(--surface);
-  border-radius: 999px; padding: 6px 13px; font-size: 13.5px; cursor: pointer; color: var(--ink-2);
-}
-.examples button:hover { color: var(--ink); border-color: var(--accent); }
-form.ask { display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 6px 6px 6px 16px; box-shadow: var(--shadow); }
-form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; }
-form.ask:focus-within { border-color: var(--accent); }
-form.ask button { border: 0; background: var(--accent); color: #fff; border-radius: 13px; padding: 0 20px; font-weight: 700; cursor: pointer; }
+.examples button { flex: none; border: 1px solid rgba(255, 250, 243, .9); background: rgba(255, 250, 243, .8); border-radius: 999px; padding: 6px 13px; font-size: 13.5px; cursor: pointer; color: var(--ink-2); }
+.examples button:hover { border-color: var(--ink); color: var(--ink); }
+.examples .ex-label { font-weight: 800; color: var(--ink); margin-right: 6px; }
+form.ask { display: flex; gap: 8px; background: var(--card); border: 2px solid #e2cfb8; border-radius: 18px; padding: 6px 6px 6px 16px; box-shadow: var(--shadow); }
+form.ask:focus-within { border-color: #c9a77f; }
+form.ask button:hover { background: var(--btn-hover); }
+form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; font-size: 16.5px; }
+form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
-@media (prefers-color-scheme: dark) { form.ask button { color: #11132a; } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- side panel ---------- */
-aside.panel { position: sticky; top: 20px; align-self: start; display: flex; flex-direction: column; gap: 14px; padding-bottom: 24px; }
-.box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
-.box h2 { margin: 0 0 8px; font-size: 14.5px; font-weight: 750; letter-spacing: -.01em; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+aside.panel { position: sticky; top: 86px; align-self: start; display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+.box { background: rgba(255, 250, 243, .6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(255, 250, 243, .8); border-radius: 16px; padding: 14px 16px; }
+.box h2 { margin: 0 0 8px; font-size: 14.5px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .box .empty { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.link-btn { border: 0; background: none; color: var(--accent-dark); font-weight: 800; font-size: 13px; cursor: pointer; padding: 0; white-space: nowrap; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag { font-size: 13px; padding: 3px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); }
-.tag.minus { text-decoration: line-through; text-decoration-color: var(--refuse); }
-.link-btn { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; white-space: nowrap; }
+.tagx { font-size: 13px; padding: 3px 10px; border-radius: 8px; background: rgba(255, 250, 243, .9); font-weight: 600; }
+.tagx.minus { text-decoration: line-through; text-decoration-color: var(--red); }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13.5px; }
 .kv dt { color: var(--ink-2); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 .gaps { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
-.gaps li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--line); }
-.gaps li:last-child { border-bottom: 0; }
+.gaps li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); }
+.gaps li:first-child { border-top: 0; }
 .gaps span { color: var(--ink-2); }
-details.roadmap summary { cursor: pointer; font-size: 14.5px; font-weight: 750; list-style: none; display: flex; justify-content: space-between; }
+details.roadmap summary { cursor: pointer; font-size: 14.5px; font-weight: 800; list-style: none; display: flex; justify-content: space-between; }
 details.roadmap summary::-webkit-details-marker { display: none; }
-details.roadmap summary::after { content: "Show"; color: var(--accent); font-size: 13px; }
+details.roadmap summary::after { content: "Show"; color: var(--accent-dark); font-size: 13px; }
 details.roadmap[open] summary::after { content: "Hide"; }
 details.roadmap p { font-size: 13px; color: var(--ink-2); margin: 8px 0; }
 details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
-details.roadmap li { margin: 5px 0; }
 
-@media (max-width: 920px) {
+@media (max-width: 960px) {
   .app { grid-template-columns: 1fr; }
   aside.panel { position: static; order: 3; }
-  .hero { grid-template-columns: 1fr; justify-items: start; padding-top: 24px; }
-  .prism-stage { width: 110px; height: 110px; }
-  .face.f1 { transform: rotateY(0deg) translateZ(55px); }
-  .face.f2 { transform: rotateY(90deg) translateZ(55px); }
-  .face.f3 { transform: rotateY(180deg) translateZ(55px); }
-  .face.f4 { transform: rotateY(270deg) translateZ(55px); }
-  .face b { font-size: 40px; }
-  .card, .msg-user { max-width: 100%; }
-  .catalogue-size { display: none; }
+  .hero { grid-template-columns: 1fr; padding: 26px 22px; }
+  .stage { width: 140px; height: 140px; }
+  .tag3d .f1 { transform: rotateY(0deg) translateZ(56px); } .tag3d .f2 { transform: rotateY(90deg) translateZ(56px); }
+  .tag3d .f3 { transform: rotateY(180deg) translateZ(56px); } .tag3d .f4 { transform: rotateY(270deg) translateZ(56px); }
+  .tag3d .f b { font-size: 44px; }
+  .msg-user { max-width: 92%; }
+  .bar-meta span { display: none; }
 }
+@media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .pcard { min-height: 300px; } .logo small { display: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .prism { animation: none; transform: rotateX(-12deg) rotateY(-24deg); }
-  .card .inner { animation: none; transition: none; }
+  .tag3d { animation: none; transform: rotateX(-10deg) rotateY(-24deg); }
+  .reply-in, .pcard-in, .pside { animation: none; transition: none; }
   .typing i { animation: none; opacity: .6; }
 }
 </style>
 </head>
 <body>
-<div class="app">
-  <header class="top">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">G</div>
-      <div>
-        <h1>GroundTruth</h1>
-        <p>Answers only from the catalogue, with a receipt for every claim</p>
-      </div>
-    </div>
-    <div class="catalogue-size"><span id="catalogue-size"></span><br><a href="/insights">Retailer view</a></div>
-  </header>
+<header class="bar">
+  <div class="bar-in">
+    <a class="logo" href="/"><span class="logo-mark" aria-hidden="true">G</span><span><b>GroundTruth</b><small>Answers only from the catalogue</small></span></a>
+    <div class="bar-meta"><span id="catalogue-size"></span><a href="/insights">Retailer view</a></div>
+  </div>
+</header>
 
+<div class="app">
   <main class="chat">
     <div class="messages" id="messages" aria-live="polite">
       <section class="hero" id="hero">
-        <div class="prism-stage" aria-hidden="true">
-          <div class="prism">
-            <div class="face f1"><b>₹</b><small>Answers with a source</small></div>
-            <div class="face f2"><b>?</b><small>Asks which one</small></div>
-            <div class="face f3"><b>✕</b><small>Says when it can't</small></div>
-            <div class="face f4"><b>✓</b><small>Checks every reply</small></div>
-          </div>
-        </div>
         <div>
-          <h2>Ask the catalogue. It won’t make anything up.</h2>
-          <p>Every price, stock status and policy line links to the record it came from. Tap a citation to flip the answer over and see it. Hinglish is fine.</p>
+          <h1>Shop the catalogue. Nothing made up.</h1>
+          <p>Ask in English or Hinglish. Every price, stock status and policy line comes from the catalogue, with a receipt you can tap. If it isn’t there, it says so.</p>
+          <ul class="promise">
+            <li>Cited prices</li><li>Asks before guessing</li><li>Says “I don’t have that”</li>
+          </ul>
+        </div>
+        <div class="stage" aria-hidden="true">
+          <div class="tag3d">
+            <div class="f f1"><b>₹</b><small>Real prices</small></div>
+            <div class="f f2"><b>?</b><small>Asks which one</small></div>
+            <div class="f f3"><b>✕</b><small>Won’t make it up</small></div>
+            <div class="f f4"><b>✓</b><small>Every reply checked</small></div>
+          </div>
         </div>
       </section>
     </div>
@@ -329,17 +277,13 @@ details.roadmap li { margin: 5px 0; }
     <div class="composer">
       <div class="tray" id="tray" aria-live="polite"></div>
       <div class="examples" id="examples" aria-label="Example questions">
-        <button type="button">price of the blue running shoe</button>
-        <button type="button">cotton kurta 1500 ke andar</button>
-        <button type="button">do you sell iPhones?</button>
-        <button type="button">refund kab milega</button>
-        <button type="button">sneakers for gym under 3k</button>
-        <button type="button">headphones</button>
-        <button type="button">delivery to dubai?</button>
+        <button type="button"><span class="ex-label">Trap</span>price of the blue running shoe</button>
+        <button type="button"><span class="ex-label">Not sold</span>do you sell iPhones?</button>
+        <button type="button"><span class="ex-label">Policy</span>refund kab milega</button>
       </div>
       <form class="ask" id="ask">
-        <label for="q" class="visually-hidden" style="position:absolute;left:-9999px">Your question</label>
-        <input id="q" autocomplete="off" maxlength="500" placeholder="Ask about a product, a price or a policy" required>
+        <label for="q" class="sr">Your question</label>
+        <input id="q" autocomplete="off" maxlength="500" placeholder="Search or ask: “cotton kurta 1500 ke andar”" required>
         <button type="submit" id="send">Ask</button>
       </form>
     </div>
@@ -348,11 +292,11 @@ details.roadmap li { margin: 5px 0; }
   <aside class="panel" aria-label="Conversation details">
     <section class="box">
       <h2>Remembered from this chat <button class="link-btn" id="reset" type="button">Start over</button></h2>
-      <div id="remembered"><p class="empty">Nothing yet. Follow-ups like “under 2000” or “only cotton” build on what you asked before.</p></div>
+      <div id="remembered"><p class="empty">Follow-ups like “under 2000” or “only cotton” build on what you asked before.</p></div>
     </section>
     <section class="box">
       <h2>How I read your last message</h2>
-      <div id="reading"><p class="empty">Shows the product, filters and budget picked out of your words, and any word that matched nothing.</p></div>
+      <div id="reading"><p class="empty">The product, filters and budget picked out of your words, and any word that matched nothing.</p></div>
     </section>
     <section class="box">
       <h2>This answer</h2>
@@ -384,143 +328,207 @@ details.roadmap li { margin: 5px 0; }
   const $ = (id) => document.getElementById(id);
   const messages = $("messages"), form = $("ask"), input = $("q"), send = $("send");
   let sessionId = null, snapshot = "";
-  const compareSet = new Map();  // id -> title, at most 3
+  const compareSet = new Map();
   try { sessionId = sessionStorage.getItem("gt-session"); } catch (e) { sessionId = null; }
 
-  const ACTION_LABEL = { answer: "Answered", clarify: "Asked which one", refuse: "Can’t answer" };
+  const ACTION_LABEL = { answer: "Answered", clarify: "Asks which one", refuse: "Not in catalogue" };
   const PATH_LABEL = { rules: "Catalogue rules", semantic: "Embedding fallback", llm: "Language-model fallback" };
+  const INTENT = { search: "finding products", price: "price", stock: "stock", rating: "ratings", detail: "details", policy: "a policy", compare: "a comparison" };
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const el = (tag, attrs = {}, html = "") => { const n = document.createElement(tag); Object.assign(n, attrs); if (html) n.innerHTML = html; return n; };
+  const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html) n.innerHTML = html; return n; };
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   fetch("/api/info").then((r) => r.json()).then((info) => {
     snapshot = info.snapshot ? new Date(info.snapshot + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
-    $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? `, prices as of ${snapshot}` : ""}`;
+    $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? ` · prices as of ${snapshot}` : ""}`;
+    if (info.examples && info.examples.length) {
+      $("examples").innerHTML = info.examples.map((e) => `<button type="button" data-q="${esc(e.q)}"><span class="ex-label">${esc(e.label)}</span>${esc(e.q)}</button>`).join("");
+    }
   }).catch(() => {});
 
-  function chipFor(cite, sources) {
-    const src = sources[cite];
-    const isPolicy = cite.startsWith("policy:");
-    const label = isPolicy ? (src ? src.title : cite.slice(7)) + " policy" : cite;
-    return `<button type="button" class="chip${isPolicy ? " policy" : ""}" data-cite="${esc(cite)}" aria-label="Show source ${esc(label)}">${esc(label)}</button>`;
-  }
+  /* ---------- helpers ---------- */
+  const kindOf = (src) => src.noun || src.category || "Product";
+  const stockPill = (s) => (s.in_stock === null ? `<span class="stock unk">Stock not listed</span>` : s.in_stock ? `<span class="stock">In stock</span>` : `<span class="stock out">Out of stock</span>`);
+  const citeBtn = (c, src) => {
+    const isPolicy = c.startsWith("policy:");
+    const label = isPolicy ? `${src ? src.title : c.slice(7)} policy` : c;
+    return `<button type="button" class="cite${isPolicy ? " policy" : ""}" data-cite="${esc(c)}" aria-label="Show source ${esc(label)}">${esc(label)}</button>`;
+  };
 
-  function renderReply(text, sources) {
-    const lines = text.split("\n");
-    let html = "", inList = null;
-    const close = () => { if (inList) { html += `</${inList}>`; inList = null; } };
-    for (const raw of lines) {
-      if (!raw.trim()) { close(); continue; }
-      let line = esc(raw).replace(/\[([^\]]+)\]/g, (m, c) => (sources[c] ? chipFor(c, sources) : m));
-      const bullet = raw.match(/^\s*-\s+/), numbered = raw.match(/^\s*\d+[.)]\s+/);
-      if (bullet || numbered) {
-        const kind = bullet ? "ul" : "ol";
-        if (inList !== kind) { close(); html += `<${kind}>`; inList = kind; }
-        html += `<li>${line.replace(/^\s*(-|\d+[.)])\s+/, "")}</li>`;
-      } else {
-        close();
-        const note = /^\(I read /.test(raw) ? ' class="note"' : "";
-        html += `<p${note}>${line}</p>`;
-      }
-    }
-    close();
-    return html;
-  }
-
-  function evidenceHTML(src, replyText) {
-    if (src.kind === "policy") {
-      const parts = src.body.split(/(?<=[.!?])\s+/).map((s) => (s && replyText.includes(s) ? `<mark>${esc(s)}</mark>` : esc(s)));
-      return `<div class="evidence-head"><div><h3>${esc(src.title)}</h3><span>Store policy. The highlighted sentence is the one the answer used.</span></div><button type="button" class="flip-back">Back to answer</button></div>
-              <p class="policy-body">${parts.join(" ")}</p>`;
-    }
+  function productCard(src, mode) {
+    const colour = (src.attributes.color || src.attributes.colour || [])[0];
+    const attrs = (colour ? [colour[0].toUpperCase() + colour.slice(1)] : []).concat(Object.entries(src.attributes).filter(([k]) => !["size", "color", "colour"].includes(k)).slice(0, 3).flatMap(([, v]) => v.slice(0, 1)));
+    const rating = src.rating === null ? `<span class="stars"><span>Not rated</span></span>` : `<span class="stars">★ ${src.rating} <span>(${Number(src.rating_count || 0).toLocaleString("en-IN")})</span></span>`;
+    const inCompare = compareSet.has(src.id);
+    const primary = mode === "clarify"
+      ? `<button type="button" class="primary" data-act="pick">This one</button>`
+      : `<button type="button" class="primary" data-act="ask">Ask about this</button>`;
+    const allAttrs = Object.entries(src.attributes).map(([k, v]) => `<dt>${esc(k[0].toUpperCase() + k.slice(1))}</dt><dd>${esc(v.join(", "))}</dd>`).join("");
     const stock = src.in_stock === null ? "Not listed" : src.in_stock ? "In stock" : "Out of stock";
-    const rating = src.rating === null ? "Not rated" : `${src.rating} stars${src.rating_count ? ` from ${Number(src.rating_count).toLocaleString("en-IN")} ratings` : ""}`;
-    const attrs = Object.entries(src.attributes).map(([k, v]) => `<dt>${esc(k[0].toUpperCase() + k.slice(1))}</dt><dd>${esc(v.join(", "))}</dd>`).join("");
-    return `<div class="evidence-head"><div><h3>${esc(src.title)}</h3><span>Catalogue record ${esc(src.id)}</span></div><button type="button" class="flip-back">Back to answer</button></div>
-            <dl class="record">
-              <dt>Price</dt><dd><span class="price">${esc(src.price)}</span>${snapshot ? ` <span class="as-of">as of ${esc(snapshot)}</span>` : ""}</dd>
-              <dt>Stock</dt><dd>${stock}</dd>
-              <dt>Rating</dt><dd>${esc(rating)}</dd>
-              <dt>Category</dt><dd>${esc(src.category || "Not listed")}</dd>
-              ${attrs}
-              ${src.description ? `<dt>Description</dt><dd>${esc(src.description)}</dd>` : ""}
-            </dl>
-            <div class="evidence-actions">
-              <button type="button" class="ask-about" data-ask="${esc(src.title)}">Ask about this one</button>
-              <button type="button" class="add-compare" data-id="${esc(src.id)}" data-title="${esc(src.title)}" aria-pressed="${compareSet.has(src.id)}">${compareSet.has(src.id) ? "Added to compare" : "Add to compare"}</button>
-            </div>`;
+    return `<article class="pcard" data-id="${esc(src.id)}" data-title="${esc(src.title)}">
+      <div class="pcard-in">
+        <div class="pside p-front">
+          <div class="swatch">${stockPill(src)}<span class="kind">${esc(kindOf(src))}</span></div>
+          <div class="pbody">
+            <div class="ptitle">${esc(src.title)}</div>
+            <div class="prow"><span class="price">${esc(src.price)}</span>${rating}</div>
+            <div class="attrs">${attrs.map((a) => `<span>${esc(a)}</span>`).join("")}</div>
+            <div class="prow"><span class="pid">Catalogue record ${esc(src.id)}</span></div>
+            <div class="pactions">${primary}<button type="button" data-act="flip">Details</button><button type="button" data-act="compare" aria-pressed="${inCompare}">${inCompare ? "Added" : "Compare"}</button></div>
+          </div>
+        </div>
+        <div class="pside p-back" aria-hidden="true">
+          <div class="back-head"><b>${esc(src.title)}</b><button type="button" class="flipback" data-act="unflip">Back</button></div>
+          <dl class="record">
+            <dt>Price</dt><dd><strong>${esc(src.price)}</strong>${snapshot ? ` <span class="as-of">as of ${esc(snapshot)}</span>` : ""}</dd>
+            <dt>Stock</dt><dd>${stock}</dd>
+            <dt>Rating</dt><dd>${src.rating === null ? "Not rated" : `${src.rating} from ${Number(src.rating_count || 0).toLocaleString("en-IN")} ratings`}</dd>
+            <dt>Category</dt><dd>${esc(src.category || "Not listed")}</dd>
+            ${allAttrs}
+            ${src.description ? `<dt>About</dt><dd>${esc(src.description)}</dd>` : ""}
+          </dl>
+          <span class="pid">Catalogue record ${esc(src.id)}</span>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  /* Split the reply: list lines citing exactly one product become cards; everything else stays as cited text. */
+  function renderReply(data) {
+    const prods = [], before = [], after = [];
+    const productLine = /^\s*-\s+.*\[([^\]]+)\]\s*\.?$/;
+    for (const raw of data.text.split("\n")) {
+      const m = raw.match(productLine);
+      const cites = [...raw.matchAll(/\[([^\]]+)\]/g)].map((x) => x[1]);
+      if (m && cites.length === 1 && data.sources[m[1]] && data.sources[m[1]].kind === "product") prods.push(m[1]);
+      else (prods.length ? after : before).push(raw);
+    }
+    const isCompare = /^Here is the comparison/.test(data.text);
+    const html = textHTML(isCompare || !prods.length ? data.text.split("\n") : before, data);
+    const tail = !isCompare && prods.length ? textHTML(after, data) : "";
+    const grid = prods.length && !isCompare ? `<div class="grid">${prods.map((id) => productCard(data.sources[id], data.action)).join("")}</div>` : "";
+    return { html, grid, tail, isCompare };
+  }
+
+  function textHTML(lines, data) {
+    let html = "", list = false;
+    for (const raw of lines) {
+      if (!raw.trim()) continue;
+      const body = esc(raw).replace(/\[([^\]]+)\]/g, (all, c) => (data.sources[c] ? citeBtn(c, data.sources[c]) : all));
+      if (/^\s*-\s+/.test(raw)) { if (!list) { html += "<ul>"; list = true; } html += `<li>${body.replace(/^\s*-\s+/, "")}</li>`; continue; }
+      if (list) { html += "</ul>"; list = false; }
+      html += `<p${/^\(I read /.test(raw) || /^(There are more|You can tell me)/.test(raw) ? ' class="note"' : ""}>${body}</p>`;
+    }
+    if (list) html += "</ul>";
+    return html;
   }
 
   function sealHTML(v, action) {
     if (!v.ok) return `<span class="seal bad">Check failed: ${esc(v.problems[0] || "unsupported claim")}</span>`;
-    const icon = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    const what = v.cited ? `${v.cited} source${v.cited > 1 ? "s" : ""} checked` : action === "refuse" ? "Nothing asserted" : "No claims to check";
-    return `<span class="seal ok">${icon}${what}</span>`;
+    const icon = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const what = v.cited ? `${v.cited} source${v.cited > 1 ? "s" : ""} checked` : action === "refuse" ? "Nothing made up" : "No claims to check";
+    return `<span class="seal">${icon}${what}</span>`;
   }
 
-  function addCard(data) {
-    const card = el("article", { className: "card" });
-    const inner = el("div", { className: "inner" });
-    const front = el("div", { className: "side front" });
-    const back = el("div", { className: "side back" });
-    back.setAttribute("aria-hidden", "true");
-    front.innerHTML = `<div class="status"><span class="badge ${data.action}">${ACTION_LABEL[data.action] || data.action}</span>${sealHTML(data.verified, data.action)}
-        <span class="meta">${data.metrics.engine_ms.toFixed(2)} ms</span></div><div class="reply">${renderReply(data.text, data.sources)}</div>${compareTable(data)}`;
-    inner.append(front, back);
-    card.append(inner);
-
-    const flipTo = (cite) => {
-      back.innerHTML = evidenceHTML(data.sources[cite], data.text);
-      back.setAttribute("aria-hidden", "false");
-      front.setAttribute("aria-hidden", "true");
-      inner.style.height = Math.max(front.offsetHeight, back.scrollHeight) + "px";
-      card.classList.add("flipped");
-      back.querySelector(".flip-back").focus({ preventScroll: true });
-    };
-    const flipBack = () => {
-      card.classList.remove("flipped");
-      back.setAttribute("aria-hidden", "true");
-      front.setAttribute("aria-hidden", "false");
-      inner.style.height = front.offsetHeight + "px";
-      const reset = () => { inner.style.height = ""; };
-      setTimeout(reset, 400);
-    };
-    card.addEventListener("click", (e) => {
-      const chip = e.target.closest(".chip");
-      if (chip) { flipTo(chip.dataset.cite); return; }
-      if (e.target.closest(".flip-back")) { flipBack(); front.querySelector(`.chip`)?.focus({ preventScroll: true }); return; }
-      const cmp = e.target.closest(".add-compare");
-      if (cmp) { toggleCompare(cmp.dataset.id, cmp.dataset.title); cmp.setAttribute("aria-pressed", compareSet.has(cmp.dataset.id)); cmp.textContent = compareSet.has(cmp.dataset.id) ? "Added to compare" : "Add to compare"; return; }
-      const askBtn = e.target.closest(".ask-about");
-      if (askBtn) { flipBack(); ask(`tell me about ${askBtn.dataset.ask}`); }
-    });
-    card.addEventListener("keydown", (e) => { if (e.key === "Escape" && card.classList.contains("flipped")) flipBack(); });
-    messages.append(card);
-    return card;
+  function policyEvidence(src, replyText) {
+    const parts = src.body.split(/(?<=[.!?])\s+/).map((s) => (s && replyText.includes(s) ? `<mark>${esc(s)}</mark>` : esc(s)));
+    return `<div class="evidence-head"><div><h3>${esc(src.title)} policy</h3><span>The highlighted sentence is the one the answer used.</span></div><button type="button" class="flipback" data-act="reply-back">Back to answer</button></div>
+      <p class="policy-body">${parts.join(" ")}</p>`;
+  }
+  function productEvidence(src) {
+    return `<div class="evidence-head"><div><h3>${esc(src.title)}</h3><span>Catalogue record ${esc(src.id)}</span></div><button type="button" class="flipback" data-act="reply-back">Back to answer</button></div>
+      <div class="grid" style="grid-template-columns:minmax(210px,280px)">${productCard(src, "answer")}</div>`;
   }
 
   function compareTable(data) {
     const prods = Object.values(data.sources).filter((x) => x.kind === "product");
-    if (!/^Here is the comparison/.test(data.text) || prods.length < 2) return "";
+    if (prods.length < 2) return "";
     const num = (p) => Number(String(p).replace(/[^\d.]/g, ""));
     const keys = [...new Set(prods.flatMap((p) => Object.keys(p.attributes)))];
     const minPrice = Math.min(...prods.map((p) => num(p.price)));
     const maxRating = Math.max(...prods.map((p) => p.rating ?? -1));
-    const row = (label, cells, bestIdx = []) => {
-      const differs = new Set(cells).size > 1;
-      return `<tr class="${differs ? "differs" : ""}"><th scope="row">${esc(label)}</th>${cells.map((c, i) => `<td class="${bestIdx.includes(i) ? "best" : ""}">${esc(c)}</td>`).join("")}</tr>`;
-    };
+    const row = (label, cells, best = []) => `<tr class="${new Set(cells).size > 1 ? "differs" : ""}"><th scope="row">${esc(label)}</th>${cells.map((c, i) => `<td class="${best.includes(i) ? "best" : ""}">${esc(c)}</td>`).join("")}</tr>`;
     const stock = (p) => (p.in_stock === null ? "Not listed" : p.in_stock ? "In stock" : "Out of stock");
     let body = row("Price", prods.map((p) => p.price), prods.map((p, i) => (num(p.price) === minPrice ? i : -1)));
-    body += row("Rating", prods.map((p) => (p.rating === null ? "Not rated" : `${p.rating} (${Number(p.rating_count || 0).toLocaleString("en-IN")})`)), prods.map((p, i) => (p.rating === maxRating ? i : -1)));
+    body += row("Rating", prods.map((p) => (p.rating === null ? "Not rated" : `★ ${p.rating} (${Number(p.rating_count || 0).toLocaleString("en-IN")})`)), prods.map((p, i) => (p.rating === maxRating ? i : -1)));
     body += row("Stock", prods.map(stock));
     keys.forEach((k) => { body += row(k[0].toUpperCase() + k.slice(1), prods.map((p) => (p.attributes[k] || ["—"]).join(", "))); });
-    return `<div class="compare-wrap"><table class="compare"><caption>Side by side from the cited catalogue records. Shaded rows differ; bold is lowest price or highest rating.</caption>
-      <thead><tr><th scope="col"></th>${prods.map((p) => `<th scope="col">${esc(p.title)} <button type="button" class="chip" data-cite="${esc(p.id)}">${esc(p.id)}</button></th>`).join("")}</tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+    return `<div class="compare-wrap"><table class="compare"><caption>Side by side from the cited catalogue records. Yellow rows differ; bold is lowest price or highest rating.</caption>
+      <thead><tr><th scope="col"></th>${prods.map((p) => `<th scope="col">${esc(p.title)} ${citeBtn(p.id, p)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
+  /* ---------- a reply ---------- */
+  function addReply(data) {
+    const r = renderReply(data);
+    const wrap = el("article", "reply");
+    wrap.innerHTML = `<div class="reply-in">
+      <div class="face front">
+        <div class="status"><span class="badge ${data.action}">${ACTION_LABEL[data.action] || esc(data.action)}</span>${sealHTML(data.verified, data.action)}<span class="ms">${data.metrics.engine_ms.toFixed(2)} ms</span></div>
+        <div class="lead">${r.html}</div>
+        ${r.grid}
+        ${r.tail ? `<div class="lead">${r.tail}</div>` : ""}
+        ${r.isCompare ? compareTable(data) : ""}
+        <details class="raw"><summary>Answer as text (what the evaluation scores)</summary><pre>${esc(data.text)}</pre></details>
+      </div>
+      <div class="face back" aria-hidden="true"></div>
+    </div>`;
+    const inner = wrap.querySelector(".reply-in"), front = wrap.querySelector(".front"), back = wrap.querySelector(".back");
+
+    const flipReply = (cite) => {
+      const src = data.sources[cite];
+      back.innerHTML = src.kind === "policy" ? policyEvidence(src, data.text) : productEvidence(src);
+      back.setAttribute("aria-hidden", "false"); front.setAttribute("aria-hidden", "true");
+      inner.style.height = Math.max(front.offsetHeight, back.scrollHeight) + "px";
+      wrap.classList.add("flipped");
+      back.querySelector(".flipback").focus({ preventScroll: true });
+    };
+    const unflipReply = () => {
+      wrap.classList.remove("flipped");
+      back.setAttribute("aria-hidden", "true"); front.setAttribute("aria-hidden", "false");
+      inner.style.height = front.offsetHeight + "px";
+      setTimeout(() => { inner.style.height = ""; }, 400);
+    };
+
+    wrap.addEventListener("click", (e) => {
+      const cite = e.target.closest(".cite");
+      if (cite) {
+        const card = front.querySelector(`.pcard[data-id="${CSS.escape(cite.dataset.cite)}"]`);
+        if (card && !wrap.classList.contains("flipped")) { card.classList.add("flipped"); card.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+        else flipReply(cite.dataset.cite);
+        return;
+      }
+      const btn = e.target.closest("[data-act]");
+      if (!btn) return;
+      const card = btn.closest(".pcard");
+      const act = btn.dataset.act;
+      if (act === "reply-back") { unflipReply(); return; }
+      if (!card) return;
+      const id = card.dataset.id, title = card.dataset.title;
+      if (act === "flip") { card.classList.add("flipped"); card.querySelector(".p-back").setAttribute("aria-hidden", "false"); card.querySelector("[data-act=unflip]").focus({ preventScroll: true }); }
+      else if (act === "unflip") { card.classList.remove("flipped"); card.querySelector(".p-back").setAttribute("aria-hidden", "true"); }
+      else if (act === "compare") { toggleCompare(id, title); syncCompareButtons(); }
+      else if (act === "pick") ask(title);
+      else if (act === "ask") ask(`tell me about ${title}`);
+    });
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (wrap.classList.contains("flipped")) unflipReply();
+      wrap.querySelectorAll(".pcard.flipped").forEach((c) => c.classList.remove("flipped"));
+    });
+    messages.append(wrap);
+    return wrap;
+  }
+
+  /* ---------- compare tray ---------- */
+  function syncCompareButtons() {
+    document.querySelectorAll(".pcard").forEach((c) => {
+      const b = c.querySelector("[data-act=compare]");
+      if (!b) return;
+      const on = compareSet.has(c.dataset.id);
+      b.setAttribute("aria-pressed", on); b.textContent = on ? "Added" : "Compare";
+    });
+  }
   function renderTray() {
     const tray = $("tray");
     if (!compareSet.size) { tray.classList.remove("show"); tray.innerHTML = ""; return; }
@@ -528,45 +536,38 @@ details.roadmap li { margin: 5px 0; }
     tray.innerHTML = `<strong>Compare</strong>${[...compareSet].map(([id, title]) => `<span class="pick" title="${esc(title)}">${esc(id)}<button type="button" data-remove="${esc(id)}" aria-label="Remove ${esc(title)}">×</button></span>`).join("")}
       <button type="button" class="go" ${compareSet.size < 2 ? "disabled" : ""}>${compareSet.size < 2 ? "Pick one more" : `Compare ${compareSet.size}`}</button>`;
   }
-
   function toggleCompare(id, title) {
     if (compareSet.has(id)) compareSet.delete(id);
-    else {
-      if (compareSet.size >= 3) compareSet.delete(compareSet.keys().next().value);
-      compareSet.set(id, title);
-    }
+    else { if (compareSet.size >= 3) compareSet.delete(compareSet.keys().next().value); compareSet.set(id, title); }
     renderTray();
   }
-
   $("tray").addEventListener("click", (e) => {
     const rm = e.target.closest("[data-remove]");
-    if (rm) { compareSet.delete(rm.dataset.remove); renderTray(); document.querySelectorAll(`.add-compare[data-id="${rm.dataset.remove}"]`).forEach((b) => { b.setAttribute("aria-pressed", "false"); b.textContent = "Add to compare"; }); return; }
+    if (rm) { compareSet.delete(rm.dataset.remove); renderTray(); syncCompareButtons(); return; }
     if (e.target.closest(".go") && compareSet.size >= 2) {
       const ids = [...compareSet.keys()];
-      compareSet.clear(); renderTray();
-      document.querySelectorAll(".add-compare").forEach((b) => { b.setAttribute("aria-pressed", "false"); b.textContent = "Add to compare"; });
+      compareSet.clear(); renderTray(); syncCompareButtons();
       ask(`compare ${ids.join(" and ")} price rating stock`);
     }
   });
 
+  /* ---------- side panel ---------- */
   function tagsHTML(r) {
-    const tags = [];
-    r.looking_for.forEach((t) => tags.push(`<span class="tag">${esc(t)}</span>`));
-    r.features.forEach((t) => tags.push(`<span class="tag">${esc(t)}</span>`));
-    Object.entries(r.filters).forEach(([k, v]) => tags.push(`<span class="tag">${esc(k)}: ${esc(v)}</span>`));
-    Object.entries(r.excluding || {}).forEach(([k, vs]) => vs.forEach((v) => tags.push(`<span class="tag minus" title="excluded">${esc(k)}: ${esc(v)}</span>`)));
-    if (r.budget_min != null && r.budget_max != null) tags.push(`<span class="tag">${rupees(r.budget_min)}–${rupees(r.budget_max)}</span>`);
-    else if (r.budget_max != null) tags.push(`<span class="tag">Under ${rupees(r.budget_max)}</span>`);
-    else if (r.budget_min != null) tags.push(`<span class="tag">Over ${rupees(r.budget_min)}</span>`);
-    if (r.size) tags.push(`<span class="tag">Size ${esc(r.size)}</span>`);
-    if (r.sort) tags.push(`<span class="tag">${esc(r.sort.replace("_", " ").replace("asc", "low to high").replace("desc", "high to low"))}</span>`);
-    return tags.join("");
+    const t = [];
+    r.looking_for.forEach((x) => t.push(`<span class="tagx">${esc(x)}</span>`));
+    r.features.forEach((x) => t.push(`<span class="tagx">${esc(x)}</span>`));
+    Object.entries(r.filters).forEach(([k, v]) => t.push(`<span class="tagx">${esc(k)}: ${esc(v)}</span>`));
+    Object.entries(r.excluding || {}).forEach(([k, vs]) => vs.forEach((v) => t.push(`<span class="tagx minus">${esc(k)}: ${esc(v)}</span>`)));
+    if (r.budget_min != null && r.budget_max != null) t.push(`<span class="tagx">${rupees(r.budget_min)}–${rupees(r.budget_max)}</span>`);
+    else if (r.budget_max != null) t.push(`<span class="tagx">Under ${rupees(r.budget_max)}</span>`);
+    else if (r.budget_min != null) t.push(`<span class="tagx">Over ${rupees(r.budget_min)}</span>`);
+    if (r.size) t.push(`<span class="tagx">Size ${esc(r.size)}</span>`);
+    if (r.sort) t.push(`<span class="tagx">${esc(r.sort.replace("_", " ").replace("asc", "low to high").replace("desc", "high to low"))}</span>`);
+    return t.join("");
   }
-
   function updatePanel(d) {
-    const rem = tagsHTML(d.remembered) + (d.remembered.last_product ? `<span class="tag">Talking about ${esc(d.remembered.last_product)}</span>` : "");
+    const rem = tagsHTML(d.remembered) + (d.remembered.last_product ? `<span class="tagx">Talking about ${esc(d.remembered.last_product)}</span>` : "");
     $("remembered").innerHTML = rem ? `<div class="tags">${rem}</div>` : `<p class="empty">Nothing remembered. Your next message starts fresh.</p>`;
-
     const r = d.reading, rows = [];
     const add = (k, v) => v && rows.push(`<dt>${k}</dt><dd>${v}</dd>`);
     add("Looking for", esc(r.looking_for.join(", ")));
@@ -574,33 +575,27 @@ details.roadmap li { margin: 5px 0; }
     add("Filters", esc(Object.entries(r.filters).map(([k, v]) => `${k} ${v}`).join(", ")));
     add("Budget", r.budget_max != null ? `up to ${rupees(r.budget_max)}` + (r.budget_min != null ? ` from ${rupees(r.budget_min)}` : "") : r.budget_min != null ? `from ${rupees(r.budget_min)}` : "");
     add("Size", esc(r.size || ""));
-    const INTENT = { search: "finding products", price: "price", stock: "stock", rating: "ratings", detail: "details", policy: "a policy", compare: "a comparison" };
     add("Asking about", esc(r.asking_about.map((i) => INTENT[i] || i).join(", ")));
     add("Read as", esc(r.read_as.map(([a, b]) => `“${a}” → ${b}`).join(", ")));
     add("Brands not carried", esc(r.brands_not_carried.join(", ")));
     add("No match for", esc(r.not_recognised.filter((w) => !r.brands_not_carried.includes(w)).join(", ")));
     $("reading").innerHTML = rows.length ? `<dl class="kv">${rows.join("")}</dl>` : `<p class="empty">Nothing specific picked out of that message.</p>`;
-
     const m = d.metrics, t = d.totals;
-    const llm = m.llm_input_tokens + m.llm_output_tokens;
     $("metrics").innerHTML = `<dl class="kv">
-        <dt>Answered by</dt><dd>${PATH_LABEL[m.path] || esc(m.path)}</dd>
-        <dt>Time</dt><dd>${m.engine_ms.toFixed(2)} ms (${m.with_checks_ms.toFixed(2)} ms with checks)</dd>
-        <dt>Model tokens</dt><dd>${llm ? `${m.llm_input_tokens} in, ${m.llm_output_tokens} out` : "0 — no model call needed"}</dd>
-        <dt>This chat</dt><dd>${t.queries} question${t.queries > 1 ? "s" : ""}, ${t.mean_ms.toFixed(2)} ms average, ${t.llm_tokens} model tokens</dd>
-      </dl>`;
-
-    $("gaps").innerHTML = d.gaps.length
-      ? `<ul class="gaps">${d.gaps.map(([w, n]) => `<li>${esc(w)}<span>${n}×</span></li>`).join("")}</ul>`
-      : `<p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p>`;
+      <dt>Answered by</dt><dd>${PATH_LABEL[m.path] || esc(m.path)}</dd>
+      <dt>Time</dt><dd>${m.engine_ms.toFixed(2)} ms (${m.with_checks_ms.toFixed(2)} ms with checks)</dd>
+      <dt>Model tokens</dt><dd>${m.llm_input_tokens + m.llm_output_tokens ? `${m.llm_input_tokens} in, ${m.llm_output_tokens} out` : "0, no model call needed"}</dd>
+      <dt>This chat</dt><dd>${t.queries} question${t.queries > 1 ? "s" : ""}, ${t.mean_ms.toFixed(2)} ms average</dd></dl>`;
+    $("gaps").innerHTML = d.gaps.length ? `<ul class="gaps">${d.gaps.map(([w, n]) => `<li>${esc(w)}<span>${n}×</span></li>`).join("")}</ul>` : `<p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p>`;
   }
 
+  /* ---------- send ---------- */
   async function ask(text) {
     text = text.trim();
     if (!text) return;
     $("hero")?.remove();
-    messages.append(el("div", { className: "msg-user", textContent: text }));
-    const typing = el("div", { className: "typing" }, "<i></i><i></i><i></i>");
+    messages.append(Object.assign(el("div", "msg-user"), { textContent: text }));
+    const typing = el("div", "typing", "<i></i><i></i><i></i>");
     typing.setAttribute("aria-label", "Checking the catalogue");
     messages.append(typing);
     typing.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -612,32 +607,29 @@ details.roadmap li { margin: 5px 0; }
       if (!res.ok) throw new Error(data.error || "Request failed");
       sessionId = data.session_id;
       try { sessionStorage.setItem("gt-session", sessionId); } catch (e) {}
-      const card = addCard(data);
+      const card = addReply(data);
       updatePanel(data);
       card.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch (err) {
       typing.remove();
-      const card = el("article", { className: "card" });
-      card.innerHTML = `<div class="inner"><div class="side front"><div class="status"><span class="badge refuse">Not sent</span></div><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that web.py is still running, then try again." : err.message)}</p></div></div>`;
+      const card = el("article", "reply");
+      card.innerHTML = `<div class="reply-in"><div class="face front"><div class="status"><span class="badge refuse">Not sent</span></div><div class="lead"><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that web.py is still running, then try again." : err.message)}</p></div></div></div>`;
       messages.append(card);
-    } finally {
-      send.disabled = false;
-      input.focus();
-    }
+    } finally { send.disabled = false; if (matchMedia("(pointer: fine)").matches) input.focus(); }
   }
 
   form.addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; ask(t); });
-  $("examples").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) ask(b.textContent); });
+  $("examples").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) ask(b.dataset.q || b.textContent.replace(/^(Trap|Not sold|Policy)/, "")); });
   $("reset").addEventListener("click", async () => {
     try {
       const res = await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) });
       const data = await res.json();
       sessionId = data.session_id;
       $("remembered").innerHTML = `<p class="empty">Cleared. Your next message starts fresh.</p>`;
-      messages.append(el("p", { className: "seal", textContent: "Started over: earlier filters and budget are forgotten." }));
+      messages.append(Object.assign(el("p", "seal"), { textContent: "Started over: earlier filters and budget are forgotten." }));
     } catch (e) {}
   });
-  input.focus();
+  if (matchMedia("(pointer: fine)").matches) input.focus();  // don't pop up the keyboard on phones
 })();
 </script>
 </body>

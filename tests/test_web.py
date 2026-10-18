@@ -21,7 +21,7 @@ from web import State, make_handler  # noqa: E402
 class WebTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        assistant = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
+        assistant = cls.assistant = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
         page = (ROOT / "web" / "index.html").read_bytes()
         insights = (ROOT / "web" / "insights.html").read_bytes()
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(State(assistant), page, {"products": 1},
@@ -101,6 +101,43 @@ class WebTests(unittest.TestCase):
         _, d = self.post("/api/chat", {"session_id": d["session_id"], "message": "do you sell iPhones?"})
         self.assertEqual(d["action"], "refuse")
         self.assertIn("iphone", [w for w, _ in d["gaps"]])
+
+    def test_examples_come_from_the_catalogue_and_do_what_they_say(self):
+        from web import build_examples
+        from shopassistant import Session
+        examples = build_examples(self.assistant)
+        self.assertGreaterEqual(len(examples), 5)
+        self.assertEqual({e["shows"] for e in examples}, {"answer", "clarify", "refuse"})
+        for e in examples:
+            self.assertEqual(self.assistant.ask(e["q"], Session()).action, e["shows"], e)
+
+    def test_budget_from_an_earlier_turn_is_not_flagged(self):
+        _, d = self.post("/api/chat", {"message": "running shoes"})
+        _, d = self.post("/api/chat", {"session_id": d["session_id"], "message": "under 200"})
+        self.assertEqual(d["action"], "refuse")
+        self.assertTrue(d["verified"]["ok"], d["verified"])
+        self.assertIn("₹200", d["text"])
+
+    def test_demand_label_does_not_carry_old_filters_into_a_new_request(self):
+        _, d = self.post("/api/chat", {"message": "blue running shoes"})
+        _, d = self.post("/api/chat", {"session_id": d["session_id"], "message": "kurta under 100"})
+        self.assertEqual(d["action"], "refuse")
+        self.assertIn(["kurta, under ₹100", 1], d["gaps"])
+
+    def test_picking_a_card_after_a_clarifying_question_answers_it(self):
+        _, d = self.post("/api/chat", {"message": "price of the blue running shoe"})
+        self.assertEqual(d["action"], "clarify")
+        pick = next(v for v in d["sources"].values() if v["kind"] == "product")
+        self.assertTrue(pick["noun"])  # cards show what the product is called
+        _, d = self.post("/api/chat", {"session_id": d["session_id"], "message": pick["title"]})
+        self.assertEqual(d["action"], "answer")
+        self.assertIn(pick["price"], d["text"])
+        self.assertEqual(list(d["sources"]), [pick["id"]])
+
+    def test_order_questions_are_not_counted_as_missing_products(self):
+        _, d = self.post("/api/chat", {"message": "track my order"})
+        self.assertEqual(d["action"], "refuse")
+        self.assertEqual(d["gaps"], [])
 
     def test_bad_input(self):
         self.assertEqual(self.post("/api/chat", {"message": "   "})[0], 400)

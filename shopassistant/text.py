@@ -15,7 +15,8 @@ STOPWORDS = set(
     ander rs inr rupee rupees rupaye ruppees stock available availability already said told mentioned earlier before still ones now instead
     rather kitne kitna kitni din abhi something anything good nice great cool decent quality product most least actually anyway okay ok yes yeah hmm except without excluding nahi
     products item items thing things recommend suggestion
-    compare comparison vs versus between
+    compare comparison vs versus between kab kaise kaisa kahan kidhar kyun kyu sabse sab
+    aap aapke aapka aapki apke paas pas hai hain ho come comes
     """.split()
 )
 
@@ -28,11 +29,13 @@ SYNONYMS = {
     "cost": "price", "costs": "price", "keemat": "price", "kimat": "price",
     "daam": "price", "din": "day", "prices": "price", "pricing": "price",
     # delivery and shipping are the same thing to a shopper; one token lets the policy heading bonus apply
+    "sizes": "size", "sizing": "size",
     "shipping": "ship", "shipped": "ship", "delivery": "ship", "deliveries": "ship", "deliver": "ship",
     "delivered": "ship", "courier": "ship",
     "cancelled": "cancel", "canceled": "cancel", "cancellation": "cancel", "cancellations": "cancel",
     "refunds": "refund", "refunded": "refund", "wapas": "return", "vapas": "return",
     "jogging": "running", "jog": "running", "jogger": "running",
+    "trainer": "shoe", "trainers": "shoe", "footwear": "shoe",
     "chappal": "sandal", "chappals": "sandal", "slipper": "sandal", "slippers": "sandal", "floaters": "sandal",
     "kurti": "kurta", "kurtis": "kurta", "earphone": "earbud", "earphones": "earbud",
     "ladies": "women", "lady": "women", "womens": "women", "female": "women", "girls": "women",
