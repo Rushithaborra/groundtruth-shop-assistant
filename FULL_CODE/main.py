@@ -1,0 +1,63 @@
+"""GroundTruth: the one entry point.
+
+    python main.py chat       interactive command-line chat
+    python main.py serve      web demo at http://127.0.0.1:8000 (retailer view at /insights)
+    python main.py evaluate   score a question set; reports go to output/
+    python main.py bench      throughput and latency benchmark
+    python main.py calibrate  pick the embedding-fallback thresholds with the provided model
+    python main.py generate   write the synthetic catalogues and question sets into data/
+
+Run `python main.py <command> --help` for a command's options.
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+
+from api import server
+from groundtruth import cli
+from groundtruth.evaluation import scoring
+from groundtruth.paths import ROOT
+from tools import bench, calibrate_semantic
+
+# Generators in the order their inputs need them (the scale and question sets read the catalogues written before).
+GENERATORS = ("synthetic", "hard", "scale", "independent", "heldout", "heldout2")
+
+
+def _generate(args: argparse.Namespace) -> None:
+    names = GENERATORS if args.which == "all" else (args.which,)
+    for name in names:
+        # each generator runs in its own process: the question-set generators share module-level state
+        subprocess.run([sys.executable, "-m", f"tools.generate_{name}"], check=True, cwd=ROOT)
+
+
+def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("which", nargs="?", default="all", choices=("all", *GENERATORS),
+                    help="which data set to write (default: all)")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name, add_arguments, handler, help_text in (
+        ("chat", cli.add_arguments, cli.run, "interactive command-line chat"),
+        ("serve", server.add_arguments, server.run, "run the web demo"),
+        ("evaluate", scoring.add_arguments, scoring.run, "score a question set"),
+        ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
+        ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
+        ("generate", _add_generate_arguments, _generate, "write synthetic data and question sets"),
+    ):
+        sub = commands.add_parser(name, help=help_text)
+        add_arguments(sub)
+        sub.set_defaults(handler=handler)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    args.handler(args)
+
+
+if __name__ == "__main__":
+    main()

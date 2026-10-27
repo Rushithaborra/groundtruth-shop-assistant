@@ -1,6 +1,6 @@
 __pycache__/
 *.pyc
-reports/
 .venv/
-data/scale/
 .cache/
+FULL_CODE/output/
+FULL_CODE/data/scale/
