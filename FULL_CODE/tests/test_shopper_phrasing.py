@@ -2,22 +2,18 @@
 
 Run: python -m unittest discover -s tests
 """
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from evaluate import Grounding  # noqa: E402
-from shopassistant import ANSWER, CLARIFY, REFUSE, Session, build_assistant  # noqa: E402
+from groundtruth.paths import ROOT
+from groundtruth.grounding import Grounding
+from groundtruth import ANSWER, CLARIFY, REFUSE, Session, build_assistant
 
 
 class ShopperPhrasingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.a = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
-        cls.g = Grounding(cls.a)
+        cls.g = Grounding(cls.a.index, cls.a.sections)
         cls.products = cls.a.index.products
 
     def ask(self, *turns):
@@ -79,7 +75,7 @@ class ShopperPhrasingTests(unittest.TestCase):
         self.assertIn(colour, self.ask(f"colour of {pid}").text)
 
     def test_sizes_is_not_read_as_size_s(self):
-        from shopassistant.understand import understand
+        from groundtruth.understand import understand
         self.assertIsNone(understand("what sizes does it come in", self.a.index).spec.size)
 
     def test_filter_on_an_attribute_the_type_lacks_is_dropped_with_a_note(self):

@@ -12,14 +12,10 @@ calling the assistant), so the ground truth is independent of the code under tes
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from shopassistant.catalogue import load_catalogue  # noqa: E402  (field-name normalisation only)
-
-SCALE = ROOT / "data" / "scale"
+from groundtruth.catalogue import load_catalogue  # field-name normalisation only
+from groundtruth.paths import SCALE_DIR as SCALE
 PRODUCTS = load_catalogue(SCALE / "catalogue.jsonl")
 
 
@@ -162,7 +158,11 @@ policy("i58", ["warranty on smartwatch"], ["warranty"])
 refuse("i59", ["do you give EMI option"])
 refuse("i60", ["gift wrapping available?"])
 
-if __name__ == "__main__":
+def main() -> None:
     out = SCALE / "independent_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
     print(f"wrote {len(Q)} questions to {out}")
+
+
+if __name__ == "__main__":
+    main()

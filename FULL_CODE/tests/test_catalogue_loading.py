@@ -5,16 +5,13 @@ Run: python -m unittest discover -s tests
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from shopassistant import ShoppingAssistant, CatalogueIndex, load_policy  # noqa: E402
-from shopassistant.catalogue import _parse_stock, load_catalogue  # noqa: E402
+from groundtruth.paths import ROOT
+from groundtruth import ShoppingAssistant, CatalogueIndex, load_policy
+from groundtruth.catalogue import _parse_stock, load_catalogue
 
 
 def write(suffix: str, text: str) -> Path:

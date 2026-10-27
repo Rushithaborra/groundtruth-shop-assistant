@@ -1,6 +1,6 @@
 """Pick the embedding-fallback thresholds from labelled examples, using the provided embedding model.
 
-    python calibrate_semantic.py --embed-model PATH/TO/MODEL [--catalogue ...] [--policy ...]
+    python main.py calibrate --embed-model PATH/TO/MODEL [--catalogue ...] [--policy ...]
 
 Writes semantic_config.json, which build_assistant needs before the fallback switches on.
 Rule: map_threshold sits just above the best score of any word the shop does NOT sell, so with this model none of
@@ -14,9 +14,10 @@ import argparse
 import json
 import sys
 
-from shopassistant import CatalogueIndex, load_catalogue, load_policy
-from shopassistant.semantic import LocalEmbedder, SemanticFallback, _dot
-from shopassistant.text import tokenize
+from groundtruth import CatalogueIndex, load_catalogue, load_policy
+from groundtruth.semantic import LocalEmbedder, SemanticFallback, _dot
+from groundtruth.paths import DATA_DIR
+from groundtruth.text import tokenize
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -75,13 +76,14 @@ def calibrate(fallback: SemanticFallback, margin: float = 0.02) -> dict:
     return {"config": report, "rows": rows, "policy_pos": pos, "policy_neg": neg}
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
+def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--embed-model", required=True)
-    ap.add_argument("--catalogue", default="data/catalogue.jsonl")
-    ap.add_argument("--policy", default="data/policy.txt")
+    ap.add_argument("--catalogue", default=str(DATA_DIR / "catalogue.jsonl"))
+    ap.add_argument("--policy", default=str(DATA_DIR / "policy.txt"))
     ap.add_argument("--out", default="semantic_config.json")
-    args = ap.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
     index, policy = CatalogueIndex(load_catalogue(args.catalogue)), load_policy(args.policy)
     fb = SemanticFallback(index, policy, LocalEmbedder(args.embed_model), map_threshold=1.0)
     result = calibrate(fb)
@@ -100,7 +102,3 @@ def main() -> None:
         json.dump(cfg, fh, indent=2)
     print(f"\nwrote {args.out}. If should_map_recall is low, the model can't separate synonyms from unsold items at "
           "this margin: keep the fallback off rather than lowering map_threshold by hand.")
-
-
-if __name__ == "__main__":
-    main()

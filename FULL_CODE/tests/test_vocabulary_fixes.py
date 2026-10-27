@@ -2,23 +2,19 @@
 
 Run: python -m unittest discover -s tests
 """
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from evaluate import Grounding  # noqa: E402
-from shopassistant import ANSWER, CLARIFY, REFUSE, Session, build_assistant  # noqa: E402
-from shopassistant.text import tokenize  # noqa: E402
+from groundtruth.paths import ROOT
+from groundtruth.grounding import Grounding
+from groundtruth import ANSWER, CLARIFY, REFUSE, Session, build_assistant
+from groundtruth.text import tokenize
 
 
 class VocabularyFixTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.a = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
-        cls.g = Grounding(cls.a)
+        cls.g = Grounding(cls.a.index, cls.a.sections)
         cls.products = cls.a.index.products
 
     def ask(self, *turns):

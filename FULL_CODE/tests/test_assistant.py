@@ -3,23 +3,19 @@
 These pin the behaviours the task scores: grounded answers, refusals, clarification, multi-turn budgets,
 and the evaluator's ability to catch a hallucinated price.
 """
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from evaluate import Grounding  # noqa: E402
-from shopassistant import ANSWER, CLARIFY, REFUSE, Session, SessionStore, build_assistant  # noqa: E402
-from shopassistant.text import format_inr  # noqa: E402
+from groundtruth.paths import ROOT
+from groundtruth.grounding import Grounding
+from groundtruth import ANSWER, CLARIFY, REFUSE, Session, SessionStore, build_assistant
+from groundtruth.text import format_inr
 
 
 class AssistantTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.a = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
-        cls.grounding = Grounding(cls.a)
+        cls.grounding = Grounding(cls.a.index, cls.a.sections)
         cls.products = cls.a.index.products
 
     def test_price_answer_is_exact_and_cited(self):

@@ -11,7 +11,7 @@ import random
 import re
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from groundtruth.paths import DATA_DIR as HERE
 
 
 def load(path: Path) -> list[dict]:
@@ -150,8 +150,12 @@ def write(path: Path, qs: list[dict]) -> None:
     print(f"wrote {len(qs)} questions to {path}")
 
 
-if __name__ == "__main__":
+def main() -> None:
     write(HERE / "hard_questions.jsonl", make(load(HERE / "catalogue.jsonl")))
     scale = HERE / "scale" / "catalogue.jsonl"
     if scale.exists():
         write(HERE / "scale" / "hard_questions.jsonl", make(load(scale)))
+
+
+if __name__ == "__main__":
+    main()

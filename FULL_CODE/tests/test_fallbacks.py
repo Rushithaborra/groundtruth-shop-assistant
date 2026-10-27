@@ -6,18 +6,14 @@ understood, never what the reply asserts, and anything the model invents is drop
 Run: python -m unittest discover -s tests
 """
 import json
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from calibrate_semantic import calibrate  # noqa: E402
-from evaluate import Grounding  # noqa: E402
-from shopassistant import ANSWER, REFUSE, CatalogueIndex, ShoppingAssistant, load_catalogue, load_policy  # noqa: E402
-from shopassistant.llm_normaliser import LLMNormaliser  # noqa: E402
-from shopassistant.semantic import SemanticFallback, type_words  # noqa: E402
+from tools.calibrate_semantic import calibrate
+from groundtruth.paths import ROOT
+from groundtruth.grounding import Grounding
+from groundtruth import ANSWER, REFUSE, CatalogueIndex, ShoppingAssistant, load_catalogue, load_policy
+from groundtruth.llm_normaliser import LLMNormaliser
+from groundtruth.semantic import SemanticFallback, type_words
 
 
 class FakeEmbedder:
@@ -70,7 +66,7 @@ class FallbackTests(unittest.TestCase):
             sem = SemanticFallback(self.index, self.policy, embedder, map_threshold=0.8, alt_threshold=0.5,
                                    policy_threshold=0.7)
         a = ShoppingAssistant(self.index, self.policy, semantic=sem, normaliser=normaliser)
-        return a, Grounding(a)
+        return a, Grounding(a.index, a.sections)
 
     def grounded(self, g, r, q):
         self.assertFalse(g.check(r.text, q)["problems"], r.text)

@@ -11,7 +11,7 @@ import json
 import random
 from pathlib import Path
 
-OUT = Path(__file__).parent
+from groundtruth.paths import DATA_DIR as OUT
 rng = random.Random(7)
 
 COLORS = ["black", "white", "blue", "red", "grey", "green"]
@@ -237,6 +237,7 @@ def main() -> None:
     (OUT / "test_questions.jsonl").write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n",
                                               encoding="utf-8")
     print(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
+
 
 
 if __name__ == "__main__":

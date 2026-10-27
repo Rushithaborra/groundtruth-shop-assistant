@@ -1,6 +1,6 @@
 """Score the assistant on groundedness, helpfulness and refusal accuracy, plus a latency / token-cost report.
 
-    python evaluate.py [--questions data/test_questions.jsonl] [--out reports]
+    python main.py evaluate [--questions data/test_questions.jsonl] [--out output/reports]
 
 Question format (one JSON object per line); extra keys are ignored:
     {"id": "q1", "turns": ["...", "..."],            # or "question": "..."  (a single turn)
@@ -27,20 +27,17 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import re
 import statistics
 import sys
 from pathlib import Path
 
-from shopassistant import Session, build_assistant
-from shopassistant.text import format_inr
+from .. import Session, build_assistant
+from ..grounding import Grounding
+from ..paths import DATA_DIR, OUTPUT_DIR
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-CITE = re.compile(r"\[([^\]]+)\]")
-RUPEE = re.compile(r"₹\s?(\d[\d,]*(?:\.\d+)?)")
-NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
 FINAL_WEIGHTS = (0.35, 0.35, 0.30)
 HALLUCINATED_PRICE_PENALTY = 0.10
 
@@ -55,72 +52,6 @@ def load_cases(path: Path) -> list[dict]:
         expected = raw.get("expected") or {k: v for k, v in raw.items() if k not in {"id", "turns", "question", "query"}}
         cases.append({"id": raw.get("id", f"q{len(cases) + 1}"), "turns": turns, "expected": expected})
     return cases
-
-
-def _numbers(text: str) -> set[str]:
-    return {n.rstrip(",").replace(",", "") for n in NUMBER.findall(text)}
-
-
-class Grounding:
-    """Independent checker: re-derives what each citation licenses from the raw catalogue/policy."""
-
-    def __init__(self, assistant):
-        self.a = assistant
-        self.titles = sorted({p.title for p in assistant.index.products.values()}, key=len, reverse=True)
-        self.title_ids: dict[str, set[str]] = {}
-        for p in assistant.index.products.values():
-            self.title_ids.setdefault(p.title, set()).add(p.id)
-
-    def source(self, cite: str) -> str | None:
-        if cite.startswith("policy:"):
-            sec = self.a.sections.get(cite[7:])
-            return f"{sec.heading} {sec.body}" if sec else None
-        p = self.a.index.products.get(cite)
-        if not p:
-            return None
-        attrs = " ".join(f"{k} {' '.join(p.attr_values(k))}" for k in p.attributes)
-        return (f"{p.id} {p.title} {p.description} {p.category} {attrs} {p.price:g} {format_inr(p.price)} "
-                f"{p.rating if p.rating is not None else ''} {p.rating_count or ''}")
-
-    def check(self, text: str, query_text: str) -> dict:
-        cites = list(dict.fromkeys(CITE.findall(text)))
-        problems, hallucinated = [], []
-        sources = {}
-        for c in cites:
-            src = self.source(c)
-            if src is None:
-                problems.append(f"unknown citation [{c}]")
-            else:
-                sources[c] = src
-        body = CITE.sub("", text)
-        allowed_money = {float(m.replace(",", "")) for src in sources.values() for m in RUPEE.findall(src)}
-        for c in sources:
-            p = self.a.index.products.get(c)
-            if p:
-                allowed_money.add(float(p.price))
-        allowed_money |= {float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*(?:\.\d+)?", query_text)
-                          if n.replace(",", "").replace(".", "").isdigit()}
-        for m in RUPEE.findall(body):
-            if float(m.replace(",", "")) not in allowed_money:
-                hallucinated.append(m)
-        allowed_nums = _numbers(" ".join(sources.values()) + " " + query_text)
-        for n in _numbers(RUPEE.sub("", re.sub(r"(?m)^\s*\d+[.)]\s", "", body))):
-            if n not in allowed_nums:
-                problems.append(f"number {n} not in cited sources")
-        for title in self.titles:
-            if title in body and not (self.title_ids[title] & set(sources)):
-                problems.append(f"names '{title}' without citing it")
-        # every sentence/line that states a fact must carry a citation
-        for unit in re.split(r"(?<=[.!?])\s+(?!\[)|\n", text):
-            u = unit.strip(" -")
-            if not u:
-                continue
-            states_fact = bool(RUPEE.search(u)) or any(t in u for t in self.titles) or \
-                bool(re.search(r"\b(in stock|out of stock|rated|stars)\b", u))
-            if states_fact and not CITE.search(u):
-                problems.append(f"uncited claim: {u[:60]}")
-        problems += [f"hallucinated price ₹{h}" for h in hallucinated]
-        return {"problems": problems, "hallucinated_prices": len(hallucinated), "cited": cites}
 
 
 def helpfulness(resp, exp: dict, cited: list[str]) -> float:
@@ -142,22 +73,23 @@ def helpfulness(resp, exp: dict, cited: list[str]) -> float:
     return sum(checks) / len(checks) if checks else 1.0
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--catalogue", default="data/catalogue.jsonl")
-    ap.add_argument("--policy", default="data/policy.txt")
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("--catalogue", default=str(DATA_DIR / "catalogue.jsonl"))
+    ap.add_argument("--policy", default=str(DATA_DIR / "policy.txt"))
     ap.add_argument("--embed-model", help="path to the provided embedding model (needs semantic_config.json)")
     ap.add_argument("--llm-model", help="path to the provided instruct model (last-resort query normaliser)")
-    ap.add_argument("--questions", default="data/test_questions.jsonl")
-    ap.add_argument("--out", default="reports")
+    ap.add_argument("--questions", default=str(DATA_DIR / "test_questions.jsonl"))
+    ap.add_argument("--out", default=str(OUTPUT_DIR / "reports"))
     ap.add_argument("--price-in", type=float, default=0.0, help="USD per 1M input tokens (0 for the rules-based assistant)")
     ap.add_argument("--price-out", type=float, default=0.0, help="USD per 1M output tokens")
     ap.add_argument("--verbose", action="store_true", help="print every failing case")
-    args = ap.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
 
     assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model,
                                 measure_tokens=True)
-    grounding = Grounding(assistant)
+    grounding = Grounding(assistant.index, assistant.sections)
     cases = load_cases(Path(args.questions))
     rows, confusion = [], {}
     for case in cases:
@@ -231,7 +163,3 @@ def main() -> None:
         for r in failing:
             print(f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "
                   f"grounded={r['grounded']} {r['problems']}\n  reply: {r['reply'][:300]}")
-
-
-if __name__ == "__main__":
-    main()

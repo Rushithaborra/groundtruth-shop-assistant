@@ -10,11 +10,9 @@ If you fix a failure here, the set stops being held out: write a fresh one.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_independent import EAR, PRODUCTS, Q, RUN, SCALE, WATCH, clarify, listing, pick, policy, refuse, single  # noqa: E402
+from tools.generate_independent import EAR, PRODUCTS, Q, RUN, SCALE, WATCH, clarify, listing, pick, policy, refuse, single
 
 Q.clear()
 listing("h01", ["trainers for running"], pick(RUN))
@@ -58,7 +56,11 @@ policy("h35", ["return window kitne din ka hai"], ["returns"], must=["30 days"])
 refuse("h36", ["do you have a store in hyderabad"])
 refuse("h37", ["can i pay with paytm"])
 
-if __name__ == "__main__":
+def main() -> None:
     out = SCALE / "heldout_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
     print(f"wrote {len(Q)} questions to {out}")
+
+
+if __name__ == "__main__":
+    main()

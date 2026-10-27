@@ -3,19 +3,16 @@
 Run: python -m unittest discover -s tests
 """
 import json
-import sys
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from shopassistant import build_assistant  # noqa: E402
-from web import State, make_handler  # noqa: E402
+from groundtruth.paths import ROOT
+from groundtruth import build_assistant
+from api.server import make_handler
+from api.state import State
 
 
 class WebTests(unittest.TestCase):
@@ -103,8 +100,8 @@ class WebTests(unittest.TestCase):
         self.assertIn("iphone", [w for w, _ in d["gaps"]])
 
     def test_examples_come_from_the_catalogue_and_do_what_they_say(self):
-        from web import build_examples
-        from shopassistant import Session
+        from api.views import build_examples
+        from groundtruth import Session
         examples = build_examples(self.assistant)
         self.assertGreaterEqual(len(examples), 5)
         self.assertEqual({e["shows"] for e in examples}, {"answer", "clarify", "refuse"})

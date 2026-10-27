@@ -1,6 +1,6 @@
 """Throughput / latency benchmark, single-threaded and with concurrent users.
 
-    python bench.py [--catalogue ...] [--questions ...] [--threads 8] [--rounds 20] [--profile]
+    python main.py bench [--catalogue ...] [--questions ...] [--threads 8] [--rounds 20] [--profile]
 """
 from __future__ import annotations
 
@@ -12,25 +12,27 @@ import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from shopassistant import Session, build_assistant
+from groundtruth import Session, build_assistant
+from groundtruth.paths import SCALE_DIR
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--catalogue", default="data/scale/catalogue.jsonl")
-    ap.add_argument("--policy", default="data/scale/policy.txt")
-    ap.add_argument("--questions", default="data/scale/test_questions.jsonl")
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("--catalogue", default=str(SCALE_DIR / "catalogue.jsonl"))
+    ap.add_argument("--policy", default=str(SCALE_DIR / "policy.txt"))
+    ap.add_argument("--questions", default=str(SCALE_DIR / "test_questions.jsonl"))
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--profile", action="store_true")
-    args = ap.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
 
     start = time.perf_counter()
     assistant = build_assistant(args.catalogue, args.policy)
     print(f"build: {time.perf_counter() - start:.2f}s")
     convos = [json.loads(line)["turns"] for line in open(args.questions, encoding="utf-8") if line.strip()]
 
-    def run(convo: list[str]) -> list[float]:
+    def run_convo(convo: list[str]) -> list[float]:
         session, times = Session(), []
         for turn in convo:
             t = time.perf_counter()
@@ -45,19 +47,15 @@ def main() -> None:
 
     work = convos * args.rounds
     t0 = time.perf_counter()
-    times = [x for c in work for x in run(c)]
+    times = [x for c in work for x in run_convo(c)]
     report("1 thread ", times, time.perf_counter() - t0)
 
     t0 = time.perf_counter()
     with ThreadPoolExecutor(args.threads) as pool:
-        times = [x for chunk in pool.map(run, work) for x in chunk]
+        times = [x for chunk in pool.map(run_convo, work) for x in chunk]
     report(f"{args.threads} threads", times, time.perf_counter() - t0)
 
     if args.profile:
         prof = cProfile.Profile()
-        prof.runcall(lambda: [run(c) for c in convos * 3])
+        prof.runcall(lambda: [run_convo(c) for c in convos * 3])
         pstats.Stats(prof).sort_stats("cumulative").print_stats(14)
-
-
-if __name__ == "__main__":
-    main()
