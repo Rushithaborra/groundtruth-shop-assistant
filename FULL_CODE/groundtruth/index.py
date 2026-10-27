@@ -158,11 +158,16 @@ class CatalogueIndex:
         """Whether a token appears in this product's title, category or attribute values."""
         return pid in self._text_postings.get(token, ())
 
-    def mentioned(self, query_tokens: set[str]) -> list[str]:
-        """Products whose full title appears in the query (a longer title wins over a contained shorter one)."""
-        seen = Counter(pid for t in query_tokens for pid in self._title_postings.get(t, ()))
+    def mentioned(self, query_tokens: list[str]) -> list[str]:
+        """Products whose full title appears in the query (a longer title wins over a contained shorter one),
+        in the order the shopper named them; ties go by product id so the order never depends on hashing."""
+        first_at: dict[str, int] = {}
+        for i, t in enumerate(query_tokens):
+            first_at.setdefault(t, i)
+        seen = Counter(pid for t in first_at for pid in self._title_postings.get(t, ()))
         found = [pid for pid, n in seen.items() if n == len(self.title_tokens[pid]) >= 2]
-        return [pid for pid in found if not any(self.title_tokens[pid] < self.title_tokens[o] for o in found)]
+        found = [pid for pid in found if not any(self.title_tokens[pid] < self.title_tokens[o] for o in found)]
+        return sorted(found, key=lambda pid: (min(first_at[t] for t in self.title_tokens[pid]), pid))
 
     def exact_title_matches(self, hits: list[Product], query_tokens: set[str]) -> list[Product]:
         """Products whose whole title is present in the query (the most specific mention wins)."""

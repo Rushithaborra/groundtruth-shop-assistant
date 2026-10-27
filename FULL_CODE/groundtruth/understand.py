@@ -199,8 +199,8 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     tokens = _repair_tokens(tokenize(low), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
-    parsed.mentioned = ids + [m for m in index.mentioned(token_set) if m not in ids] if len(ids) > 1 \
-        else index.mentioned(token_set)
+    parsed.mentioned = ids + [m for m in index.mentioned(tokens) if m not in ids] if len(ids) > 1 \
+        else index.mentioned(tokens)
     consumed = [False] * len(tokens)
 
     # attribute-value filters (colour, material, brand, ...); longest values first
