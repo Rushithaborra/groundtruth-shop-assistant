@@ -26,7 +26,7 @@
 {"id": "h026", "turns": ["does Everfresh Pulse Electric Kettle have bluetooth"], "expected": {"behaviour": "refuse"}}
 {"id": "h027", "turns": ["what is the warranty on Soundora Pulse Smartwatch"], "expected": {"behaviour": "answer", "product_ids": ["P0070"], "must_include": ["1 year"]}}
 {"id": "h028", "turns": ["is Soundora Orbit Bluetooth Speaker waterproof"], "expected": {"behaviour": "answer", "product_ids": ["P0071"], "must_include": ["waterproof"]}}
-{"id": "h029", "turns": ["price of Aerotrek running shoes"], "expected": {"behaviour": "clarify"}}
+{"id": "h029", "turns": ["price of Velora running shoes"], "expected": {"behaviour": "clarify"}}
 {"id": "h030", "turns": ["is Velora Pulse Running Shoes available?"], "expected": {"behaviour": "answer", "product_ids": ["P0002"], "must_include": ["out of stock"]}}
 {"id": "h031", "turns": ["is Velora Orbit Running Shoes available?"], "expected": {"behaviour": "answer", "product_ids": ["P0005"], "must_include": ["out of stock"]}}
 {"id": "h032", "turns": ["highest rated kurta"], "expected": {"behaviour": "answer", "product_ids": ["P0038"]}}

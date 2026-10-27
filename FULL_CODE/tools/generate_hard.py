@@ -94,7 +94,7 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
     p = rng.choice(of_type("bluetooth speaker"))
     add(f"is {p['title']} waterproof", "answer", product_ids=[p["id"]], must_include=["waterproof"])
     # 7. brand-only ambiguity
-    brand = rng.choice([b for b in {p["attributes"]["brand"] for p in of_type("running shoes")}
+    brand = rng.choice([b for b in sorted({p["attributes"]["brand"] for p in of_type("running shoes")})
                         if len(of_type("running shoes", brand=b)) > 1])
     add(f"price of {brand} running shoes", "clarify")
     # 8. availability
