@@ -13,17 +13,13 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Callable
 
 from .semantic import type_words
 
-SYSTEM = """You convert a shopper's message into JSON for a product search. Output ONLY one JSON object, no prose,
-no code fences. Keys:
-  "product_type": one value from ALLOWED_TYPES that the shopper wants, or null if none fits
-  "filters": object mapping an attribute from ALLOWED_ATTRIBUTES to one of its listed values
-  "price_min": number or null, "price_max": number or null (only if the shopper states a budget)
-  "out_of_catalogue": list of words naming things that are NOT in ALLOWED_TYPES (e.g. "iphone", "saree")
-Never invent values that are not listed. If unsure, use null."""
+# Kept in a file so the prompt can be reviewed and changed without touching code; read verbatim.
+SYSTEM = (Path(__file__).parent / "prompts" / "normaliser_system.txt").read_text(encoding="utf-8")
 
 _JSON = re.compile(r"\{.*\}", re.S)
 _AMOUNT = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|hazar)?", re.I)
@@ -90,27 +86,3 @@ class LLMNormaliser:
             if isinstance(value, (int, float)) and float(value) in allowed and getattr(parsed.spec, field) is None:
                 setattr(parsed.spec, field, float(value))
         return (n_in, n_out)
-
-
-class LocalGenerator:
-    """The provided offline instruct model via transformers, greedy decoding, real token counts."""
-
-    def __init__(self, model_path: str, max_new_tokens: int = 120):
-        import torch  # type: ignore
-        from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
-        self.torch = torch
-        self.tok = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True).eval()
-        self.max_new_tokens = max_new_tokens
-
-    def __call__(self, system: str, user: str) -> tuple[str, int, int]:
-        msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        if getattr(self.tok, "chat_template", None):
-            ids = self.tok.apply_chat_template(msgs, add_generation_prompt=True, return_tensors="pt")
-        else:
-            ids = self.tok(f"{system}\n\n{user}", return_tensors="pt").input_ids
-        with self.torch.no_grad():
-            out = self.model.generate(ids, max_new_tokens=self.max_new_tokens, do_sample=False,
-                                      pad_token_id=self.tok.eos_token_id)
-        new = out[0][ids.shape[1]:]
-        return self.tok.decode(new, skip_special_tokens=True), int(ids.shape[1]), int(len(new))

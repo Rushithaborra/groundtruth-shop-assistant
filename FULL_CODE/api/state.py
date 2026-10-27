@@ -12,9 +12,9 @@ from datetime import datetime
 
 from groundtruth import CLARIFY, REFUSE, Session
 from groundtruth.grounding import Grounding
-from groundtruth.semantic import type_words
+from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr
-from groundtruth.understand import understand
+from groundtruth.understanding import understand
 
 from .views import policy_record, product_record, reading, remembered
 

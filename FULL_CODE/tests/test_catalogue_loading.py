@@ -11,7 +11,7 @@ from pathlib import Path
 
 from groundtruth.paths import ROOT
 from groundtruth import ShoppingAssistant, CatalogueIndex, load_policy
-from groundtruth.catalogue import _parse_stock, load_catalogue
+from groundtruth.catalogue.loader import _parse_stock, load_catalogue
 
 
 def write(suffix: str, text: str) -> Path:

@@ -75,7 +75,7 @@ class ShopperPhrasingTests(unittest.TestCase):
         self.assertIn(colour, self.ask(f"colour of {pid}").text)
 
     def test_sizes_is_not_read_as_size_s(self):
-        from groundtruth.understand import understand
+        from groundtruth.understanding import understand
         self.assertIsNone(understand("what sizes does it come in", self.a.index).spec.size)
 
     def test_filter_on_an_attribute_the_type_lacks_is_dropped_with_a_note(self):

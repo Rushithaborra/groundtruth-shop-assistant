@@ -12,8 +12,8 @@ from tools.calibrate_semantic import calibrate
 from groundtruth.paths import ROOT
 from groundtruth.grounding import Grounding
 from groundtruth import ANSWER, REFUSE, CatalogueIndex, ShoppingAssistant, load_catalogue, load_policy
-from groundtruth.llm_normaliser import LLMNormaliser
-from groundtruth.semantic import SemanticFallback, type_words
+from groundtruth.models.normaliser import LLMNormaliser
+from groundtruth.models.semantic import SemanticFallback, type_words
 
 
 class FakeEmbedder:

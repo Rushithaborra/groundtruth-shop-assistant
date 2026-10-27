@@ -5,7 +5,7 @@ is *understood*: a shopper word is mapped to a catalogue product-type word ("jog
 sentence is retrieved. Every reply is still assembled from catalogue fields and policy text with citations, so the
 fallback cannot introduce a price or a fact.
 
-Two thresholds, both calibrated with `python calibrate_semantic.py` against the provided model:
+Two thresholds, both calibrated with `python main.py calibrate` against the provided model:
     map_threshold  at or above: treat the word as the catalogue word and search for it
     alt_threshold  at or above (but below map): refuse, but offer the catalogue word's products as an alternative
 Without a calibration file the fallback stays off: an uncalibrated threshold is how "iPhone" turns into "power bank".
@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Sequence
 
-from .policy import Section
+from ..policy import Section
 
 
 class Embedder(Protocol):
@@ -29,43 +29,13 @@ class Embedder(Protocol):
     def encode(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
-def _normalise(v: Sequence[float]) -> list[float]:
+def unit(v: Sequence[float]) -> list[float]:
     n = math.sqrt(sum(x * x for x in v)) or 1.0
     return [x / n for x in v]
 
 
-def _dot(a: Sequence[float], b: Sequence[float]) -> float:
+def dot(a: Sequence[float], b: Sequence[float]) -> float:
     return sum(x * y for x, y in zip(a, b))
-
-
-class LocalEmbedder:
-    """The provided offline embedding model. Tries sentence-transformers, then plain transformers (mean pooling)."""
-
-    def __init__(self, model_path: str):
-        self.name = str(model_path)
-        try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-            model = SentenceTransformer(model_path, device="cpu")
-            self._encode = lambda texts: model.encode(list(texts), normalize_embeddings=True).tolist()
-            return
-        except ImportError:
-            pass
-        import torch  # type: ignore
-        from transformers import AutoModel, AutoTokenizer  # type: ignore
-        tok = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        model = AutoModel.from_pretrained(model_path, local_files_only=True).eval()
-
-        def encode(texts):
-            with torch.no_grad():
-                batch = tok(list(texts), padding=True, truncation=True, max_length=64, return_tensors="pt")
-                out = model(**batch).last_hidden_state
-                mask = batch["attention_mask"].unsqueeze(-1).float()
-                vecs = (out * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
-            return [_normalise(v) for v in vecs.tolist()]
-        self._encode = encode
-
-    def encode(self, texts: Sequence[str]) -> list[list[float]]:
-        return [_normalise(v) for v in self._encode(texts)]
 
 
 @dataclass
@@ -126,7 +96,7 @@ class SemanticFallback:
                 self._memo[word] = None
             else:
                 v = self.embedder.encode([word])[0]
-                score, target = max((_dot(v, t), w) for t, w in zip(self.target_vecs, self.targets))
+                score, target = max((dot(v, t), w) for t, w in zip(self.target_vecs, self.targets))
                 self._memo[word] = Match(word, target, score)
         return self._memo[word]
 
@@ -153,7 +123,7 @@ class SemanticFallback:
         if self.policy_threshold is None or not self.policy_units:
             return None
         v = self.embedder.encode([query])[0]
-        score, i = max((_dot(v, p), i) for i, p in enumerate(self.policy_vecs))
+        score, i = max((dot(v, p), i) for i, p in enumerate(self.policy_vecs))
         if score < self.policy_threshold:
             return None
         sec, sent = self.policy_units[i]

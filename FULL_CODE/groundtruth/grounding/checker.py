@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from ..index import CatalogueIndex
+from ..catalogue import CatalogueIndex
 from ..policy import Section
 from ..text import format_inr
 

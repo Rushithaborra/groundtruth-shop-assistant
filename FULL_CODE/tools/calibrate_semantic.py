@@ -15,7 +15,8 @@ import json
 import sys
 
 from groundtruth import CatalogueIndex, load_catalogue, load_policy
-from groundtruth.semantic import LocalEmbedder, SemanticFallback, _dot
+from groundtruth.models.local import LocalEmbedder
+from groundtruth.models.semantic import SemanticFallback, dot
 from groundtruth.paths import DATA_DIR
 from groundtruth.text import tokenize
 
@@ -61,11 +62,11 @@ def calibrate(fallback: SemanticFallback, margin: float = 0.02) -> dict:
         sec_by_sent = [s.id for s, _ in fallback.policy_units]
         for q, sec in POLICY_POS.items():
             v = fallback.embedder.encode([q])[0]
-            score, i = max((_dot(v, p), i) for i, p in enumerate(fallback.policy_vecs))
+            score, i = max((dot(v, p), i) for i, p in enumerate(fallback.policy_vecs))
             pos.append((q, sec_by_sent[i], score, sec_by_sent[i] == sec))
         for q in POLICY_NEG:
             v = fallback.embedder.encode([q])[0]
-            neg.append((q, max(_dot(v, p) for p in fallback.policy_vecs)))
+            neg.append((q, max(dot(v, p) for p in fallback.policy_vecs)))
         policy_t = round(max(s for _, s in neg) + margin, 4)
     mapped_ok = [r for r in rows if r[0] == "map" and r[4] and r[3] >= map_t]
     report = {"map_threshold": map_t, "alt_threshold": alt_t, "policy_threshold": policy_t,

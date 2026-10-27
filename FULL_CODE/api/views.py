@@ -5,7 +5,7 @@ import re
 from collections import Counter
 
 from groundtruth import Session
-from groundtruth.semantic import type_words
+from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr, tokenize
 
 
