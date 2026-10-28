@@ -18,7 +18,7 @@ JSON_TYPES = ("application/json",)
 class RequestError(ValueError):
     """A request the API refuses; `status` is the HTTP status to answer with."""
 
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str) -> None:
         super().__init__(message)
         self.status = status
 
