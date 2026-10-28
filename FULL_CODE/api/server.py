@@ -8,8 +8,9 @@ Every reply is re-checked by the same independent grounding checker the evaluato
 to the reply. Citation chips open the exact catalogue record or policy section the claim came from.
 
 /insights is a retailer view across all chats since the server started: how questions were answered, what was asked
-for but not stocked, and which questions needed clarifying. It keeps counts and short labels only, in memory; no
-full conversations, no session ids, nothing written to disk.
+for that nothing in the catalogue fits, words it couldn't place (a typo or synonym may be stocked), and which
+questions needed clarifying. It keeps counts and short labels only, in memory; no full conversations, no session
+ids, nothing written to disk.
 """
 
 from __future__ import annotations

@@ -3,6 +3,8 @@
 Run: python -m unittest discover -s tests
 """
 
+import csv
+import io
 import json
 import threading
 import unittest
@@ -144,6 +146,24 @@ class WebTests(unittest.TestCase):
         self.post("/api/chat", {"message": "what is the gift wrapping policy"})
         after = dict(json.loads(self.get("/api/insights"))["not_stocked"])
         self.assertEqual(before, after)
+
+    def test_a_word_the_assistant_cannot_place_is_not_counted_as_a_missing_product(self):
+        # an unknown word may be a typo or a synonym for something stocked, so it is not proof the shop lacks it
+        before = dict(json.loads(self.get("/api/insights"))["not_stocked"])
+        self.post("/api/chat", {"message": "do you sell xyzzyqq"})
+        d = json.loads(self.get("/api/insights"))
+        self.assertEqual(dict(d["not_stocked"]), before)
+        self.assertIn("xyzzyqq", dict(d["not_understood"]))
+        rows = self.get("/api/insights.csv").splitlines()
+        self.assertTrue(any(r.startswith("xyzzyqq,") and r.endswith(",not_understood") for r in rows), rows)
+
+    def test_a_request_that_was_understood_but_nothing_fits_is_a_verified_miss(self):
+        self.post("/api/chat", {"message": "kurta under 100"})
+        d = json.loads(self.get("/api/insights"))
+        self.assertIn("kurta, under ₹100", dict(d["not_stocked"]))
+        self.assertNotIn("kurta, under ₹100", dict(d["not_understood"]))
+        rows = list(csv.reader(io.StringIO(self.get("/api/insights.csv"))))[1:]
+        self.assertTrue(any(r[0] == "kurta, under ₹100" and r[2] == "not_stocked" for r in rows), rows)
 
     def test_bad_input(self):
         self.assertEqual(self.post("/api/chat", {"message": "   "})[0], 400)

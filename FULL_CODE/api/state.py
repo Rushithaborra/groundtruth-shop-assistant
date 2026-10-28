@@ -29,7 +29,8 @@ class Insights:
         self.started = time.time()
         self.actions: Counter = Counter()
         self.paths: Counter = Counter()
-        self.gaps: Counter = Counter()
+        self.gaps: Counter = Counter()  # verified: everything was understood and nothing in the catalogue fits
+        self.unplaced: Counter = Counter()  # words the assistant couldn't place: a typo or synonym may be stocked
         self.unclear: Counter = Counter()
         self.failed_checks = 0
         self.latency = deque(maxlen=5000)
@@ -44,6 +45,7 @@ class Insights:
         unclear: str | None,
         check_ok: bool,
         llm_tokens: int,
+        unplaced: list[str] | None = None,
     ) -> None:
         """Count one answered message for the retailer view (labels are capped in length and number)."""
         with self.lock:
@@ -52,9 +54,10 @@ class Insights:
             self.latency.append(ms)
             self.llm_tokens += llm_tokens
             self.failed_checks += 0 if check_ok else 1
-            for g in gap_labels:
-                if len(self.gaps) < 2000 or g in self.gaps:
-                    self.gaps[g[:60]] += 1
+            for counter, labels in ((self.gaps, gap_labels), (self.unplaced, unplaced or [])):
+                for g in labels:
+                    if len(counter) < 2000 or g in counter:
+                        counter[g[:60]] += 1
             if unclear and (len(self.unclear) < 2000 or unclear in self.unclear):
                 self.unclear[unclear[:60]] += 1
 
@@ -73,16 +76,18 @@ class Insights:
                 "llm_tokens": self.llm_tokens,
                 "failed_checks": self.failed_checks,
                 "not_stocked": self.gaps.most_common(15),
+                "not_understood": self.unplaced.most_common(15),
                 "needed_clarifying": self.unclear.most_common(10),
             }
 
     def gaps_csv(self) -> str:
-        """Requested-but-not-stocked items and how often they were refused, as CSV."""
+        """Refused requests as CSV: `not_stocked` (understood, nothing fits) and `not_understood` (words not placed)."""
         with self.lock:
             out = io.StringIO()
             w = csv.writer(out)
-            w.writerow(["requested_item", "times_refused"])
-            w.writerows(self.gaps.most_common())
+            w.writerow(["requested_item", "times_refused", "kind"])
+            w.writerows((item, n, "not_stocked") for item, n in self.gaps.most_common())
+            w.writerows((item, n, "not_understood") for item, n in self.unplaced.most_common())
             return out.getvalue()
 
 
@@ -161,17 +166,20 @@ class State:
 
     def _record(self, resp: Response, parsed: Parsed, entry: dict, message: str, check_ok: bool) -> None:
         """Update this visitor's totals and refused requests, and the retailer view's counters."""
-        gap_labels = []
+        gap_labels, unplaced = [], []
         # only requests for products count as demand: not orders or coupons ("account"), not policy questions, and
         # not a question about a listed product's details ("paani me chalega?")
         not_a_product_request = parsed.intents & {"account", "policy"} or resp.claims.sections or parsed.detail_keys
         if resp.action == REFUSE and not not_a_product_request:
-            gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
-            for w in gap_labels:
-                entry["gaps"][w] += 1
+            asked = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
+            for w in asked:
+                entry["gaps"][w] += 1  # this visitor's own refused requests, whatever the reason
+            # Words the assistant couldn't place don't show the shop lacks the item (a typo or Hinglish synonym may be
+            # stocked), so the retailer view counts them apart from requests it fully understood and couldn't fill.
+            gap_labels, unplaced = ([], list(asked)) if parsed.unknown else (asked, [])
         unclear = (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None
         tokens = resp.llm_input_tokens + resp.llm_output_tokens
-        self.insights.record(resp.action, resp.path, resp.latency_ms, gap_labels, unclear, check_ok, tokens)
+        self.insights.record(resp.action, resp.path, resp.latency_ms, gap_labels, unclear, check_ok, tokens, unplaced)
         t = entry["totals"]
         t["queries"] += 1
         t["ms"] += resp.latency_ms

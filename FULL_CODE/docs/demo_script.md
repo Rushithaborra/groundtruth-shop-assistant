@@ -24,7 +24,7 @@ Have a second terminal ready for the numbers at the end. Open the page on a phon
 | 6 | `chargit ripplezip black speaker paani me chalega?` | **Missing ≠ no.** The catalogue lists no water resistance for this speaker, so it refuses rather than guess | "The catalogue does not list ..." |
 | 7 | `sabse sasta 65W charger` | **Measurements and superlatives:** 65 W read as wattage, one cheapest product | Zentrix MiraPlus 200 65 W charger, ₹599 |
 | 8 | Tap **Compare** on two product cards | **Side-by-side from catalogue records**, differences shaded | The table cells come only from cited records |
-| 9 | Open `/insights` | **Retailer view:** what shoppers asked for that isn't stocked, replies failing the grounding check (0) | The "Not in catalogue" list is a demand signal |
+| 9 | Open `/insights` | **Retailer view:** what shoppers asked for that nothing in the catalogue fits (kept apart from words it couldn't place), replies failing the grounding check (0) | The "Not in catalogue" list is a demand signal |
 
 On every reply, point at the **check badge** ("3 sources checked"): an independent checker re-derives each price and
 fact from the cited record. And at the time: about 1 ms per reply, with no model call.

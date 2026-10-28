@@ -88,9 +88,14 @@ ol.rank.amber .meter i { background: var(--clarify); }
 
   <div class="cols">
     <section class="box">
-      <h2>Asked for, not stocked <a class="dl" href="/api/insights.csv" download="not-stocked.csv">Download CSV</a></h2>
-      <p>Requests the assistant had to refuse, most frequent first. A restocking and assortment signal.</p>
+      <h2>Asked for, not stocked <a class="dl" href="/api/insights.csv" download="unmet-requests.csv">Download CSV</a></h2>
+      <p>Requests the assistant understood but no product fits, most frequent first. A restocking and assortment signal.</p>
       <div id="gaps"><p class="empty">Nothing refused yet.</p></div>
+    </section>
+    <section class="box">
+      <h2>Words I couldn’t place</h2>
+      <p>Refused requests with a word the assistant didn’t recognise. A typo or another name for something you stock looks the same as something you don’t, so check these before restocking.</p>
+      <div id="unplaced"><p class="empty">None yet.</p></div>
     </section>
     <section class="box">
       <h2>Needed a clarifying question</h2>
@@ -132,6 +137,7 @@ ol.rank.amber .meter i { background: var(--clarify); }
       <div class="fact"><dt>Slowest 5% take over</dt><dd>${d.latency_ms.p95 != null ? d.latency_ms.p95.toFixed(2) : "–"} <small>ms</small></dd></div>
       <div class="fact"><dt>Needed a model</dt><dd>${pct(viaModel, t)}% <small>${d.llm_tokens.toLocaleString("en-IN")} tokens</small></dd></div>`;
     $("gaps").innerHTML = rank(d.not_stocked, "") || `<p class="empty">Nothing refused yet.</p>`;
+    $("unplaced").innerHTML = rank(d.not_understood, "amber") || `<p class="empty">None yet.</p>`;
     $("unclear").innerHTML = rank(d.needed_clarifying, "amber") || `<p class="empty">No clarifying questions yet.</p>`;
   }
   load();

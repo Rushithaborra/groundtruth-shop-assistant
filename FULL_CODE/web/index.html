@@ -303,8 +303,8 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       <div id="metrics"><p class="empty">Time taken, how it was answered, and model tokens used.</p></div>
     </section>
     <section class="box">
-      <h2>Asked for, not stocked</h2>
-      <div id="gaps"><p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p></div>
+      <h2>Refused requests</h2>
+      <div id="gaps"><p class="empty">Refused requests collect here: what the catalogue couldn’t match.</p></div>
     </section>
     <section class="box">
       <details class="roadmap">
@@ -586,7 +586,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       <dt>Time</dt><dd>${m.engine_ms.toFixed(2)} ms (${m.with_checks_ms.toFixed(2)} ms with checks)</dd>
       <dt>Model tokens</dt><dd>${m.llm_input_tokens + m.llm_output_tokens ? `${m.llm_input_tokens} in, ${m.llm_output_tokens} out` : "0, no model call needed"}</dd>
       <dt>This chat</dt><dd>${t.queries} question${t.queries > 1 ? "s" : ""}, ${t.mean_ms.toFixed(2)} ms average</dd></dl>`;
-    $("gaps").innerHTML = d.gaps.length ? `<ul class="gaps">${d.gaps.map(([w, n]) => `<li>${esc(w)}<span>${n}×</span></li>`).join("")}</ul>` : `<p class="empty">Refused requests collect here: what shoppers want that the catalogue doesn’t have.</p>`;
+    $("gaps").innerHTML = d.gaps.length ? `<ul class="gaps">${d.gaps.map(([w, n]) => `<li>${esc(w)}<span>${n}×</span></li>`).join("")}</ul>` : `<p class="empty">Refused requests collect here: what the catalogue couldn’t match.</p>`;
   }
 
   /* ---------- send ---------- */
