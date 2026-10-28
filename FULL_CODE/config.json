@@ -22,6 +22,10 @@
     "semantic_config": "semantic_config.json",
     "vocabulary": "groundtruth/resources/vocabulary.json"
   },
+  "submission": {
+    "team_id": "TEAM-000802",
+    "problem_id": "R3"
+  },
   "assistant": {
     "list_limit": 3,
     "clarify_limit": 5,

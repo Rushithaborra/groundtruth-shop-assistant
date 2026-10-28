@@ -36,6 +36,7 @@ class ConfigTests(unittest.TestCase):
             ("assistant", "list_limit", True),
             ("search", "typo_cutoff", 1.5),
             ("logging", "level", "LOUD"),
+            ("submission", "team_id", "TEAM 802/x"),
             ("server", "host", ""),
         ]:
             with self.subTest(key=key, value=value), self.assertRaises(ConfigError) as ctx:

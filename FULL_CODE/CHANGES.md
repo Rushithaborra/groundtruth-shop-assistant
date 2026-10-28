@@ -340,6 +340,19 @@ by the number of queries; its inputs are in `config.json` (cost_report section).
 Percentiles use the nearest-rank definition; a test caught an off-by-one in the first version (rounding an index).
 139 tests pass on Python 3.9 and 3.12 (5 new).
 
+## Task 9 (part): the submission zip builder, 28 October
+
+`main.py package` clones the committed project into `TEAM-000802_R3/`, runs the guidelines' page-4 checklist
+(top-level items; no `.env`, `.venv`, pack data, models, output, caches, zips or model weights; `uv.lock`,
+`.env.example`, `pyproject.toml` and `main.py` present; the README's seven rule-12 sections; the predictions file
+validated against the 150 test questions) and writes `output/TEAM-000802_R3.zip` only if every check passes.
+
+Built from commit `8795189`: checklist passed; 5.5 MB; one root folder; top level `.git`, `.gitattributes`,
+`.gitignore`, `FULL_CODE`, `LICENSE`, `README.md`, `submission`; 150 prediction lines. The team ID format
+(`TEAM-000802` or `000802`) is still to be confirmed with the organisers; it is one setting in `config.json`.
+`.gitattributes` is not in the guidelines' list of top-level files; it only fixes line endings and is allowed by
+the checker. 145 tests pass (6 new for the checklist and zip; the team-ID setting is checked in the config tests).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

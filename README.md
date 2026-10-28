@@ -42,7 +42,13 @@ environment variables:
 # copy the unzipped pack folder's contents into FULL_CODE/data/pack/ (so data/pack/data/catalogue.jsonl exists)
 python3 main.py submit                 # writes submission/R3_predictions.jsonl for the 150 test questions
 python3 main.py submit --split dev     # the 40 dev questions -> output/R3_dev_predictions.jsonl
+python3 main.py package                # commit first; then -> output/TEAM-000802_R3.zip, the file to upload
 ```
+
+`package` makes a fresh `git clone` of the committed project and checks it against the guidelines' page-4
+checklist before zipping: only the allowed top-level items; no `.env`, virtual environments, pack data, models,
+caches or zips; the lockfile, `.env.example` and a README with every required section; and one valid prediction
+line per test question. The team and problem IDs are in `config.json` (`submission`).
 
 `submit` answers each conversation in turn order (later turns keep the earlier constraints) and checks every line
 against the pack's format before writing. To score the dev questions with the organisers' own scorer (the pack's

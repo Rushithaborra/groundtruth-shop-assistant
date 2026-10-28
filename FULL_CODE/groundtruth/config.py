@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -51,6 +52,12 @@ class PathSettings:
     cache_dir: Path
     semantic_config: Path
     vocabulary: Path
+
+
+@dataclass(frozen=True)
+class SubmissionSettings:
+    team_id: str  # the zip is named f"{team_id}_{problem_id}.zip"
+    problem_id: str
 
 
 @dataclass(frozen=True)
@@ -128,6 +135,7 @@ class LoggingSettings:
 @dataclass(frozen=True)
 class Settings:
     paths: PathSettings
+    submission: SubmissionSettings
     assistant: AssistantSettings
     search: SearchSettings
     server: ServerSettings
@@ -155,6 +163,13 @@ def _text(name: str, value: Any, allowed: tuple[str, ...] = ()) -> str:
     if not isinstance(value, str) or not value.strip() or (allowed and value not in allowed):
         hint = f" (one of {', '.join(allowed)})" if allowed else ""
         raise ConfigError(f"{name} must be a non-empty string{hint}, got {value!r}")
+    return value
+
+
+def _identifier(name: str, value: Any) -> str:
+    """A team or problem ID used in a file name: letters, digits and hyphens only."""
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,40}", value):
+        raise ConfigError(f"{name} must be letters, digits and hyphens (it names the zip), got {value!r}")
     return value
 
 
@@ -201,6 +216,7 @@ def _apply_env(raw: dict) -> None:
 def parse_settings(raw: dict) -> Settings:
     """Validate a config dictionary (as read from config.json) into typed settings."""
     p = _section(raw, "paths", tuple(PathSettings.__dataclass_fields__))
+    sub = _section(raw, "submission", tuple(SubmissionSettings.__dataclass_fields__))
     a = _section(raw, "assistant", tuple(AssistantSettings.__dataclass_fields__))
     s = _section(raw, "search", tuple(SearchSettings.__dataclass_fields__))
     w = _section(raw, "server", tuple(ServerSettings.__dataclass_fields__))
@@ -224,6 +240,10 @@ def parse_settings(raw: dict) -> Settings:
         raise ConfigError(f"evaluation weights must add up to 1, got {total}")
     return Settings(
         paths=PathSettings(**{key: _path(f"paths.{key}", value) for key, value in p.items()}),
+        submission=SubmissionSettings(
+            team_id=_identifier("submission.team_id", sub["team_id"]),
+            problem_id=_identifier("submission.problem_id", sub["problem_id"]),
+        ),
         assistant=AssistantSettings(
             list_limit=_int("assistant.list_limit", a["list_limit"], 1, 20),
             clarify_limit=_int("assistant.clarify_limit", a["clarify_limit"], 1, 20),
