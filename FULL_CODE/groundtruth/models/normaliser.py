@@ -14,11 +14,15 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from ..config import get_settings
 from .calls import ModelCallError
 from .semantic import type_words
+
+if TYPE_CHECKING:
+    from ..catalogue import CatalogueIndex
+    from ..understanding import Parsed
 
 # Kept in a file so the prompt can be reviewed and changed without touching code; read verbatim.
 SYSTEM = (Path(__file__).parent / "prompts" / "normaliser_system.txt").read_text(encoding="utf-8")
@@ -30,13 +34,13 @@ Generate = Callable[[str, str], tuple[str, int, int]]  # (system, user) -> (text
 
 
 class LLMNormaliser:
-    def __init__(self, generate: Generate, max_values_per_attribute: int | None = None):
+    def __init__(self, generate: Generate, max_values_per_attribute: int | None = None) -> None:
         self.generate = generate
         self.max_values = (max_values_per_attribute if max_values_per_attribute is not None
                            else get_settings().models.llm_max_values_per_attribute)
         self._schema_cache: dict[int, tuple[str, list[str]]] = {}
 
-    def _schema(self, index) -> tuple[str, list[str]]:
+    def _schema(self, index: CatalogueIndex) -> tuple[str, list[str]]:
         if id(index) not in self._schema_cache:
             types = type_words(index)
             attrs = {k: sorted(v.values())[: self.max_values] for k, v in index.attr_values.items()}
@@ -61,7 +65,7 @@ class LLMNormaliser:
             return None
         return data if isinstance(data, dict) else None
 
-    def apply(self, parsed, index) -> tuple[int, int]:
+    def apply(self, parsed: Parsed, index: CatalogueIndex) -> tuple[int, int]:
         """Validate the model's reading and merge it into `parsed`. Returns (input_tokens, output_tokens)."""
         schema, types = self._schema(index)
         try:
