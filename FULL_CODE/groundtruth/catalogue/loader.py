@@ -14,6 +14,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from ..errors import DataFileError
 
@@ -49,7 +50,7 @@ class Product:
         return [str(value)]
 
 
-def _first(raw: dict, *keys, default=None):
+def _first(raw: dict, *keys: str, default: Any = None) -> Any:
     for key in keys:
         if key in raw and raw[key] not in (None, ""):
             return raw[key]
@@ -65,7 +66,7 @@ def _json_object(text: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _parse_attributes(value) -> dict:
+def _parse_attributes(value: object) -> dict:
     if isinstance(value, dict):
         return value
     if not value:
@@ -143,7 +144,7 @@ _IN = (
 )
 
 
-def _parse_stock(value) -> bool | None:
+def _parse_stock(value: object) -> bool | None:
     """True / False when the catalogue says, None when it doesn't (\"pre-order\", blank, unrecognised)."""
     if value is None or value == "":
         return None
@@ -164,7 +165,7 @@ def _parse_stock(value) -> bool | None:
     return None
 
 
-def _parse_number(value, kind: str) -> float | None:
+def _parse_number(value: object, kind: str) -> float | None:
     """Numbers written as \"₹1,299\", \"Rs. 1299.00\", \"1,299/-\", \"4.2/5\", \"4.2 out of 5\"."""
     if value is None or value == "":
         return None
