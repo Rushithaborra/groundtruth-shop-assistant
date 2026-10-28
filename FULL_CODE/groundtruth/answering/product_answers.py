@@ -15,15 +15,31 @@ FACTS = frozenset({"price", "stock", "rating", "detail"})
 
 def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | None = None) -> Response:
     """The facts the shopper asked about one product, each sentence cited; refuses if none is supported."""
-    cite = f"[{prod.id}]"
     want = p.intents & FACTS
     # catalogue words that don't describe this product ("does <kettle> have bluetooth") are questions about it
     foreign = [t for t in p.spec.type_tokens if not index.has_text_token(prod.id, t)]
     facts_only = not want and bool(p.spec.desc_tokens or p.unknown or foreign)  # "is X waterproof?"
-    defaults = not want and not facts_only
-    sentences, supported, named = [], False, False
     claims = Claims()
     claims.cite(prod)
+    sentences, supported = _basic_facts(prod, want, not want and not facts_only, lead, claims)
+    extra, ok = _attribute_facts(prod, relevant_keys([prod], p.detail_keys), claims)
+    sentences += extra
+    supported = supported or ok
+    if "detail" in want or p.spec.desc_tokens or p.unknown or foreign:
+        # an attribute question ("paani me chalega?") is answered by the attribute, not by echoing its other words
+        unplaced = [] if p.detail_keys else p.unknown
+        extra, ok = description_check(index, prod, p, foreign, unplaced)
+        sentences += extra
+        supported = supported or ok
+    return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims=claims)
+
+
+def _basic_facts(
+    prod: Product, want: set[str], defaults: bool, lead: str | None, claims: Claims
+) -> tuple[list[str], bool]:
+    """Sentences for the lead, price, stock and rating the shopper asked for, and whether any states a fact."""
+    cite = f"[{prod.id}]"
+    sentences, supported, named = [], False, False
 
     def say(predicate: str) -> None:
         nonlocal named
@@ -49,7 +65,14 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
             supported = True
         elif "rating" in want:
             sentences.append(f"The catalogue has no rating for the {prod.title} {cite}.")
-    for key in relevant_keys([prod], p.detail_keys):
+    return sentences, supported
+
+
+def _attribute_facts(prod: Product, keys: list[str], claims: Claims) -> tuple[list[str], bool]:
+    """One sentence per asked-about attribute: its value, or that the catalogue doesn't list it."""
+    cite = f"[{prod.id}]"
+    sentences, supported = [], False
+    for key in keys:
         values = prod.attr_values(key)
         if values:
             sentences.append(f"The {key} of the {prod.title} is {', '.join(values)} {cite}.")
@@ -57,13 +80,7 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
             supported = True
         else:
             sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
-    if "detail" in want or p.spec.desc_tokens or p.unknown or foreign:
-        # an attribute question ("paani me chalega?") is answered by the attribute, not by echoing its other words
-        unplaced = [] if p.detail_keys else p.unknown
-        extra, ok = description_check(index, prod, p, foreign, unplaced)
-        sentences += extra
-        supported = supported or ok
-    return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims=claims)
+    return sentences, supported
 
 
 def compare(index: CatalogueIndex, pids: list[str], p: Parsed) -> Response:
