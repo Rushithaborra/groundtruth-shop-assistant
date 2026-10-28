@@ -24,7 +24,7 @@ class Section:
     sentences: list[tuple[str, frozenset[str]]] = field(default_factory=list)  # (sentence, content tokens)
     heading_tokens: frozenset[str] = frozenset()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.sentences = [(s, frozenset(content_tokens(s))) for s in split_sentences(self.body)]
         self.heading_tokens = frozenset(tokenize(self.heading))
 
@@ -81,7 +81,9 @@ def _plain_sections(text: str) -> list[Section]:
 STRONG = frozenset({"refund", "exchange", "cancel", "warranty", "guarantee", "cash", "ship", "return", "dispatch"})
 
 
-def best_sentences(sections: list[Section], keywords: list[str], limit: int, strong: frozenset = STRONG):
+def best_sentences(
+    sections: list[Section], keywords: list[str], limit: int, strong: frozenset[str] = STRONG
+) -> tuple[Section, list[str]] | None:
     """Return (section, [sentences]) for the best-matching section, or None when nothing fits.
 
     A sentence matches on two shared words, or on one word from `strong` (words that alone identify a policy topic).
