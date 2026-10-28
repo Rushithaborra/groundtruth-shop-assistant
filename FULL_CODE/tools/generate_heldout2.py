@@ -99,6 +99,7 @@ refuse("k45", ["installation service milega"])
 
 
 def main() -> None:
+    """Write the second held-out question set as JSON lines."""
     out = SCALE / "heldout2_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
     write_out(f"wrote {len(Q)} questions to {out}")
