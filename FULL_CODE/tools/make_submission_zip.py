@@ -59,6 +59,7 @@ def check_project(root: Path, test_questions: Path | None = None) -> list[str]:
 
 
 def _check_predictions(path: Path, test_questions: Path | None) -> list[str]:
+    """Problems with the submission file (missing, unreadable or invalid); empty when it is fine."""
     if not path.is_file():
         return ["missing submission/R3_predictions.jsonl"]
     try:
@@ -80,6 +81,7 @@ def zip_folder(folder: Path, zip_path: Path) -> Path:
 
 
 def _fresh_clone(repo: Path, dest: Path) -> None:
+    """Clone the repository, so that only committed work is packaged."""
     try:
         subprocess.run(["git", "clone", "--quiet", str(repo), str(dest)], check=True, capture_output=True,
                        text=True, timeout=300)  # fmt: skip
@@ -88,15 +90,18 @@ def _fresh_clone(repo: Path, dest: Path) -> None:
 
 
 def _uncommitted(repo: Path) -> str:
+    """Git's list of uncommitted changes (empty when everything is committed)."""
     done = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True, timeout=60)
     return done.stdout.strip()
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The zip builder's option: where to write the zip."""
     ap.add_argument("--out-dir", help="where to write the zip (default: output/)")
 
 
 def run(args: argparse.Namespace) -> None:
+    """Clone, check the project against the submission checklist and write the zip; stops if the checklist fails."""
     settings = get_settings()
     name = f"{settings.submission.team_id}_{settings.submission.problem_id}"
     repo = ROOT.parent
