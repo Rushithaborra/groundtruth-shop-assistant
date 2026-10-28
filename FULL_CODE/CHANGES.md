@@ -458,6 +458,24 @@ Dev replies changed: "krida ion flex football rate?" now clarifies between sizes
 14 of the 150 test predictions changed (answer 67, clarify 34, refuse 49). Mean latency 0.69 ms. 178 tests pass
 (9 new: 6 for name handling, 3 of which fail on the previous commit, and 3 for the stress generator).
 
+## Demo preparation, 28–29 October
+
+`FULL_CODE/docs/demo_script.md`: a 90-second walkthrough of nine steps (trap, multi-turn budget, refusal, cited
+policy, silent policy, missing attribute, measurement + superlative, compare, retailer view), each question run on
+the pack first, plus the numbers to quote and answers to likely questions. Rehearsing it through the live server
+found three problems, all fixed:
+
+* Two full product names that contain measurements ("... 20 W Bluetooth Speaker ... vs ... 5 W ...") were refused:
+  the measurement parser removed "20 W" before names were matched. Names are now matched on the words as typed,
+  and measurements that were part of a named product are dropped.
+* A refusal for an unlisted attribute also echoed the question's other words ("no information about 'paani'...
+  'chalega'"). An attribute question is now answered by the attribute alone.
+* The retailer view counted policy questions ("sunday") and attribute questions as products not stocked. Only
+  product requests count now.
+
+No scored prediction changed: dev (tune 1.000, check 0.865, all 0.9325), stress (tune 0.9996, holdout 0.961),
+synthetic sets 1.0; 7 test replies changed wording only. 181 tests pass (3 new, each failing on `552edb4`).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

@@ -135,6 +135,9 @@ policy section. Every reply is re-checked by the grounding checker, and the resu
 shows the remembered filters and budget, how the last message was read, a side-by-side compare, and a retailer view
 (`/insights`) of what was asked for but isn't stocked.
 
+A tested 90-second walkthrough, with the questions to type and the numbers to quote, is in
+`FULL_CODE/docs/demo_script.md`.
+
 The API (`api/`) validates every request (JSON only, size and length limits, allowed fields, server-minted session
 ids), refuses requests from other sites, rate-limits each session and client address, and sends security headers,
 including a Content-Security-Policy that lets only the page's own script run. It listens on 127.0.0.1 by default.
