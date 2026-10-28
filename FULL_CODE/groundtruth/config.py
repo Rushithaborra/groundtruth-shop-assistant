@@ -80,6 +80,8 @@ class ServerSettings:
     max_sessions: int
     max_message_chars: int
     max_body_bytes: int
+    rate_limit_per_minute: int
+    rate_limit_per_address_per_minute: int
 
 
 @dataclass(frozen=True)
@@ -259,6 +261,10 @@ def parse_settings(raw: dict) -> Settings:
             max_sessions=_int("server.max_sessions", w["max_sessions"], 1, 1_000_000),
             max_message_chars=_int("server.max_message_chars", w["max_message_chars"], 1, 10_000),
             max_body_bytes=_int("server.max_body_bytes", w["max_body_bytes"], 100, 1_000_000),
+            rate_limit_per_minute=_int("server.rate_limit_per_minute", w["rate_limit_per_minute"], 1, 10_000),
+            rate_limit_per_address_per_minute=_int(
+                "server.rate_limit_per_address_per_minute", w["rate_limit_per_address_per_minute"], 1, 100_000
+            ),
         ),
         sessions=SessionSettings(
             max_sessions=_int("sessions.max_sessions", ss["max_sessions"], 1, 10_000_000),

@@ -40,7 +40,9 @@
     "port": 8000,
     "max_sessions": 500,
     "max_message_chars": 500,
-    "max_body_bytes": 10000
+    "max_body_bytes": 10000,
+    "rate_limit_per_minute": 30,
+    "rate_limit_per_address_per_minute": 120
   },
   "sessions": {
     "max_sessions": 10000,

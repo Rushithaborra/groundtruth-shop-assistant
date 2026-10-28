@@ -134,6 +134,10 @@ policy section. Every reply is re-checked by the grounding checker, and the resu
 shows the remembered filters and budget, how the last message was read, a side-by-side compare, and a retailer view
 (`/insights`) of what was asked for but isn't stocked.
 
+The API (`api/`) validates every request (JSON only, size and length limits, allowed fields, server-minted session
+ids), refuses requests from other sites, rate-limits each session and client address, and sends security headers,
+including a Content-Security-Policy that lets only the page's own script run. It listens on 127.0.0.1 by default.
+
 ### Latency and token cost per query
 
 `python3 main.py report` answers all 190 pack questions (40 dev, 150 test; conversation turns in order) and writes a

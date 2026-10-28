@@ -119,7 +119,7 @@ ol.rank.amber .meter i { background: var(--clarify); }
   async function load() {
     let d;
     try { d = await (await fetch("/api/insights", { cache: "no-store" })).json(); }
-    catch (e) { $("total").textContent = "Can’t reach the assistant. Check that web.py is running."; return; }
+    catch (e) { $("total").textContent = "Can’t reach the assistant. Check that the server (python main.py serve) is running."; return; }
     const t = d.questions;
     $("since").textContent = `Counts across every chat since ${new Date(d.since).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}. No conversations are stored.`;
     $("total").textContent = t ? `${t.toLocaleString("en-IN")} question${t > 1 ? "s" : ""}` : "No questions yet. Ask something in the chat, then come back.";

@@ -359,7 +359,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   function productCard(src, mode) {
     const colour = (src.attributes.color || src.attributes.colour || [])[0];
     const attrs = (colour ? [colour[0].toUpperCase() + colour.slice(1)] : []).concat(Object.entries(src.attributes).filter(([k]) => !["size", "color", "colour"].includes(k)).slice(0, 3).flatMap(([, v]) => v.slice(0, 1)));
-    const rating = src.rating === null ? `<span class="stars"><span>Not rated</span></span>` : `<span class="stars">★ ${src.rating} <span>(${Number(src.rating_count || 0).toLocaleString("en-IN")})</span></span>`;
+    const rating = src.rating === null ? `<span class="stars"><span>Not rated</span></span>` : `<span class="stars">★ ${Number(src.rating)} <span>(${Number(src.rating_count || 0).toLocaleString("en-IN")})</span></span>`;
     const inCompare = compareSet.has(src.id);
     const primary = mode === "clarify"
       ? `<button type="button" class="primary" data-act="pick">This one</button>`
@@ -383,7 +383,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
           <dl class="record">
             <dt>Price</dt><dd><strong>${esc(src.price)}</strong>${snapshot ? ` <span class="as-of">as of ${esc(snapshot)}</span>` : ""}</dd>
             <dt>Stock</dt><dd>${stock}</dd>
-            <dt>Rating</dt><dd>${src.rating === null ? "Not rated" : `${src.rating} from ${Number(src.rating_count || 0).toLocaleString("en-IN")} ratings`}</dd>
+            <dt>Rating</dt><dd>${src.rating === null ? "Not rated" : `${Number(src.rating)} from ${Number(src.rating_count || 0).toLocaleString("en-IN")} ratings`}</dd>
             <dt>Category</dt><dd>${esc(src.category || "Not listed")}</dd>
             ${allAttrs}
             ${src.description ? `<dt>About</dt><dd>${esc(src.description)}</dd>` : ""}
@@ -464,7 +464,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     const wrap = el("article", "reply");
     wrap.innerHTML = `<div class="reply-in">
       <div class="face front">
-        <div class="status"><span class="badge ${data.action}">${ACTION_LABEL[data.action] || esc(data.action)}</span>${sealHTML(data.verified, data.action)}<span class="ms">${data.metrics.engine_ms.toFixed(2)} ms</span></div>
+        <div class="status"><span class="badge ${esc(data.action)}">${ACTION_LABEL[data.action] || esc(data.action)}</span>${sealHTML(data.verified, data.action)}<span class="ms">${data.metrics.engine_ms.toFixed(2)} ms</span></div>
         <div class="lead">${r.html}</div>
         ${r.grid}
         ${r.tail ? `<div class="lead">${r.tail}</div>` : ""}
@@ -613,7 +613,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     } catch (err) {
       typing.remove();
       const card = el("article", "reply");
-      card.innerHTML = `<div class="reply-in"><div class="face front"><div class="status"><span class="badge refuse">Not sent</span></div><div class="lead"><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that web.py is still running, then try again." : err.message)}</p></div></div></div>`;
+      card.innerHTML = `<div class="reply-in"><div class="face front"><div class="status"><span class="badge refuse">Not sent</span></div><div class="lead"><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that the server (python main.py serve) is still running, then try again." : err.message)}</p></div></div></div>`;
       messages.append(card);
     } finally { send.disabled = false; if (matchMedia("(pointer: fine)").matches) input.focus(); }
   }

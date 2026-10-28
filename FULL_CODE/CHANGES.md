@@ -353,6 +353,32 @@ Built from commit `8795189`: checklist passed; 5.5 MB; one root folder; top leve
 `.gitattributes` is not in the guidelines' list of top-level files; it only fixes line endings and is allowed by
 the checker. 145 tests pass (6 new for the checklist and zip; the team-ID setting is checked in the config tests).
 
+## Task 7: web API validation, security headers and rate limits, 28 October
+
+The routes (`api/server.py`) stay separate from the core; validation, rate limiting and security headers are
+framework-free modules (`api/validation.py`, `api/ratelimit.py`, `api/security.py`) tested on their own.
+
+* **Validation.** POST bodies must be declared JSON (415 otherwise), have a Content-Length (411) within
+  `max_body_bytes` (413; never more than that is read), and be a JSON object. `message` must be text of 1 to
+  `max_message_chars` characters (413 above; it used to be cut silently, which could change its meaning) with no
+  control characters; `session_id` must be absent, null or a server-minted id; unknown fields are refused. Query
+  strings are ignored. PUT, DELETE, PATCH, OPTIONS and HEAD get 405.
+* **Other sites.** No CORS headers are sent, and a POST whose `Origin` isn't this server gets 403.
+* **Headers** on every response: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  cross-origin isolation, a `Permissions-Policy`, `Cache-Control: no-store`; the Python version is no longer
+  advertised. Pages get a Content-Security-Policy that allows only their own inline script (by SHA-256 hash) and
+  same-origin requests; each page was checked to have one plain script, no inline handlers and nothing external.
+* **Rate limits** (config.json): 30 messages a minute per session and 120 per client address (so new sessions can't
+  be minted to get round it), sliding window, bounded memory; 429 with `Retry-After`.
+* **Page.** Two values were inserted without escaping (the action name, a rating); both are now escaped or
+  converted. Every other dynamic value already went through `esc()`. Error text no longer mentions `web.py`.
+* **`main.py serve`** now shows the pack's catalogue when it's in `data/pack/` (synthetic demo otherwise).
+
+Smoke test on the pack: 5,000 products, 30 policy sections, a "65W charger dikhao" reply verified with 3 citations;
+a POST without a JSON type got 415 and a cross-site POST 403; headers present. Phone width: checked from the CSS
+only (viewport meta; breakpoints at 960 px and 520 px; the compare table scrolls inside its box), not in a browser.
+155 tests pass on Python 3.9 and 3.12 (10 new, including a running server with a 2-a-minute limit).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

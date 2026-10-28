@@ -143,8 +143,9 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.post("/api/chat", {"message": "   "})[0], 400)
         self.assertEqual(self.post("/api/chat", None, raw=b"not json")[0], 400)
         self.assertEqual(self.post("/api/nope", {})[0], 404)
-        code, d = self.post("/api/chat", {"message": "x" * 5000})  # trimmed, not crashed
-        self.assertEqual(code, 200)
+        code, d = self.post("/api/chat", {"message": "x" * 5000})  # rejected with the limit, not silently cut
+        self.assertEqual(code, 413)
+        self.assertIn("500 characters", d["error"])
 
 
 if __name__ == "__main__":
