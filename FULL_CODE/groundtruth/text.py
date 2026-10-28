@@ -65,6 +65,9 @@ RELATED = {normalise_word(k): v for k, v in _VOCAB["related"].items()}
 # thickness_mm, "paani" -> water_resistant. Used only when the catalogue has an attribute with that word.
 ATTRIBUTE_WORDS = {normalise_word(k): normalise_word(v) for k, v in _VOCAB["attribute_words"].items()}
 
+# Delivery days and times ("sunday", "same day", "express"): if the policy never mentions one, it is silent on it.
+POLICY_TIME_WORDS = frozenset(normalise_word(w) for w in _VOCAB["policy_time_words"])
+
 
 def tokenize(text: str) -> list[str]:
     text = text.lower().replace("t-shirt", "tshirt").replace("t shirt", "tshirt")

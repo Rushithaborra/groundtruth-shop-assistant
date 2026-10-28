@@ -274,8 +274,6 @@
     "floaters": "sandal",
     "kurti": "kurta",
     "kurtis": "kurta",
-    "earphone": "earbud",
-    "earphones": "earbud",
     "ladies": "women",
     "lady": "women",
     "womens": "women",
@@ -402,7 +400,8 @@
     "trousers": "jeans",
     "pant": "jeans",
     "bedcover": "bedsheet",
-    "charger": "power"
+    "charger": "power",
+    "earphone": "earbud"
   },
   "attribute_words": {
     "moti": "thickness",
@@ -411,5 +410,27 @@
     "paani": "water",
     "pani": "water",
     "waterproof": "water"
-  }
+  },
+  "policy_time_words": [
+    "sunday",
+    "saturday",
+    "weekend",
+    "weekends",
+    "holiday",
+    "holidays",
+    "festival",
+    "diwali",
+    "night",
+    "midnight",
+    "tonight",
+    "today",
+    "tomorrow",
+    "express",
+    "sameday",
+    "raat",
+    "aaj",
+    "kal",
+    "ravivar",
+    "itwar"
+  ]
 }

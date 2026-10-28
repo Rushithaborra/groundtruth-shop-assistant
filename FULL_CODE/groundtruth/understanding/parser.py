@@ -15,6 +15,7 @@ from .lexicon import (
     BACKPACK_PHRASE,
     BEST_W,
     CHEAP_W,
+    CHOICE_W,
     EXPENSIVE_W,
     EXPLICIT_PRICE_W,
     GREET_W,
@@ -23,6 +24,7 @@ from .lexicon import (
     IGNORE,
     NEG_W,
     POLICY_W,
+    PREFERENCE_W,
     PRICE_W,
     QUESTION_W,
     RATING_W,
@@ -67,16 +69,39 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     _detect_fact_intents(parsed, token_set, index, asks)
     _detect_sort(parsed, token_set)
     _classify_tokens(parsed, tokens, consumed, index)
+    if token_set & CHOICE_W and token_set & (PREFERENCE_W | WH_W | BEST_W) and not parsed.spec.sort:
+        parsed.choice = _choice(tokens, index)  # "tshirt or shirt which is better"; "which is cheaper" is answerable
     if token_set & ABROAD:  # "delivery to dubai" is the "outside India" shipping question
         parsed.keywords += ["outside", "india"]
     _detect_conversation_intents(parsed, token_set, account, helpq)
     return parsed
 
 
+def _choice(tokens: list[str], index: CatalogueIndex) -> list[str]:
+    """Two different kinds of product joined by "or" / "ya" / "vs" ("tshirt or shirt"), or nothing.
+
+    Colours, materials and brands aren't kinds: "purple ya teal earbuds" is a choice between variants, which the
+    catalogue can answer, not between kinds of product.
+    """
+    for i in range(1, len(tokens) - 1):
+        a, b = tokens[i - 1], tokens[i + 1]
+        if tokens[i] in CHOICE_W and a != b and _is_kind(a, index) and _is_kind(b, index):
+            return [a, b]
+    return []
+
+
+def _is_kind(token: str, index: CatalogueIndex) -> bool:
+    """A word naming a kind of product: in the catalogue's product words, and not a colour, material, brand, ..."""
+    if token not in index.type_vocab:
+        return False
+    return not any((token,) in values for key, values in index.attr_values.items() if key != "sub_category")
+
+
 def _normalise(query: str, index: CatalogueIndex) -> tuple[str, bool, bool]:
     """Lower-case and rewrite phrases; returns (text, asks about an account, asks for help)."""
     low = " ".join(query.lower().replace("t-shirt", "tshirt").split())
     low = re.sub(r"\bnoise[\s-]*(cancel\w*|isolat\w*|reduc\w*)", "anc", low)  # a feature, not the brand Noise
+    low = re.sub(r"\bsame[\s-]*day\b", "sameday", low)  # one delivery-time term, like "express"
     account = any(ph in low for ph in ACCOUNT_PHRASES)
     helpq = any(ph in low for ph in HELP_PHRASES)
     if "backpack" in index.type_vocab:

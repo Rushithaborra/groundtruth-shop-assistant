@@ -379,6 +379,28 @@ a POST without a JSON type got 415 and a cross-site POST 403; headers present. P
 only (viewport meta; breakpoints at 960 px and 520 px; the compare table scrolls inside its box), not in a browser.
 155 tests pass on Python 3.9 and 3.12 (10 new, including a running server with a 2-a-minute limit).
 
+## Task 5: known behaviour gaps, 28 October
+
+Checked on the pack with our own wording (not dev or test questions); all three were worse than listed:
+
+| Gap | Before | Fix |
+|---|---|---|
+| "men's running shoes under 3000" then "which sizes" | "What are you looking for?" | The session remembers the products it last showed; an attribute question with no product of its own is answered from each of those records, cited, mentioning only keys they have ("size" also matches `bat_size`, `bed_size`, ...; single-product answers got the same filter) |
+| "tshirt or shirt which is better" | refused ("better" read as a product word) | Two kinds of product joined by or / ya / vs, with a preference or question word, get a clarifying question showing a few of each (cited, no prices). Colours, materials and brands aren't kinds, and a price question ("purple ya teal, kaunsa sasta") is still answered |
+| "do you deliver on sunday" / "same day delivery" | quoted delivery charges / the return window | A delivery day or time the policy never mentions (`policy_time_words` in `vocabulary.json`) gets "the policy doesn't say anything about ..." plus what it says on delivery times (2.2), as a refusal |
+| "earbuds ya earphones" | both read as earbuds | The synonym earphone → earbud is removed: the pack's README says wireless earbuds and wired earphones are different products. It stays as a related suggestion for refusals |
+| External-brand list in config | | already done in Task 1 (`vocabulary.json`) |
+| Describing-word refusal rule | | needs the Task 4 held-out questions |
+
+**A regression caught and fixed before committing:** the first choice rule treated colour words as product kinds,
+which turned the dev comparison "... purple ya teal earbuds kaunsa sasta" into a clarification. The official check
+half fell from 0.840 to 0.795. It was traced by diffing our own dev predictions against the previous commit (no
+expected answers read) and fixed by limiting choices to product kinds and to questions without a price comparison.
+After the fix, no dev prediction differs from the previous commit: tune 1.000, check 0.840, all 40 dev 0.920.
+
+Synthetic sets all 1.0. One of the 150 test predictions changed (a clarification's cited products). 160 tests
+pass on Python 3.9 and 3.12; the 3 new gap tests fail on the previous commit's code.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

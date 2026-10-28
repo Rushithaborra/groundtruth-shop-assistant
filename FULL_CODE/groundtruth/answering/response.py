@@ -87,6 +87,7 @@ class Response:
 class Session:
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
+    shown: list[str] = field(default_factory=list)  # products in the last listing, for "which sizes?"
 
     def clear(self) -> None:
-        self.spec, self.last_product = Spec(), None
+        self.spec, self.last_product, self.shown = Spec(), None, []

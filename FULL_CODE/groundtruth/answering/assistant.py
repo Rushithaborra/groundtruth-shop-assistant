@@ -17,11 +17,11 @@ import time
 from ..catalogue import CatalogueIndex, Product, Spec
 from ..config import get_settings
 from ..policy import STRONG, Section
-from ..text import approx_tokens, format_inr, tokenize
+from ..text import POLICY_TIME_WORDS, approx_tokens, format_inr, tokenize
 from ..understanding import Parsed, understand
 from . import listings, product_answers, refusals
 from .formatting import SORT_LABELS, head_nouns
-from .policy_answers import cited_section, policy_answer
+from .policy_answers import cited_section, policy_answer, policy_silent
 from .product_answers import FACTS
 from .response import ANSWER, CLARIFY, REFUSE, Response, Session
 
@@ -48,6 +48,7 @@ class ShoppingAssistant:
         self.policy_max_sentences = limits.policy_max_sentences
         # the policy's named terms ("GST", "COD"): one alone is enough to identify a policy question
         self.policy_words = STRONG | _policy_terms(policy, index)
+        self.policy_vocab = frozenset(t for sec in policy for _, toks in sec.sentences for t in toks)
         self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
 
     # -- public --------------------------------------------------------------------------------
@@ -131,14 +132,23 @@ class ShoppingAssistant:
         return resp
 
     def _policy(self, p: Parsed) -> Response:
+        silent = [w for w in dict.fromkeys(p.keywords) if w in POLICY_TIME_WORDS and w not in self.policy_vocab]
+        if silent:  # "do you deliver on sunday": the policy never mentions Sundays
+            return policy_silent(self.policy, p, silent, self.policy_max_sentences)
         return policy_answer(self.policy, self.semantic, p, self.policy_max_sentences, self.policy_words)
 
     def _product_route(self, p: Parsed, session: Session) -> Response:
         if len(p.mentioned) >= 2 and not p.product_id:
+            session.shown = p.mentioned[:4]
             return product_answers.compare(self.index, p.mentioned, p)
         if p.external and not (p.product_id or p.mentioned):
             return refusals.external(self.index, p, self.list_limit)
+        if p.choice:
+            return listings.choice(self.index, p, self.list_limit)
         forced, spec = self._resolve(p, session)
+        if forced is None and p.detail_keys and session.shown and not _names_products(p):
+            shown = [self.index.products[pid] for pid in session.shown]  # "which sizes?" after a listing
+            return product_answers.shown_details(shown, p.detail_keys)
         if forced is not None:
             session.last_product = forced.id
             return product_answers.product_answer(self.index, forced, p)
@@ -220,7 +230,7 @@ class ShoppingAssistant:
             elif spec.price_max is None and spec.price_min is None:  # a budget implies browsing, not one product
                 exact = self.index.exact_title_matches(hits, p.all_tokens)
                 if len(exact) != 1:
-                    session.last_product = None
+                    session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
                     return listings.clarify(self.index, hits, self.clarify_limit)
                 pick = exact[0]
         if pick is not None:
@@ -228,6 +238,7 @@ class ShoppingAssistant:
             return product_answers.product_answer(self.index, pick, p, lead=lead)
 
         session.last_product = hits[0].id if len(hits) == 1 else None
+        session.shown = [h.id for h in hits[: self.list_limit]]
         resp = listings.listing(hits, p, spec, relaxed, self.list_limit)
         if unlisted:
             resp.text += (
@@ -284,3 +295,9 @@ def _policy_terms(policy: list[Section], index: CatalogueIndex) -> frozenset:
     """
     terms = {w for sec in policy for w in re.findall(r"\b[A-Z]{2,}\b", f"{sec.heading} {sec.body}")}
     return frozenset(t for w in terms for t in tokenize(w) if t not in index.vocab)
+
+
+def _names_products(p: Parsed) -> bool:
+    """The message names products or a new search of its own, so it isn't a follow-up about the last listing."""
+    s = p.spec
+    return bool(p.product_id or p.mentioned or s.type_tokens or s.filters or s.desc_tokens)

@@ -49,7 +49,7 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
             supported = True
         elif "rating" in want:
             sentences.append(f"The catalogue has no rating for the {prod.title} {cite}.")
-    for key in p.detail_keys:
+    for key in relevant_keys([prod], p.detail_keys):
         values = prod.attr_values(key)
         if values:
             sentences.append(f"The {key} of the {prod.title} is {', '.join(values)} {cite}.")
@@ -107,3 +107,29 @@ def description_check(
         else:
             out.append(f'I don\'t have information about "{tok}" for the {prod.title} [{prod.id}].')
     return out, ok
+
+
+def shown_details(products: list[Product], keys: list[str]) -> Response:
+    """An attribute question about the products just listed ("which sizes?"), answered from each product's record."""
+    lines, claims, supported = ["For the products I just showed:"], Claims(), False
+    keys = relevant_keys(products, keys)
+    for prod in products:
+        parts = []
+        for key in keys:
+            values = prod.attr_values(key)
+            if values:
+                parts.append(f"{key} {', '.join(values)}")
+                claims.attribute(prod, key)
+                supported = True
+            else:
+                parts.append(f"{key} not listed")
+        claims.cite(prod)
+        lines.append(f"- {prod.title}: {'; '.join(parts)} [{prod.id}]")
+    return Response("\n".join(lines), ANSWER if supported else REFUSE, claims=claims)
+
+
+def relevant_keys(products: list[Product], keys: list[str]) -> list[str]:
+    """The asked-about keys these products actually have ("size" also matches bat_size, bed_size, ...); if none of
+    them has any, only the first, so the reply says once that the catalogue doesn't list it."""
+    present = [k for k in keys if any(prod.attr_values(k) for prod in products)]
+    return present or keys[:1]

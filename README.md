@@ -212,8 +212,9 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
   words the rules can't place are refused rather than guessed. That is safe but can refuse unusual synonyms.
 * **`main.py evaluate`** scores the synthetic sets with our own assumed weights (`config.json`, evaluation
   section); the official score comes from `main.py score`.
-* **Known behaviour gaps:** "which sizes" as a follow-up after a listing; "tshirt or shirt which is better" refuses
-  instead of clarifying; "do you deliver on sunday" gives delivery days without saying the policy doesn't mention
-  Sundays; a describing word plus an unknown noun leans towards refusing (safer, but it may refuse unusual synonyms).
+* **Known behaviour gaps:** a describing word plus an unknown noun leans towards refusing (safer, but it may
+  refuse unusual synonyms); policy-silent questions are recognised only for delivery days and times (Sunday,
+  weekend, same day, express, ...), from a word list in `vocabulary.json`; "which is better" between two kinds of
+  product gets a clarifying question, because the catalogue has nothing to judge "better" by.
 * Latencies are from one laptop. Python threads share one interpreter lock, so serving many users means more
   processes, not more threads (`main.py bench`: about 2,300 queries/s per process on the synthetic catalogue).

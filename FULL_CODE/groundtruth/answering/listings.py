@@ -51,3 +51,19 @@ def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> R
     if varying:
         lines.append("You can tell me the " + " or ".join(varying) + " to pick one.")
     return Response("\n".join(lines), CLARIFY, claims=claims)
+
+
+def choice(index: CatalogueIndex, p: Parsed, per_kind: int) -> Response:
+    """ "tshirt or shirt, which is better?": the catalogue can't judge "better", so show some of each and ask what
+    matters, rather than guessing."""
+    lines, claims = (
+        ["Both are in the catalogue, and which is better depends on what you need. A few of each:"],
+        Claims(),
+    )
+    for kind in p.choice:
+        hits, _ = index.search(Spec(type_tokens=[kind]), p.all_tokens)
+        for h in hits[: max(1, per_kind - 1)]:
+            lines.append(f"- {h.title} [{h.id}]")
+            claims.cite(h)
+    lines.append("Tell me your budget, size, material or what it's for, and I'll narrow it down.")
+    return Response("\n".join(lines), CLARIFY, claims=claims)

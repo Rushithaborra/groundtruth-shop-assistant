@@ -138,8 +138,22 @@ QUESTION_W = {"hai", "hain", "kitna", "kitni", "kitne"}  # Hinglish; an English 
 EXPLICIT_PRICE_W = {"price", "rate"}
 # One product wanted, not a list: "sabse sasta", "cheapest", "the most expensive"
 SUPERLATIVE_W = {"sabse", "cheapest", "lowest", "costliest", "priciest", "highest", "most", "least"}
+# "tshirt or shirt, which is better": a choice between two kinds of product, not a product called "better"
+CHOICE_W = {"or", "ya", "vs", "versus"}
+PREFERENCE_W = {"better", "behtar", "worse", "prefer", "suggest", "recommend"}
 RESET_PHRASES = ("start over", "new search", "reset", "forget it", "clear all", "never mind", "nevermind")
 
 IGNORE = (
-    PRICE_W | STOCK_W | RATING_W | POLICY_W | CHEAP_W | EXPENSIVE_W | BEST_W | GREET_W | WH_W | STOPWORDS | {"size"}
+    PRICE_W
+    | STOCK_W
+    | RATING_W
+    | POLICY_W
+    | CHEAP_W
+    | EXPENSIVE_W
+    | BEST_W
+    | GREET_W
+    | WH_W
+    | STOPWORDS
+    | PREFERENCE_W
+    | {"size"}
 )  # "what size" is a question about sizes, not a product word
