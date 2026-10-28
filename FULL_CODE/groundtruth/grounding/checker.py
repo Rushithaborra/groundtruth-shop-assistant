@@ -26,7 +26,7 @@ def _numbers(text: str) -> set[str]:
 class Grounding:
     """Independent checker: re-derives what each citation licenses from the raw catalogue/policy."""
 
-    def __init__(self, index: CatalogueIndex, sections: dict[str, Section]):
+    def __init__(self, index: CatalogueIndex, sections: dict[str, Section]) -> None:
         self.index, self.sections = index, sections
         self.titles = sorted({p.title for p in index.products.values()}, key=len, reverse=True)
         self.title_ids: dict[str, set[str]] = {}
@@ -50,36 +50,55 @@ class Grounding:
     def check(self, text: str, query_text: str) -> dict:
         """Problems with a reply's claims, the count of hallucinated prices, and its citations."""
         cites = list(dict.fromkeys(CITE.findall(text)))
-        problems, hallucinated = [], []
-        sources = {}
+        sources, problems = self._resolve(cites)
+        body = CITE.sub("", text)
+        hallucinated = self._hallucinated_prices(body, sources, query_text)
+        problems += self._unsupported_numbers(body, sources, query_text)
+        problems += self._uncited_titles(body, sources)
+        problems += self._uncited_claims(text)
+        problems += [f"hallucinated price ₹{h}" for h in hallucinated]
+        return {"problems": problems, "hallucinated_prices": len(hallucinated), "cited": cites}
+
+    def _resolve(self, cites: list[str]) -> tuple[dict[str, str], list[str]]:
+        """The source text of every citation that exists, and a problem for each one that doesn't."""
+        sources, problems = {}, []
         for c in cites:
             src = self.source(c)
             if src is None:
                 problems.append(f"unknown citation [{c}]")
             else:
                 sources[c] = src
-        body = CITE.sub("", text)
-        allowed_money = {float(m.replace(",", "")) for src in sources.values() for m in RUPEE.findall(src)}
-        for c in sources:
-            p = self.index.products.get(c)
-            if p:
-                allowed_money.add(float(p.price))
-        allowed_money |= {
+        return sources, problems
+
+    def _hallucinated_prices(self, body: str, sources: dict[str, str], query_text: str) -> list[str]:
+        """Every ₹ amount in the reply that is no cited product's or section's, and not the shopper's own number."""
+        allowed = {float(m.replace(",", "")) for src in sources.values() for m in RUPEE.findall(src)}
+        allowed |= {float(self.index.products[c].price) for c in sources if c in self.index.products}
+        allowed |= {
             float(n.replace(",", ""))
             for n in re.findall(r"\d[\d,]*(?:\.\d+)?", query_text)
             if n.replace(",", "").replace(".", "").isdigit()
         }
-        for m in RUPEE.findall(body):
-            if float(m.replace(",", "")) not in allowed_money:
-                hallucinated.append(m)
-        allowed_nums = _numbers(" ".join(sources.values()) + " " + query_text)
-        for n in _numbers(RUPEE.sub("", re.sub(r"(?m)^\s*\d+[.)]\s", "", body))):
-            if n not in allowed_nums:
-                problems.append(f"number {n} not in cited sources")
-        for title in self.titles:
-            if title in body and not (self.title_ids[title] & set(sources)):
-                problems.append(f"names '{title}' without citing it")
-        # every sentence/line that states a fact must carry a citation
+        return [m for m in RUPEE.findall(body) if float(m.replace(",", "")) not in allowed]
+
+    @staticmethod
+    def _unsupported_numbers(body: str, sources: dict[str, str], query_text: str) -> list[str]:
+        """A problem for each number (other than a price or list marker) found in neither the sources nor the query."""
+        allowed = _numbers(" ".join(sources.values()) + " " + query_text)
+        stripped = RUPEE.sub("", re.sub(r"(?m)^\s*\d+[.)]\s", "", body))
+        return [f"number {n} not in cited sources" for n in _numbers(stripped) if n not in allowed]
+
+    def _uncited_titles(self, body: str, sources: dict[str, str]) -> list[str]:
+        """A problem for each product title named in the reply whose product isn't cited."""
+        return [
+            f"names '{title}' without citing it"
+            for title in self.titles
+            if title in body and not (self.title_ids[title] & set(sources))
+        ]
+
+    def _uncited_claims(self, text: str) -> list[str]:
+        """A problem for each sentence or line that states a fact (price, product, stock, rating) without a citation."""
+        problems = []
         for unit in re.split(r"(?<=[.!?])\s+(?!\[)|\n", text):
             u = unit.strip(" -")
             if not u:
@@ -91,5 +110,4 @@ class Grounding:
             )
             if states_fact and not CITE.search(u):
                 problems.append(f"uncited claim: {u[:60]}")
-        problems += [f"hallucinated price ₹{h}" for h in hallucinated]
-        return {"problems": problems, "hallucinated_prices": len(hallucinated), "cited": cites}
+        return problems
