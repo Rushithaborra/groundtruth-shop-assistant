@@ -52,6 +52,9 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     ids, low = _extract_ids(low, index)
     if len(ids) == 1:
         parsed.product_id = ids[0]
+    # product names are matched on the words as typed, before sizes, measurements and budgets are taken out:
+    # "Chargit RippleZip 20 W Bluetooth Speaker" names a product, it doesn't ask for 20 W
+    named = index.mentioned(repair_tokens(tokenize(join_split_names(low, index)), index))
     parsed.spec.size, low, parsed.spec.size_soft = extract_size(low, index)
     low, parsed.spec.measures = extract_measures(low)
     low, parsed.spec.price_min, parsed.spec.price_max = extract_money(low)
@@ -59,9 +62,9 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     tokens = repair_tokens(tokenize(join_split_names(low, index)), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
-    parsed.mentioned = (
-        ids + [m for m in index.mentioned(tokens) if m not in ids] if len(ids) > 1 else index.mentioned(tokens)
-    )
+    parsed.mentioned = ids + [m for m in named if m not in ids] if len(ids) > 1 else named
+    if parsed.mentioned:
+        parsed.spec.measures = []  # they were part of the named products' names
 
     asks = bool(token_set & (WH_W | QUESTION_W)) or "?" in query or bool(parsed.product_id)
     parsed.is_question = asks

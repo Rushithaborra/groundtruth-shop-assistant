@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from groundtruth.answering import ANSWER, CLARIFY, Session
+from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session
 from groundtruth.builder import build_assistant
 
 
@@ -23,6 +23,7 @@ CATALOGUE = [
     product("SKU-HD1", "Herbique AmberAir 1000 W Hair Dryer - White", "Hair Dryers", 1199,
             {"wattage_w": 1000, "colour": "white"}),
     product("SKU-SH1", "Herbique SilkLeaf Shampoo 200 ml", "Shampoos", 299, {"hair_type": "oily", "volume_ml": 200}),
+    product("SKU-SP1", "Wavefin Tide Bluetooth Speaker - Green", "Bluetooth Speakers", 2199, {"water_resistant": True}),
     product("SKU-CS3", "Sanchayo NimbusMax Steel Container Set of 3", "Containers", 899, {"containers": 3},
             stock="out_of_stock"),
     product("SKU-CS12", "Sanchayo NimbusMax Steel Container Set of 12", "Containers", 1979, {"containers": 12}),
@@ -65,6 +66,20 @@ class NameHandlingTests(unittest.TestCase):
         r = self.ask("Sanchayo NimbusMax steel container set stock me hai?")  # one in stock, one not
         self.assertEqual(r.action, CLARIFY)
         self.assertEqual(set(r.claims.products), {"SKU-CS3", "SKU-CS12"})
+
+    def test_two_full_product_names_with_measurements_are_compared(self):
+        # "26 L" and "1000 W" are part of the names, not constraints
+        r = self.ask(
+            "Trekora NimbusAir Kids' School Bag 26 L - Red vs Herbique AmberAir 1000 W Hair Dryer - White kaunsa sasta"
+        )
+        self.assertEqual(r.action, ANSWER)
+        self.assertEqual(set(r.claims.products), {"SKU-SB1", "SKU-HD1"})
+        self.assertIn("cheaper one at ₹899", r.text)
+
+    def test_an_unlisted_attribute_is_refused_without_echoing_the_question(self):
+        r = self.ask("herbique amberair white hair dryer paani me chalega?")
+        self.assertEqual(r.action, REFUSE)
+        self.assertNotIn("don't have information", r.text)
 
     def test_a_broad_stock_question_still_lists(self):
         self.assertEqual(self.ask("backpacks in stock?").action, ANSWER)

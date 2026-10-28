@@ -58,7 +58,9 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
         else:
             sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
     if "detail" in want or p.spec.desc_tokens or p.unknown or foreign:
-        extra, ok = description_check(index, prod, p, foreign)
+        # an attribute question ("paani me chalega?") is answered by the attribute, not by echoing its other words
+        unplaced = [] if p.detail_keys else p.unknown
+        extra, ok = description_check(index, prod, p, foreign, unplaced)
         sentences += extra
         supported = supported or ok
     return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims=claims)
@@ -92,12 +94,13 @@ def compare(index: CatalogueIndex, pids: list[str], p: Parsed) -> Response:
 
 
 def description_check(
-    index: CatalogueIndex, prod: Product, p: Parsed, foreign: list[str] = ()
+    index: CatalogueIndex, prod: Product, p: Parsed, foreign: list[str] = (), unplaced: list[str] | None = None
 ) -> tuple[list[str], bool]:
     """Quote the description sentence for each asked-about word, or say the catalogue doesn't cover it."""
     out, ok = [], False
     in_description = index.desc_tokens[prod.id]
-    for tok in dict.fromkeys(p.spec.desc_tokens + p.unknown + list(foreign)):
+    unplaced = p.unknown if unplaced is None else unplaced
+    for tok in dict.fromkeys(p.spec.desc_tokens + unplaced + list(foreign)):
         if tok in in_description:
             sentence = next(
                 (s for s in re.split(r"(?<=[.!?])\s+", prod.description) if tok in s.lower()), prod.description

@@ -139,6 +139,12 @@ class WebTests(unittest.TestCase):
         self.assertEqual(d["action"], "refuse")
         self.assertEqual(d["gaps"], [])
 
+    def test_policy_questions_are_not_counted_as_missing_products(self):
+        before = dict(json.loads(self.get("/api/insights"))["not_stocked"])
+        self.post("/api/chat", {"message": "what is the gift wrapping policy"})
+        after = dict(json.loads(self.get("/api/insights"))["not_stocked"])
+        self.assertEqual(before, after)
+
     def test_bad_input(self):
         self.assertEqual(self.post("/api/chat", {"message": "   "})[0], 400)
         self.assertEqual(self.post("/api/chat", None, raw=b"not json")[0], 400)

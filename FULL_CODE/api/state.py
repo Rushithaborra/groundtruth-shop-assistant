@@ -162,7 +162,10 @@ class State:
     def _record(self, resp, parsed, entry: dict, message: str, check_ok: bool) -> None:
         """Update this visitor's totals and refused requests, and the retailer view's counters."""
         gap_labels = []
-        if resp.action == REFUSE and "account" not in parsed.intents:  # orders/coupons aren't products
+        # only requests for products count as demand: not orders or coupons ("account"), not policy questions, and
+        # not a question about a listed product's details ("paani me chalega?")
+        not_a_product_request = parsed.intents & {"account", "policy"} or resp.claims.sections or parsed.detail_keys
+        if resp.action == REFUSE and not not_a_product_request:
             gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
             for w in gap_labels:
                 entry["gaps"][w] += 1
