@@ -20,6 +20,7 @@ from groundtruth.console import write_out
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The benchmark's options: data files (default: the 5,000-product demo), threads, rounds, profiling."""
     paths = get_settings().paths
     ap.add_argument("--catalogue", default=str(paths.demo_catalogue))
     ap.add_argument("--policy", default=str(paths.demo_policy))
@@ -30,6 +31,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    """Time the assistant on its own, then with several threads at once, and optionally profile where time goes."""
     start = time.perf_counter()
     assistant = build_assistant(args.catalogue, args.policy)
     write_out(f"build: {time.perf_counter() - start:.2f}s")
@@ -37,6 +39,7 @@ def run(args: argparse.Namespace) -> None:
         convos = [json.loads(line)["turns"] for line in fh if line.strip()]
 
     def run_convo(convo: list[str]) -> list[float]:
+        """Answer one conversation's turns in order in a fresh session; each turn's latency in milliseconds."""
         session, times = Session(), []
         for turn in convo:
             t = time.perf_counter()
@@ -45,6 +48,7 @@ def run(args: argparse.Namespace) -> None:
         return times
 
     def report(label: str, times: list[float], wall: float) -> None:
+        """Print queries per second and the mean, median, 95th-percentile and worst latency."""
         q = statistics.quantiles(times, n=20)
         write_out(
             f"{label}: {len(times) / wall:8.0f} queries/s | mean {statistics.mean(times):6.2f} ms | "
