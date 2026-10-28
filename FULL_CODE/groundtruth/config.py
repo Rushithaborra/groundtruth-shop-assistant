@@ -45,6 +45,7 @@ class PathSettings:
     test_questions: Path
     official_scorer: Path
     submission: Path
+    dev_predictions: Path
     reports_dir: Path
     cache_dir: Path
     semantic_config: Path

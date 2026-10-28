@@ -15,6 +15,7 @@
     "test_questions": "data/pack/data/questions_test.csv",
     "official_scorer": "data/pack/evaluate.py",
     "submission": "../submission/R3_predictions.jsonl",
+    "dev_predictions": "output/R3_dev_predictions.jsonl",
     "reports_dir": "output/reports",
     "cache_dir": ".cache",
     "semantic_config": "semantic_config.json",

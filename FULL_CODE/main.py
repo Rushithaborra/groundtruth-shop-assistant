@@ -3,6 +3,7 @@
     python main.py chat       interactive command-line chat
     python main.py serve      web demo at http://127.0.0.1:8000 (retailer view at /insights)
     python main.py evaluate   score a question set; reports go to output/
+    python main.py submit     write submission/R3_predictions.jsonl for the pack's test questions
     python main.py bench      throughput and latency benchmark
     python main.py calibrate  pick the embedding-fallback thresholds with the provided model
     python main.py generate   write the synthetic catalogues and question sets into data/
@@ -42,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     # imported here, after the settings have loaded: these modules read settings at import time
     from api import server
     from groundtruth import cli
-    from groundtruth.evaluation import scoring
+    from groundtruth.evaluation import scoring, submission
     from tools import bench, calibrate_semantic
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -51,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("chat", cli.add_arguments, cli.run, "interactive command-line chat"),
         ("serve", server.add_arguments, server.run, "run the web demo"),
         ("evaluate", scoring.add_arguments, scoring.run, "score a question set"),
+        ("submit", submission.add_arguments, submission.run, "write predictions in the pack's submission format"),
         ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
         ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
         ("generate", _add_generate_arguments, _generate, "write synthetic data and question sets"),

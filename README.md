@@ -39,9 +39,14 @@ are needed.
 environment variables:
 
 ```bash
-python3 main.py evaluate --catalogue data/pack/catalogue.jsonl --policy data/pack/policy.txt --questions data/pack/questions.jsonl
-# or: export GROUNDTRUTH_CATALOGUE=data/pack/catalogue.jsonl GROUNDTRUTH_POLICY=data/pack/policy.txt
+# copy the unzipped pack folder's contents into FULL_CODE/data/pack/ (so data/pack/data/catalogue.jsonl exists)
+python3 main.py submit                 # writes submission/R3_predictions.jsonl for the 150 test questions
+python3 main.py submit --split dev     # the 40 dev questions -> output/R3_dev_predictions.jsonl
 ```
+
+`submit` answers each conversation in turn order (later turns keep the earlier constraints) and checks every line
+against the pack's format before writing. To score the dev file with the organisers' own scorer, run
+`evaluate.py` from `data/pack/`, as the pack's README describes; it needs `pandas` and `numpy`.
 
 The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column spellings (`id|product_id|sku`,
 `title|name`, prices like "₹1,299", stock like "Only 2 left", attributes as a dict, JSON string or flat columns). Bad
