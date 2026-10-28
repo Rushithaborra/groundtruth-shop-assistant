@@ -18,13 +18,13 @@ import math
 import statistics
 from pathlib import Path
 
-from ..answering import Session
+from ..answering import Session, ShoppingAssistant
 from ..arguments import add_model_arguments
 from ..builder import build_assistant
 from ..config import get_settings
 from ..console import write_out
 from ..text import approx_tokens
-from .questions import conversations, load_questions
+from .questions import Question, conversations, load_questions
 
 FIELDS = (
     "question_id", "split", "conversation_id", "turn", "action", "path", "latency_ms", "model_tokens_in",
@@ -38,7 +38,7 @@ def _percentile(values: list[float], q: float) -> float:
     return ordered[max(0, math.ceil(q * len(ordered)) - 1)]
 
 
-def measure(assistant, questions_by_split: dict[str, list]) -> list[dict]:
+def measure(assistant: ShoppingAssistant, questions_by_split: dict[str, list[Question]]) -> list[dict]:
     """Answer every question (conversation turns in order) and record what each reply cost."""
     baseline = get_settings().cost_report
     rows = []
