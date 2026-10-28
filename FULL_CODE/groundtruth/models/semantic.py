@@ -18,9 +18,13 @@ import math
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import TYPE_CHECKING, Protocol, Sequence
 
 from ..policy import Section
+
+if TYPE_CHECKING:
+    from ..catalogue import CatalogueIndex
+    from ..understanding import Parsed
 
 
 class Embedder(Protocol):
@@ -49,7 +53,7 @@ class Match:
     score: float
 
 
-def type_words(index) -> list[str]:
+def type_words(index: CatalogueIndex) -> list[str]:
     """Catalogue words that name a kind of product: concentrated in one category, frequent, and not a brand.
 
     Model names ("Flex", "Apex") and brands spread across categories or are excluded explicitly, so the fallback
@@ -67,9 +71,9 @@ def type_words(index) -> list[str]:
 
 
 class SemanticFallback:
-    def __init__(self, index, policy: list[Section], embedder: Embedder, map_threshold: float,
+    def __init__(self, index: CatalogueIndex, policy: list[Section], embedder: Embedder, map_threshold: float,
                  alt_threshold: float | None = None, policy_threshold: float | None = None,
-                 cache_dir: str | Path | None = None):
+                 cache_dir: str | Path | None = None) -> None:
         self.embedder = embedder
         self.map_threshold = map_threshold
         self.alt_threshold = alt_threshold if alt_threshold is not None else map_threshold
@@ -82,7 +86,7 @@ class SemanticFallback:
         self.policy_vecs = vecs[len(self.targets):]
         self._memo: dict[str, Match | None] = {}
 
-    def _cached(self, texts: list[str], cache_dir) -> list[list[float]]:
+    def _cached(self, texts: list[str], cache_dir: str | Path | None) -> list[list[float]]:
         if not cache_dir:
             return self.embedder.encode(texts)
         key = hashlib.sha1(json.dumps([self.embedder.name, texts]).encode()).hexdigest()[:16]
@@ -105,7 +109,7 @@ class SemanticFallback:
                 self._memo[word] = Match(word, target, score)
         return self._memo[word]
 
-    def resolve(self, parsed) -> bool:
+    def resolve(self, parsed: Parsed) -> bool:
         """Map unknown product words in place. Returns True if the parse changed."""
         changed = False
         for word in list(parsed.unknown):
