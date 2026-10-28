@@ -1,4 +1,5 @@
 """Replies about specific products: one product's facts, and a side-by-side comparison."""
+
 from __future__ import annotations
 
 import re
@@ -69,24 +70,28 @@ def compare(index: CatalogueIndex, pids: list[str], p: Parsed) -> Response:
             word = "cheaper" if sort == "price_asc" else "more expensive"
             lines.append(f"The {pick.title} is the {word} one at {format_inr(pick.price)} [{pick.id}].")
         else:
-            lines.append(f"They are the same price, {format_inr(pick.price)} " + " ".join(f"[{x.id}]" for x in prods) + ".")
+            lines.append(
+                f"They are the same price, {format_inr(pick.price)} " + " ".join(f"[{x.id}]" for x in prods) + "."
+            )
     elif sort == "rating_desc" and (rated := [x for x in prods if x.rating is not None]):
         pick = max(rated, key=lambda x: x.rating)
         lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
     return Response("\n".join(lines), ANSWER)
 
 
-def description_check(index: CatalogueIndex, prod: Product, p: Parsed,
-                      foreign: list[str] = ()) -> tuple[list[str], bool]:
+def description_check(
+    index: CatalogueIndex, prod: Product, p: Parsed, foreign: list[str] = ()
+) -> tuple[list[str], bool]:
     """Quote the description sentence for each asked-about word, or say the catalogue doesn't cover it."""
     out, ok = [], False
     in_description = index.desc_tokens[prod.id]
     for tok in dict.fromkeys(p.spec.desc_tokens + p.unknown + list(foreign)):
         if tok in in_description:
-            sentence = next((s for s in re.split(r"(?<=[.!?])\s+", prod.description) if tok in s.lower()),
-                            prod.description)
+            sentence = next(
+                (s for s in re.split(r"(?<=[.!?])\s+", prod.description) if tok in s.lower()), prod.description
+            )
             out.append(f'The description says: "{sentence}" [{prod.id}]')
             ok = True
         else:
-            out.append(f"I don't have information about \"{tok}\" for the {prod.title} [{prod.id}].")
+            out.append(f'I don\'t have information about "{tok}" for the {prod.title} [{prod.id}].')
     return out, ok

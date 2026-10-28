@@ -2,6 +2,7 @@
 
 Handles short, ungrammatical, code-mixed (English/Hinglish) shopper queries.
 """
+
 from __future__ import annotations
 
 import re
@@ -51,8 +52,9 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     tokens = repair_tokens(tokenize(low), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
-    parsed.mentioned = ids + [m for m in index.mentioned(tokens) if m not in ids] if len(ids) > 1 \
-        else index.mentioned(tokens)
+    parsed.mentioned = (
+        ids + [m for m in index.mentioned(tokens) if m not in ids] if len(ids) > 1 else index.mentioned(tokens)
+    )
 
     consumed = _apply_attribute_filters(parsed, tokens, index)
     _detect_fact_intents(parsed, token_set, query, index)
@@ -94,7 +96,7 @@ def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: Catalogue
     consumed = [False] * len(tokens)
     for n, toks, key, val in index.attr_candidates:
         for i in range(len(tokens) - n + 1):
-            if tuple(tokens[i:i + n]) == toks and not any(consumed[i:i + n]):
+            if tuple(tokens[i : i + n]) == toks and not any(consumed[i : i + n]):
                 if i > 0 and tokens[i - 1] in NEG_W:
                     parsed.spec.exclude.setdefault(key, []).append(val)
                 elif key not in parsed.spec.filters:
@@ -116,8 +118,13 @@ def _detect_fact_intents(parsed: Parsed, token_set: set[str], query: str, index:
     wh = bool(token_set & WH_W) or "?" in query
     about_one = bool(parsed.product_id)  # "colour of P0042" asks about that product even without a question word
     for ktok, key in index.attr_keys.items():
-        if ktok in token_set and key not in parsed.spec.filters and key not in parsed.spec.exclude and (wh or about_one) \
-                and ktok not in PRICE_W:
+        if (
+            ktok in token_set
+            and key not in parsed.spec.filters
+            and key not in parsed.spec.exclude
+            and (wh or about_one)
+            and ktok not in PRICE_W
+        ):
             parsed.detail_keys.append(key)
     if "size" in token_set and not parsed.spec.size and (wh or about_one) and "size" not in parsed.detail_keys:
         parsed.detail_keys.append("size")
@@ -172,8 +179,9 @@ def _detect_conversation_intents(parsed: Parsed, token_set: set[str], account: b
     """Policy questions, greetings, help, thanks, out-of-scope account questions; plain search otherwise."""
     explicit_price = bool(token_set & {"price", "much"})
     product_ref = parsed.has_product_ref
-    asks_fact = (explicit_price or "rating" in parsed.intents
-                 or (bool(parsed.intents & {"stock", "detail"}) and product_ref))
+    asks_fact = (
+        explicit_price or "rating" in parsed.intents or (bool(parsed.intents & {"stock", "detail"}) and product_ref)
+    )
     if token_set & POLICY_W:
         parsed.intents.add("policy_q" if asks_fact and product_ref else "policy")
     if token_set & GREET_W and not (parsed.has_constraint or parsed.intents):

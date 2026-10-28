@@ -1,4 +1,5 @@
 """Text helpers shared by the index, the query parser and the evaluator."""
+
 from __future__ import annotations
 
 import json
@@ -7,25 +8,12 @@ import re
 
 from .config import get_settings
 
-STOPWORDS = set(
-    """
-    a an the is are was were am be do does did you your yours u ur have has had any me my mine we our us i it its
-    this that these those one ones some there here of for to in on at by with from and or but not no also please
-    pls plz can could would should will want need looking look find show get give tell let see about as if so than
-    then too very just only what whats which who how when where why kya hai hain ho ka ki ke ko se mein mujhe mere
-    meri chahiye chahie dikhao dikha batao bata de dena aur ya bhi koi kuch yeh ye woh wo wala wali wale ek par pe
-    liye lie sell selling buy buying sale under below above over upto within max maximum min minimum tak andar
-    ander rs inr rupee rupees rupaye ruppees stock available availability already said told mentioned earlier before still ones now instead
-    rather kitne kitna kitni din abhi something anything good nice great cool decent quality product most least actually anyway okay ok yes yeah hmm except without excluding nahi
-    products item items thing things recommend suggestion
-    compare comparison vs versus between kab kaise kaisa kahan kidhar kyun kyu sabse sab
-    aap aapke aapka aapki apke paas pas hai hain ho come comes
-    """.split()
-)
-
-# Hand-written vocabulary (synonyms, brands the shop may not carry, places abroad, size words, related products),
-# kept in a data file so it can be extended for the real catalogue without code changes.
+# Hand-written vocabulary (stopwords, synonyms, brands the shop may not carry, places abroad, size words, related
+# products), kept in a data file so it can be extended for the real catalogue without code changes.
 _VOCAB = json.loads(get_settings().paths.vocabulary.read_text(encoding="utf-8"))
+
+# Function words (English and Hinglish) that carry no product meaning.
+STOPWORDS = set(_VOCAB["stopwords"])
 
 # Synonyms and common Hinglish product words; the catalogue-derived vocabulary does the rest.
 SYNONYMS: dict[str, str] = _VOCAB["synonyms"]
@@ -58,8 +46,9 @@ def normalise_word(word: str) -> str:
 # Well-known brands and products the shop may not carry. Used only for words the catalogue's own vocabulary does
 # not contain, so a real catalogue that sells one of these brands parses it as a normal brand filter instead.
 # Stored in tokenised form, because query words are stemmed before this check ("adidas" -> "adida").
-EXTERNAL_DISPLAY = {stem(w): _VOCAB["brand_display"].get(w, w.capitalize())
-                    for w in frozenset(_VOCAB["external_brands"])}  # stemmed -> shown name
+EXTERNAL_DISPLAY = {
+    stem(w): _VOCAB["brand_display"].get(w, w.capitalize()) for w in frozenset(_VOCAB["external_brands"])
+}  # stemmed -> shown name
 EXTERNAL_BRANDS = frozenset(EXTERNAL_DISPLAY)
 
 # Places outside India: a question about delivering there is answered by the "outside India" shipping sentence.

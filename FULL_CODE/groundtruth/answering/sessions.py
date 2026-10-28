@@ -1,4 +1,5 @@
 """Per-user session storage for serving many users: bounded (LRU), expiring (TTL) and thread-safe."""
+
 from __future__ import annotations
 
 import time
@@ -6,7 +7,6 @@ from collections import OrderedDict
 from threading import Lock
 
 from ..config import get_settings
-
 from .assistant import ShoppingAssistant
 from .response import Response, Session
 
@@ -28,7 +28,8 @@ class SessionStore:
             self._data[user_id] = (now, entry[1], entry[2])  # most recently used goes last
             session, lock = entry[1], entry[2]
             while len(self._data) > self.max_sessions or (
-                    self._data and next(iter(self._data.values()))[0] + self.ttl <= now):
+                self._data and next(iter(self._data.values()))[0] + self.ttl <= now
+            ):
                 self._data.popitem(last=False)  # evict least recently used / expired
             return session, lock
 

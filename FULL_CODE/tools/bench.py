@@ -1,7 +1,8 @@
 """Throughput / latency benchmark, single-threaded and with concurrent users.
 
-    python main.py bench [--catalogue ...] [--questions ...] [--threads 8] [--rounds 20] [--profile]
+python main.py bench [--catalogue ...] [--questions ...] [--threads 8] [--rounds 20] [--profile]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -13,7 +14,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from groundtruth.answering import Session
-
 from groundtruth.builder import build_assistant
 from groundtruth.config import get_settings
 from groundtruth.console import write_out
@@ -30,11 +30,11 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
-
     start = time.perf_counter()
     assistant = build_assistant(args.catalogue, args.policy)
     write_out(f"build: {time.perf_counter() - start:.2f}s")
-    convos = [json.loads(line)["turns"] for line in open(args.questions, encoding="utf-8") if line.strip()]
+    with open(args.questions, encoding="utf-8") as fh:
+        convos = [json.loads(line)["turns"] for line in fh if line.strip()]
 
     def run_convo(convo: list[str]) -> list[float]:
         session, times = Session(), []
@@ -46,8 +46,10 @@ def run(args: argparse.Namespace) -> None:
 
     def report(label: str, times: list[float], wall: float) -> None:
         q = statistics.quantiles(times, n=20)
-        write_out(f"{label}: {len(times) / wall:8.0f} queries/s | mean {statistics.mean(times):6.2f} ms | "
-              f"p50 {statistics.median(times):6.2f} | p95 {q[-1]:6.2f} | max {max(times):6.2f}")
+        write_out(
+            f"{label}: {len(times) / wall:8.0f} queries/s | mean {statistics.mean(times):6.2f} ms | "
+            f"p50 {statistics.median(times):6.2f} | p95 {q[-1]:6.2f} | max {max(times):6.2f}"
+        )
 
     work = convos * args.rounds
     t0 = time.perf_counter()

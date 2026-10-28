@@ -1,4 +1,5 @@
 """Refusals: say "I don't have that" and, where the catalogue allows, name the closest cited alternative."""
+
 from __future__ import annotations
 
 from ..catalogue import CatalogueIndex, Spec
@@ -10,8 +11,7 @@ from .response import ANSWER, REFUSE, Response
 
 def describe(spec: Spec) -> str:
     """The shopper's request in their own terms, e.g. \"cotton kurta\" or \"blue running shoe\"."""
-    words = list(dict.fromkeys([str(v).lower() for v in spec.filters.values()] + spec.type_tokens
-                               + spec.desc_tokens))
+    words = list(dict.fromkeys([str(v).lower() for v in spec.filters.values()] + spec.type_tokens + spec.desc_tokens))
     return " ".join(words)
 
 
@@ -33,11 +33,17 @@ def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> R
                     budget = f"under {format_inr(spec.price_max)}"
                 else:
                     budget = f"over {format_inr(spec.price_min)}"
-                return Response(f"No {what} {budget} in the catalogue; the "
-                                f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
-                                f"at {format_inr(pick.price)} [{pick.id}].", REFUSE)
-            return Response(f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
-                            f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].", REFUSE)
+                return Response(
+                    f"No {what} {budget} in the catalogue; the "
+                    f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
+                    f"at {format_inr(pick.price)} [{pick.id}].",
+                    REFUSE,
+                )
+            return Response(
+                f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
+                f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].",
+                REFUSE,
+            )
     if spec.filters or spec.size:
         looser = spec.copy()
         looser.filters, looser.size = {}, None
@@ -80,7 +86,7 @@ def external_policy(p: Parsed, general: Response) -> Response:
 
 def unknown_refusal(index: CatalogueIndex, p: Parsed, list_limit: int) -> Response:
     """Product words the catalogue doesn't contain; offers a related type the shop does sell, if one is known."""
-    lines = [f"I don't have anything in the catalogue matching \"{' '.join(p.unknown)}\"."]
+    lines = [f'I don\'t have anything in the catalogue matching "{" ".join(p.unknown)}".']
     for alt in dict.fromkeys(p.alternatives):
         lines += alternatives(index, Spec(type_tokens=[alt]), p, "The closest products I do have:", list_limit)
         break

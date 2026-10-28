@@ -7,13 +7,26 @@ If you fix a failure here, the set stops being held out: write a fresh one.
     python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt \
                        --questions data/scale/heldout_questions.jsonl --verbose
 """
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from groundtruth.console import write_out
-from tools.generate_independent import EAR, PRODUCTS, Q, RUN, SCALE, WATCH, clarify, listing, pick, policy, refuse, single
+from tools.generate_independent import (
+    EAR,
+    PRODUCTS,
+    RUN,
+    SCALE,
+    WATCH,
+    Q,
+    clarify,
+    listing,
+    pick,
+    policy,
+    refuse,
+    single,
+)
 
 Q.clear()
 listing("h01", ["trainers for running"], pick(RUN))
@@ -30,12 +43,22 @@ listing("h11", ["school bag"], pick({"Backpack"}), accept=("answer", "refuse"))
 listing("h12", ["kettle for tea"], pick({"Electric Kettle"}))
 listing("h13", ["purse for women"], pick({"Wallet"}, gender=["women", "unisex"]), accept=("answer", "refuse"))
 listing("h14", ["white sneakers womens size 7"], pick(RUN, color="white", gender=["women", "unisex"], size="7"))
-listing("h15", ["sabse acchi rating wali smartwatch"], [p for p in pick(WATCH)
-                                                        if (p.rating or 0) >= max(x.rating or 0 for x in pick(WATCH)) - 0.1])
-listing("h16", ["polyester t-shirt between 500 and 1000"], pick({"T-Shirt"}, material="polyester", min_price=500,
-                                                                  max_price=1000))
+listing(
+    "h15",
+    ["sabse acchi rating wali smartwatch"],
+    [p for p in pick(WATCH) if (p.rating or 0) >= max(x.rating or 0 for x in pick(WATCH)) - 0.1],
+)
+listing(
+    "h16",
+    ["polyester t-shirt between 500 and 1000"],
+    pick({"T-Shirt"}, material="polyester", min_price=500, max_price=1000),
+)
 listing("h17", ["sandals", "under 800", "black"], pick({"Sandals"}, max_price=800, color="black"))
-listing("h18", ["earbuds", "not black"], [p for p in pick(EAR) if "black" not in [v.lower() for v in p.attr_values("color")]])
+listing(
+    "h18",
+    ["earbuds", "not black"],
+    [p for p in pick(EAR) if "black" not in [v.lower() for v in p.attr_values("color")]],
+)
 w = next(p for p in PRODUCTS if "Wallet" in p.title)
 single("h19", [f"{w.title} ka rating kitna hai"], w, must=["rated"])
 clarify("h20", ["what's the price of the white sandals"])
@@ -56,6 +79,7 @@ policy("h34", ["do shoes have warranty"], ["warranty"], must=["no warranty"])
 policy("h35", ["return window kitne din ka hai"], ["returns"], must=["30 days"])
 refuse("h36", ["do you have a store in hyderabad"])
 refuse("h37", ["can i pay with paytm"])
+
 
 def main() -> None:
     out = SCALE / "heldout_questions.jsonl"

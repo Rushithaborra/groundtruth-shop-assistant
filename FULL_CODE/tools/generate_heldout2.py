@@ -7,13 +7,26 @@ generalisation estimate. If you fix a failure found here, this set stops being h
     python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt \
                        --questions data/scale/heldout2_questions.jsonl --verbose
 """
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from groundtruth.console import write_out
-from tools.generate_independent import EAR, PRODUCTS, Q, RUN, SCALE, WATCH, clarify, listing, pick, policy, refuse, single
+from tools.generate_independent import (
+    EAR,
+    PRODUCTS,
+    RUN,
+    SCALE,
+    WATCH,
+    Q,
+    clarify,
+    listing,
+    pick,
+    policy,
+    refuse,
+    single,
+)
 
 Q.clear()
 listing("k01", ["need joggers shoes 2500 se kam"], pick(RUN, max_price=2500), accept=("answer", "refuse"))
@@ -26,16 +39,29 @@ listing("k07", ["denim jeans 32"], pick({"Jeans"}, material="denim", size="32"),
 listing("k08", ["queen size bedsheet"], pick({"Bedsheet"}, size="queen"))
 listing("k09", ["kettle for office"], pick({"Electric Kettle"}))
 listing("k10", ["portable speaker below 2500"], pick({"Bluetooth Speaker"}, max_price=2500))
-listing("k11", ["white tshirt for women size S"], pick({"T-Shirt"}, color="white", gender=["women", "unisex"], size="S"))
+listing(
+    "k11", ["white tshirt for women size S"], pick({"T-Shirt"}, color="white", gender=["women", "unisex"], size="S")
+)
 listing("k12", ["power bank sabse sasta"], pick({"Power Bank"}))
 listing("k13", ["smartwatch between 3000 and 6000"], pick(WATCH, min_price=3000, max_price=6000))
 listing("k14", ["leather wallet below 1000"], pick({"Wallet"}, material="leather", max_price=1000))
 listing("k15", ["black backpack"], pick({"Backpack"}, color="black"))
 listing("k16", ["kurta", "only red ones"], pick({"Kurta"}, color="red"))
 listing("k17", ["jeans", "for men", "under 1800"], pick({"Jeans"}, gender=["men", "unisex"], max_price=1800))
-listing("k18", ["sandals", "not white"], [p for p in pick({"Sandals"}) if "white" not in [v.lower() for v in p.attr_values("color")]])
-listing("k19", ["speakers", "highest rated"], [p for p in pick({"Bluetooth Speaker"})
-                                                if (p.rating or 0) >= max(x.rating or 0 for x in pick({"Bluetooth Speaker"})) - 0.1])
+listing(
+    "k18",
+    ["sandals", "not white"],
+    [p for p in pick({"Sandals"}) if "white" not in [v.lower() for v in p.attr_values("color")]],
+)
+listing(
+    "k19",
+    ["speakers", "highest rated"],
+    [
+        p
+        for p in pick({"Bluetooth Speaker"})
+        if (p.rating or 0) >= max(x.rating or 0 for x in pick({"Bluetooth Speaker"})) - 0.1
+    ],
+)
 w = next(p for p in PRODUCTS if "Bedsheet" in p.title)
 single("k20", [f"how much does {w.title} cost"], w, must=[f"{w.price:,.0f}"])
 s = next(p for p in PRODUCTS if "Smartwatch" in p.title and p.in_stock)
@@ -63,9 +89,14 @@ policy("k41", ["cancel after shipping"], ["cancellations"], must=["dispatched"])
 policy("k42", ["is cod available"], ["shipping"], must=["cash on delivery"])
 policy("k43", ["warranty for speaker"], ["warranty"])
 refuse("k44", ["do you ship to nepal"])  # deliberately labelled refuse? No: the policy answers it
-Q[-1] = {"id": "k44", "turns": ["do you ship to nepal"], "category": "policy",
-         "expected": {"behaviour": "answer", "policy_sections": ["shipping"], "must_include": ["outside india"]}}
+Q[-1] = {
+    "id": "k44",
+    "turns": ["do you ship to nepal"],
+    "category": "policy",
+    "expected": {"behaviour": "answer", "policy_sections": ["shipping"], "must_include": ["outside india"]},
+}
 refuse("k45", ["installation service milega"])
+
 
 def main() -> None:
     out = SCALE / "heldout2_questions.jsonl"

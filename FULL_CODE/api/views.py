@@ -1,4 +1,5 @@
 """Shopper-facing records for the web demo: example questions, product and policy cards, the parsed reading."""
+
 from __future__ import annotations
 
 import re
@@ -43,9 +44,13 @@ def build_examples(assistant) -> list[dict]:
                 break
         if done:
             break
-    for label, q, want in [("Not sold", "do you sell iPhones?", "refuse"), ("Policy", "refund kab milega", "answer"),
-                           ("Closest match", "headphones", "refuse"), ("Policy", "delivery to dubai?", "answer"),
-                           ("Not sold", "red saree", "refuse")]:
+    for label, q, want in [
+        ("Not sold", "do you sell iPhones?", "refuse"),
+        ("Policy", "refund kab milega", "answer"),
+        ("Closest match", "headphones", "refuse"),
+        ("Policy", "delivery to dubai?", "answer"),
+        ("Not sold", "red saree", "refuse"),
+    ]:
         keep(label, q, want)
     # a budget that's too low: a useful refusal
     for t, pids in groups[:3]:
@@ -80,9 +85,19 @@ def noun_of(title: str, kinds) -> str:
 
 
 def product_record(p, kinds=frozenset()) -> dict:
-    return {"kind": "product", "id": p.id, "title": p.title, "noun": noun_of(p.title, kinds), "price": format_inr(p.price), "category": p.category,
-            "in_stock": p.in_stock, "rating": p.rating, "rating_count": p.rating_count,
-            "description": p.description, "attributes": {k: p.attr_values(k) for k in p.attributes}}
+    return {
+        "kind": "product",
+        "id": p.id,
+        "title": p.title,
+        "noun": noun_of(p.title, kinds),
+        "price": format_inr(p.price),
+        "category": p.category,
+        "in_stock": p.in_stock,
+        "rating": p.rating,
+        "rating_count": p.rating_count,
+        "description": p.description,
+        "attributes": {k: p.attr_values(k) for k in p.attributes},
+    }
 
 
 def policy_record(sec) -> dict:
@@ -92,14 +107,32 @@ def policy_record(sec) -> dict:
 def reading(parsed) -> dict:
     """How the query was understood, in shopper terms (no internals)."""
     s = parsed.spec
-    return {"looking_for": s.type_tokens, "features": s.desc_tokens, "filters": s.filters,
-            "excluding": s.exclude, "budget_min": s.price_min, "budget_max": s.price_max, "size": s.size,
-            "sort": s.sort, "not_recognised": parsed.unknown, "brands_not_carried": parsed.external,
-            "read_as": [list(m) for m in parsed.mapped], "asking_about": sorted(parsed.intents)}
+    return {
+        "looking_for": s.type_tokens,
+        "features": s.desc_tokens,
+        "filters": s.filters,
+        "excluding": s.exclude,
+        "budget_min": s.price_min,
+        "budget_max": s.price_max,
+        "size": s.size,
+        "sort": s.sort,
+        "not_recognised": parsed.unknown,
+        "brands_not_carried": parsed.external,
+        "read_as": [list(m) for m in parsed.mapped],
+        "asking_about": sorted(parsed.intents),
+    }
 
 
 def remembered(session: Session) -> dict:
     s = session.spec
-    return {"looking_for": s.type_tokens, "features": s.desc_tokens, "filters": s.filters, "excluding": s.exclude,
-            "budget_min": s.price_min, "budget_max": s.price_max, "size": s.size, "sort": s.sort,
-            "last_product": session.last_product}
+    return {
+        "looking_for": s.type_tokens,
+        "features": s.desc_tokens,
+        "filters": s.filters,
+        "excluding": s.exclude,
+        "budget_min": s.price_min,
+        "budget_max": s.price_max,
+        "size": s.size,
+        "sort": s.sort,
+        "last_product": session.last_product,
+    }

@@ -2,6 +2,7 @@
 
 Run: python -m unittest discover -s tests
 """
+
 import json
 import threading
 import unittest
@@ -9,10 +10,10 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-from groundtruth.paths import ROOT
-from groundtruth.builder import build_assistant
 from api.server import make_handler
 from api.state import State
+from groundtruth.builder import build_assistant
+from groundtruth.paths import ROOT
 
 
 class WebTests(unittest.TestCase):
@@ -21,8 +22,9 @@ class WebTests(unittest.TestCase):
         assistant = cls.assistant = build_assistant(ROOT / "data" / "catalogue.jsonl", ROOT / "data" / "policy.txt")
         page = (ROOT / "web" / "index.html").read_bytes()
         insights = (ROOT / "web" / "insights.html").read_bytes()
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(State(assistant), page, {"products": 1},
-                                                                        insights))
+        cls.server = ThreadingHTTPServer(
+            ("127.0.0.1", 0), make_handler(State(assistant), page, {"products": 1}, insights)
+        )
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
@@ -48,7 +50,7 @@ class WebTests(unittest.TestCase):
         for path in ("/", "/insights"):
             html = self.get(path)
             self.assertIn("GroundTruth", html)
-            for external in ("<script src=", "<link rel=\"stylesheet\"", "fonts.googleapis", "cdn."):
+            for external in ("<script src=", '<link rel="stylesheet"', "fonts.googleapis", "cdn."):
                 self.assertNotIn(external, html)  # must work offline
 
     def test_compare_by_ids_returns_all_records(self):
@@ -69,7 +71,7 @@ class WebTests(unittest.TestCase):
         self.assertGreaterEqual(d["actions"]["clarify"], 1)
         self.assertEqual(d["failed_checks"], 0)
         dump = json.dumps(d) + self.get("/api/insights.csv")
-        self.assertNotIn(secret, dump)       # the full message is never stored
+        self.assertNotIn(secret, dump)  # the full message is never stored
         self.assertNotIn("session", dump)
         self.assertIn("requested_item,times_refused", self.get("/api/insights.csv"))
 
@@ -102,6 +104,7 @@ class WebTests(unittest.TestCase):
     def test_examples_come_from_the_catalogue_and_do_what_they_say(self):
         from api.views import build_examples
         from groundtruth.answering import Session
+
         examples = build_examples(self.assistant)
         self.assertGreaterEqual(len(examples), 5)
         self.assertEqual({e["shows"] for e in examples}, {"answer", "clarify", "refuse"})

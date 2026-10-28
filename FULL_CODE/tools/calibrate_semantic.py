@@ -8,41 +8,93 @@ those words can be mapped onto a product type. That gives zero false mappings on
 reports how many true synonyms still clear it. Extend both lists with words from the real catalogue and queries,
 then re-run. Read the printed table: it is the evidence for the numbers, not just the numbers.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import logging
 
-from groundtruth.catalogue import CatalogueIndex, load_catalogue
-
-from groundtruth.policy import load_policy
-from groundtruth.models.local import LocalEmbedder
-from groundtruth.models.semantic import SemanticFallback, dot
 from groundtruth.arguments import add_data_arguments
+from groundtruth.catalogue import CatalogueIndex, load_catalogue
 from groundtruth.config import get_settings
 from groundtruth.console import write_out
+from groundtruth.models.local import LocalEmbedder
+from groundtruth.models.semantic import SemanticFallback, dot
+from groundtruth.policy import load_policy
 from groundtruth.text import tokenize
 
 logger = logging.getLogger(__name__)
 
 # shopper word -> acceptable catalogue type words (tokenised form). Words missing from the catalogue are skipped.
 SHOULD_MAP = {
-    "trainers": {"shoe", "running"}, "sneakers": {"shoe", "running"}, "jogging": {"running", "shoe"},
-    "earphones": {"earbud"}, "tws": {"earbud", "wireless"}, "fitness band": {"smartwatch"},
-    "portable charger": {"power", "bank"}, "flask": {"bottle", "water"}, "rucksack": {"backpack", "bag"},
-    "purse": {"wallet"}, "bedcover": {"bedsheet"}, "tee": {"tshirt"}, "sweatshirt": {"hoodie"},
-    "slippers": {"sandal"}, "flip flops": {"sandal"}, "denims": {"jean"}, "trousers": {"jean"},
-    "kurti": {"kurta"}, "boombox": {"speaker", "bluetooth"}, "tea kettle": {"kettle", "electric"},
+    "trainers": {"shoe", "running"},
+    "sneakers": {"shoe", "running"},
+    "jogging": {"running", "shoe"},
+    "earphones": {"earbud"},
+    "tws": {"earbud", "wireless"},
+    "fitness band": {"smartwatch"},
+    "portable charger": {"power", "bank"},
+    "flask": {"bottle", "water"},
+    "rucksack": {"backpack", "bag"},
+    "purse": {"wallet"},
+    "bedcover": {"bedsheet"},
+    "tee": {"tshirt"},
+    "sweatshirt": {"hoodie"},
+    "slippers": {"sandal"},
+    "flip flops": {"sandal"},
+    "denims": {"jean"},
+    "trousers": {"jean"},
+    "kurti": {"kurta"},
+    "boombox": {"speaker", "bluetooth"},
+    "tea kettle": {"kettle", "electric"},
 }
 # Things the shop doesn't sell: none may be mapped. (Close relatives like headphones may become *alternatives*.)
-MUST_NOT_MAP = """iphone phone mobile laptop saree lehenga tv television refrigerator fridge sunglasses perfume lipstick
-book mattress sofa mouse keyboard camera bicycle toy tablet headphones jacket blazer cap umbrella""".split()
-POLICY_POS = {"paisa wapas kab aayega": "returns", "money back timeline": "returns", "free delivery hai": "shipping",
-              "can i swap for another size": "exchanges", "stop my order": "cancellations",
-              "guarantee on electronics": "warranty"}
-POLICY_NEG = ["do you have a store in hyderabad", "can i pay with paytm", "emi option", "gift wrapping",
-              "who is the ceo", "loyalty points"]
+MUST_NOT_MAP = [
+    "iphone",
+    "phone",
+    "mobile",
+    "laptop",
+    "saree",
+    "lehenga",
+    "tv",
+    "television",
+    "refrigerator",
+    "fridge",
+    "sunglasses",
+    "perfume",
+    "lipstick",
+    "book",
+    "mattress",
+    "sofa",
+    "mouse",
+    "keyboard",
+    "camera",
+    "bicycle",
+    "toy",
+    "tablet",
+    "headphones",
+    "jacket",
+    "blazer",
+    "cap",
+    "umbrella",
+]
+POLICY_POS = {
+    "paisa wapas kab aayega": "returns",
+    "money back timeline": "returns",
+    "free delivery hai": "shipping",
+    "can i swap for another size": "exchanges",
+    "stop my order": "cancellations",
+    "guarantee on electronics": "warranty",
+}
+POLICY_NEG = [
+    "do you have a store in hyderabad",
+    "can i pay with paytm",
+    "emi option",
+    "gift wrapping",
+    "who is the ceo",
+    "loyalty points",
+]
 
 
 def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: float | None = None) -> dict:
@@ -75,11 +127,15 @@ def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: 
             neg.append((q, max(dot(v, p) for p in fallback.policy_vecs)))
         policy_t = round(max(s for _, s in neg) + margin, 4)
     mapped_ok = [r for r in rows if r[0] == "map" and r[4] and r[3] >= map_t]
-    report = {"map_threshold": map_t, "alt_threshold": alt_t, "policy_threshold": policy_t,
-              "should_map_recall": round(len(mapped_ok) / max(1, sum(r[0] == "map" for r in rows)), 3),
-              "wrong_target_above_threshold": [r[1] for r in rows if r[0] == "map" and not r[4] and r[3] >= map_t],
-              "policy_recall": round(sum(ok and s >= (policy_t or 9) for _, _, s, ok in pos) / max(1, len(pos)), 3),
-              "model": fallback.embedder.name}
+    report = {
+        "map_threshold": map_t,
+        "alt_threshold": alt_t,
+        "policy_threshold": policy_t,
+        "should_map_recall": round(len(mapped_ok) / max(1, sum(r[0] == "map" for r in rows)), 3),
+        "wrong_target_above_threshold": [r[1] for r in rows if r[0] == "map" and not r[4] and r[3] >= map_t],
+        "policy_recall": round(sum(ok and s >= (policy_t or 9) for _, _, s, ok in pos) / max(1, len(pos)), 3),
+        "model": fallback.embedder.name,
+    }
     return {"config": report, "rows": rows, "policy_pos": pos, "policy_neg": neg}
 
 
@@ -106,5 +162,8 @@ def run(args: argparse.Namespace) -> None:
     write_out("\n" + json.dumps(cfg, indent=2))
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2)
-    logger.info("wrote %s. If should_map_recall is low, the model can't separate synonyms from unsold items at "
-                "this margin: keep the fallback off rather than lowering map_threshold by hand.", args.out)
+    logger.info(
+        "wrote %s. If should_map_recall is low, the model can't separate synonyms from unsold items at "
+        "this margin: keep the fallback off rather than lowering map_threshold by hand.",
+        args.out,
+    )

@@ -2,12 +2,13 @@
 
 Run: python -m unittest discover -s tests
 """
+
 import unittest
 
-from groundtruth.paths import ROOT
-from groundtruth.grounding import Grounding
 from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session
 from groundtruth.builder import build_assistant
+from groundtruth.grounding import Grounding
+from groundtruth.paths import ROOT
 from groundtruth.text import tokenize
 
 

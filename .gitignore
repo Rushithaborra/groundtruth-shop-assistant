@@ -1,7 +1,25 @@
+# secrets and local settings
+.env
+
+# the problem pack's data and the provided models: never committed (README says where to put them)
+FULL_CODE/data/pack/
+FULL_CODE/models/
+
+# generated data, reports and caches
+FULL_CODE/data/scale/
+FULL_CODE/output/
+.cache/
+
+# Python and tooling
+.venv/
 __pycache__/
 *.pyc
-.venv/
-.cache/
-FULL_CODE/output/
-FULL_CODE/data/scale/
-.env
+.pytest_cache/
+.ruff_cache/
+
+# editor and OS junk, archives
+.DS_Store
+*.zip
+
+# local assistant brief (not part of the submission)
+CLAUDE.md

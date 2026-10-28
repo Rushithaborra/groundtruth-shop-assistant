@@ -9,10 +9,10 @@ calling the assistant), so the ground truth is independent of the code under tes
     python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt \
                        --questions data/scale/independent_questions.jsonl --verbose
 """
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from groundtruth.catalogue import load_catalogue  # field-name normalisation only
 from groundtruth.config import get_settings
@@ -30,8 +30,17 @@ def attr(p, key) -> list[str]:
     return [v.strip().lower() for v in p.attr_values(key)]
 
 
-def pick(types=None, max_price=None, min_price=None, color=None, material=None, gender=None, size=None,
-         category=None, brand=None):
+def pick(
+    types=None,
+    max_price=None,
+    min_price=None,
+    color=None,
+    material=None,
+    gender=None,
+    size=None,
+    category=None,
+    brand=None,
+):
     out = []
     for p in PRODUCTS:
         if types and ptype(p) not in types:
@@ -72,8 +81,14 @@ def listing(qid, turns, ps, accept=("answer",)):
 
 
 def single(qid, turns, p, must=()):
-    Q.append({"id": qid, "turns": turns, "category": "answerable",
-              "expected": {"behaviour": "answer", "product_ids": [p.id], "must_include": list(must)}})
+    Q.append(
+        {
+            "id": qid,
+            "turns": turns,
+            "category": "answerable",
+            "expected": {"behaviour": "answer", "product_ids": [p.id], "must_include": list(must)},
+        }
+    )
 
 
 def clarify(qid, turns):
@@ -85,8 +100,14 @@ def refuse(qid, turns):
 
 
 def policy(qid, turns, sections, must=()):
-    Q.append({"id": qid, "turns": turns, "category": "policy",
-              "expected": {"behaviour": "answer", "policy_sections": sections, "must_include": list(must)}})
+    Q.append(
+        {
+            "id": qid,
+            "turns": turns,
+            "category": "policy",
+            "expected": {"behaviour": "answer", "policy_sections": sections, "must_include": list(must)},
+        }
+    )
 
 
 RUN, EAR, WATCH = {"Running Shoes"}, {"Wireless Earbuds"}, {"Smartwatch"}
@@ -101,8 +122,11 @@ listing("i06", ["black tshirt medium size"], pick({"T-Shirt"}, color="black", si
 listing("i07", ["M size black t shirt"], pick({"T-Shirt"}, color="black", size="M"))
 listing("i08", ["cotton kurta 1500 ke andar"], pick({"Kurta"}, material="cotton", max_price=1500))
 listing("i09", ["ladies kurta red"], pick({"Kurta"}, color="red", gender=["women", "unisex"]))
-listing("i10", ["denim jeans for women under 2000"], pick({"Jeans"}, material="denim", gender=["women", "unisex"],
-                                                         max_price=2000))
+listing(
+    "i10",
+    ["denim jeans for women under 2000"],
+    pick({"Jeans"}, material="denim", gender=["women", "unisex"], max_price=2000),
+)
 listing("i11", ["hoodie for winter"], pick({"Hoodie"}))
 listing("i12", ["bedsheet king size"], pick({"Bedsheet"}, size="king"))
 listing("i13", ["double bedsheet cotton"], pick({"Bedsheet"}, size="double", material="cotton"))
@@ -122,8 +146,11 @@ top = max(p.rating or 0 for p in ear)
 listing("i25", ["highest rated earbuds"], [p for p in ear if (p.rating or 0) >= top - 0.1])
 
 # ---- multi-turn ----------------------------------------------------------------------------------------
-listing("i26", ["cotton shirt chahiye", "under 1500", "blue wala"],
-        pick({"Shirt"}, material="cotton", max_price=1500, color="blue"))
+listing(
+    "i26",
+    ["cotton shirt chahiye", "under 1500", "blue wala"],
+    pick({"Shirt"}, material="cotton", max_price=1500, color="blue"),
+)
 listing("i27", ["running shoes", "size 8", "actually under 2500"], pick(RUN, size="8", max_price=2500))
 listing("i28", ["cotton kurta", "under ₹2,000", "red"], pick({"Kurta"}, material="cotton", max_price=2000, color="red"))
 cheapest = min(ear, key=lambda p: (p.price, -(p.rating or 0), p.id))
@@ -140,11 +167,20 @@ clarify("i35", ["price?"])
 clarify("i36", ["is it in stock"])
 
 # ---- out of catalogue ---------------------------------------------------------------------------------
-for qid, q in [("i37", "do you sell iPhones?"), ("i38", "samsung galaxy price"), ("i39", "red saree"),
-               ("i40", "laptop under 50000"), ("i41", "nike running shoes"), ("i42", "headphones"),
-               ("i43", "gaming mouse"), ("i44", "lipstick shades"), ("i45", "running shoes under 200"),
-               ("i46", "do u have refrigerator"), ("i47", "cotton tshirt under ₹100"),
-               ("i48", "what's the warranty on samsung tv")]:
+for qid, q in [
+    ("i37", "do you sell iPhones?"),
+    ("i38", "samsung galaxy price"),
+    ("i39", "red saree"),
+    ("i40", "laptop under 50000"),
+    ("i41", "nike running shoes"),
+    ("i42", "headphones"),
+    ("i43", "gaming mouse"),
+    ("i44", "lipstick shades"),
+    ("i45", "running shoes under 200"),
+    ("i46", "do u have refrigerator"),
+    ("i47", "cotton tshirt under ₹100"),
+    ("i48", "what's the warranty on samsung tv"),
+]:
     refuse(qid, [q])
 
 # ---- policy -------------------------------------------------------------------------------------------
@@ -160,6 +196,7 @@ policy("i57", ["kitne din mein delivery hogi"], ["shipping"], must=["3 to 5 busi
 policy("i58", ["warranty on smartwatch"], ["warranty"])
 refuse("i59", ["do you give EMI option"])
 refuse("i60", ["gift wrapping available?"])
+
 
 def main() -> None:
     out = SCALE / "independent_questions.jsonl"

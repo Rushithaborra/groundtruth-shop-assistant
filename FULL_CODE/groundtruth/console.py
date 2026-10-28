@@ -1,4 +1,5 @@
 """Terminal set-up: logging for events and diagnostics, and stdout for a command's own output."""
+
 from __future__ import annotations
 
 import logging

@@ -2,6 +2,7 @@
 
 Everything is built once at start-up and is read-only afterwards, so one index can serve any number of threads.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -10,9 +11,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from .loader import Product
 from ..config import get_settings
 from ..text import tokenize
+from .loader import Product
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
 GENDER_KEY = "gender"
@@ -21,8 +22,9 @@ GENDER_KEY = "gender"
 @dataclass
 class Spec:
     """A hard-constraint search request."""
-    type_tokens: list[str] = field(default_factory=list)   # must appear in title/category/attributes
-    desc_tokens: list[str] = field(default_factory=list)   # must appear in description (relaxed if nothing matches)
+
+    type_tokens: list[str] = field(default_factory=list)  # must appear in title/category/attributes
+    desc_tokens: list[str] = field(default_factory=list)  # must appear in description (relaxed if nothing matches)
     filters: dict[str, str] = field(default_factory=dict)  # attribute key -> value
     exclude: dict[str, list[str]] = field(default_factory=dict)  # attribute key -> values to avoid ("not cotton")
     price_min: float | None = None
@@ -31,14 +33,29 @@ class Spec:
     sort: str | None = None  # price_asc | price_desc | rating_desc
     size_soft: bool = False  # size came from a bare word ("large"), not "size X"; dropped for unsized products
 
-    def copy(self) -> "Spec":
-        return Spec(self.type_tokens[:], self.desc_tokens[:], dict(self.filters),
-                    {k: v[:] for k, v in self.exclude.items()}, self.price_min, self.price_max, self.size, self.sort,
-                    self.size_soft)
+    def copy(self) -> Spec:
+        return Spec(
+            self.type_tokens[:],
+            self.desc_tokens[:],
+            dict(self.filters),
+            {k: v[:] for k, v in self.exclude.items()},
+            self.price_min,
+            self.price_max,
+            self.size,
+            self.sort,
+            self.size_soft,
+        )
 
     def is_empty(self) -> bool:
-        return not (self.type_tokens or self.desc_tokens or self.filters or self.exclude or self.size
-                    or self.price_min is not None or self.price_max is not None)
+        return not (
+            self.type_tokens
+            or self.desc_tokens
+            or self.filters
+            or self.exclude
+            or self.size
+            or self.price_min is not None
+            or self.price_max is not None
+        )
 
 
 class CatalogueIndex:
@@ -49,10 +66,10 @@ class CatalogueIndex:
         self.ids_upper = {pid.upper(): pid for pid in self.products}
         self.title_tokens: dict[str, frozenset[str]] = {}
         self.desc_tokens: dict[str, frozenset[str]] = {}
-        self.attr_lower: dict[str, dict[str, frozenset[str]]] = {}   # pid -> key -> lower-cased values
-        self.attr_values: dict[str, dict[tuple, str]] = {}           # key -> {token tuple: original value}
-        self.attr_keys: dict[str, str] = {}                          # normalised key token -> key
-        self._text_postings: defaultdict[str, set[str]] = defaultdict(set)   # token in title/category/attrs -> pids
+        self.attr_lower: dict[str, dict[str, frozenset[str]]] = {}  # pid -> key -> lower-cased values
+        self.attr_values: dict[str, dict[tuple, str]] = {}  # key -> {token tuple: original value}
+        self.attr_keys: dict[str, str] = {}  # normalised key token -> key
+        self._text_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title/category/attrs -> pids
         self._title_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title -> pids
         self._attr_postings: defaultdict[tuple, set[str]] = defaultdict(set)  # (key, lower value) -> pids
         df: Counter = Counter()
@@ -87,8 +104,10 @@ class CatalogueIndex:
         self.desc_vocab = {t for t in df if t not in self.type_vocab}
         self.vocab = self.type_vocab | self.desc_vocab
         # longest attribute values first, so "sky blue" wins over "blue"; used by the query parser
-        self.attr_candidates = sorted(((len(toks), toks, key, val) for key, vals in self.attr_values.items()
-                                       for toks, val in vals.items()), key=lambda c: -c[0])
+        self.attr_candidates = sorted(
+            ((len(toks), toks, key, val) for key, vals in self.attr_values.items() for toks, val in vals.items()),
+            key=lambda c: -c[0],
+        )
         by_len: defaultdict[int, list[str]] = defaultdict(list)
         for word in self.type_vocab:
             by_len[len(word)].append(word)
@@ -118,7 +137,8 @@ class CatalogueIndex:
 
     def _matches(self, p: Product, spec: Spec, use_desc: bool) -> bool:
         if (spec.price_max is not None and p.price > spec.price_max) or (
-                spec.price_min is not None and p.price < spec.price_min):
+            spec.price_min is not None and p.price < spec.price_min
+        ):
             return False
         attrs = self.attr_lower[p.id]
         if any(attrs.get(k, frozenset()) & {b.lower() for b in banned} for k, banned in spec.exclude.items()):
@@ -138,7 +158,13 @@ class CatalogueIndex:
         if not hits and spec.desc_tokens:
             hits = [p for p in pool if self._matches(p, spec, use_desc=False)]
             relaxed = bool(hits)
-        if not hits and spec.size and spec.size_soft and pool and not any(self.attr_lower[p.id].get(SIZE_KEY) for p in pool):
+        if (
+            not hits
+            and spec.size
+            and spec.size_soft
+            and pool
+            and not any(self.attr_lower[p.id].get(SIZE_KEY) for p in pool)
+        ):
             # "large water bottle": bottles have no sizes at all, so the size word was descriptive, not a filter
             unsized = spec.copy()
             unsized.size = None
@@ -156,6 +182,7 @@ class CatalogueIndex:
         def score(p: Product):
             rel = sum(self.idf.get(t, 1.0) for t in query_tokens & self.title_tokens[p.id])
             return (not p.in_stock, -rel, -(p.rating or 0), p.price, p.id)
+
         return sorted(hits, key=score)
 
     def has_text_token(self, pid: str, token: str) -> bool:

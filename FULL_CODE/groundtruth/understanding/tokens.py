@@ -1,4 +1,5 @@
 """Word-boundary repair against the catalogue vocabulary."""
+
 from __future__ import annotations
 
 from ..catalogue import CatalogueIndex

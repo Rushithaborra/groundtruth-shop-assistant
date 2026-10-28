@@ -9,6 +9,7 @@
 
 Run `python main.py <command> --help` for a command's options.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,8 +33,9 @@ def _generate(args: argparse.Namespace) -> None:
 
 
 def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("which", nargs="?", default="all", choices=("all", *GENERATORS),
-                    help="which data set to write (default: all)")
+    ap.add_argument(
+        "which", nargs="?", default="all", choices=("all", *GENERATORS), help="which data set to write (default: all)"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -5,6 +5,7 @@ like "Only 2 left", ratings like "4.2/5", attributes as a dict, a JSON string, o
 parsed (no id, title or price) is skipped and logged as a warning instead of stopping the whole load. Values the
 catalogue doesn't give are left unknown (None), never filled with a guess.
 """
+
 from __future__ import annotations
 
 import csv
@@ -64,8 +65,15 @@ def _parse_attributes(value) -> dict:
     return attrs
 
 
-KEY_ALIASES = {"colour": "color", "colours": "color", "colors": "color", "fabric": "material", "sizes": "size",
-               "manufacturer": "brand", "make": "brand"}
+KEY_ALIASES = {
+    "colour": "color",
+    "colours": "color",
+    "colors": "color",
+    "fabric": "material",
+    "sizes": "size",
+    "manufacturer": "brand",
+    "make": "brand",
+}
 
 
 def _clean_attributes(attrs: dict) -> dict:
@@ -84,8 +92,18 @@ def _clean_attributes(attrs: dict) -> dict:
 
 
 _NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
-_OUT = ("out of stock", "out_of_stock", "outofstock", "oos", "unavailable", "sold out", "soldout",
-        "not available", "discontinued", "currently unavailable")
+_OUT = (
+    "out of stock",
+    "out_of_stock",
+    "outofstock",
+    "oos",
+    "unavailable",
+    "sold out",
+    "soldout",
+    "not available",
+    "discontinued",
+    "currently unavailable",
+)
 _IN = ("in stock", "in_stock", "instock", "available", "left", "limited", "few", "hurry", "ships")
 
 
@@ -133,13 +151,30 @@ STOCK_KEYS = ("in_stock", "stock_status", "stock", "availability", "available", 
 RATING_KEYS = ("rating", "ratings", "avg_rating", "average_rating", "stars")
 COUNT_KEYS = ("rating_count", "num_ratings", "ratings_count", "review_count", "reviews", "num_reviews")
 ATTR_KEYS = ("attributes", "attrs", "specs", "specifications")
-CORE = {k for keys in (ID_KEYS, TITLE_KEYS, DESC_KEYS, CATEGORY_KEYS, PRICE_KEYS, STOCK_KEYS, RATING_KEYS, COUNT_KEYS,
-                       ATTR_KEYS) for k in keys} | {"mrp", "image", "image_url", "url", "currency", "discount"}
+CORE = {
+    k
+    for keys in (
+        ID_KEYS,
+        TITLE_KEYS,
+        DESC_KEYS,
+        CATEGORY_KEYS,
+        PRICE_KEYS,
+        STOCK_KEYS,
+        RATING_KEYS,
+        COUNT_KEYS,
+        ATTR_KEYS,
+    )
+    for k in keys
+} | {"mrp", "image", "image_url", "url", "currency", "discount"}
 
 
 def normalise_product(raw: dict) -> Product:
     raw = {str(k).strip().lower().lstrip("\ufeff"): v for k, v in raw.items()}  # CSV headers: case, spaces, BOM
-    pid, title, price = _first(raw, *ID_KEYS), _first(raw, *TITLE_KEYS), _parse_number(_first(raw, *PRICE_KEYS), "price")
+    pid, title, price = (
+        _first(raw, *ID_KEYS),
+        _first(raw, *TITLE_KEYS),
+        _parse_number(_first(raw, *PRICE_KEYS), "price"),
+    )
     if pid is None or not str(title or "").strip() or price is None:
         raise ValueError("missing id, title or price")
     rating = _parse_number(_first(raw, *RATING_KEYS), "rating")
@@ -202,6 +237,10 @@ def load_catalogue(path: str | Path, strict: bool = False) -> list[Product]:
         seen.add(product.id)
         products.append(product)
     if skipped:
-        logger.warning("skipped %d unreadable catalogue row(s): %s%s", len(skipped), "; ".join(skipped[:5]),
-                       " ..." if len(skipped) > 5 else "")
+        logger.warning(
+            "skipped %d unreadable catalogue row(s): %s%s",
+            len(skipped),
+            "; ".join(skipped[:5]),
+            " ..." if len(skipped) > 5 else "",
+        )
     return products

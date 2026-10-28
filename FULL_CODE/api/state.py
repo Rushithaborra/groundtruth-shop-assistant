@@ -1,4 +1,5 @@
 """Server-side state for the web demo: per-visitor sessions and the retailer insights counters."""
+
 from __future__ import annotations
 
 import csv
@@ -34,8 +35,16 @@ class Insights:
         self.latency = deque(maxlen=5000)
         self.llm_tokens = 0
 
-    def record(self, action: str, path: str, ms: float, gap_labels: list[str], unclear: str | None,
-               check_ok: bool, llm_tokens: int) -> None:
+    def record(
+        self,
+        action: str,
+        path: str,
+        ms: float,
+        gap_labels: list[str],
+        unclear: str | None,
+        check_ok: bool,
+        llm_tokens: int,
+    ) -> None:
         with self.lock:
             self.actions[action] += 1
             self.paths[path] += 1
@@ -58,7 +67,7 @@ class Insights:
                 "questions": n,
                 "actions": {a: self.actions.get(a, 0) for a in ("answer", "clarify", "refuse")},
                 "paths": {p: self.paths.get(p, 0) for p in ("rules", "semantic", "llm")},
-                "latency_ms": {"median": round(statistics.median(lat), 3) if lat else None, "p95": pct(.95)},
+                "latency_ms": {"median": round(statistics.median(lat), 3) if lat else None, "p95": pct(0.95)},
                 "llm_tokens": self.llm_tokens,
                 "failed_checks": self.failed_checks,
                 "not_stocked": self.gaps.most_common(15),
@@ -88,9 +97,13 @@ class State:
         with self.lock:
             if not sid or sid not in self.sessions:
                 sid = secrets.token_urlsafe(12)
-                self.sessions[sid] = {"session": Session(), "lock": threading.Lock(), "gaps": Counter(),
-                                      "said": deque(maxlen=30),
-                                      "totals": {"queries": 0, "ms": 0.0, "llm_tokens": 0}}
+                self.sessions[sid] = {
+                    "session": Session(),
+                    "lock": threading.Lock(),
+                    "gaps": Counter(),
+                    "said": deque(maxlen=30),
+                    "totals": {"queries": 0, "ms": 0.0, "llm_tokens": 0},
+                }
                 while len(self.sessions) > self.max_sessions:
                     self.sessions.popitem(last=False)
             self.sessions.move_to_end(sid)
@@ -118,24 +131,40 @@ class State:
                 gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
                 for w in gap_labels:
                     entry["gaps"][w] += 1
-            self.insights.record(resp.action, resp.path, resp.latency_ms, gap_labels,
-                                 (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None,
-                                 not check["problems"], resp.llm_input_tokens + resp.llm_output_tokens)
+            self.insights.record(
+                resp.action,
+                resp.path,
+                resp.latency_ms,
+                gap_labels,
+                (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None,
+                not check["problems"],
+                resp.llm_input_tokens + resp.llm_output_tokens,
+            )
             t = entry["totals"]
             t["queries"] += 1
             t["ms"] += resp.latency_ms
             t["llm_tokens"] += resp.llm_input_tokens + resp.llm_output_tokens
             return {
-                "session_id": sid, "text": resp.text, "action": resp.action, "sources": sources,
-                "verified": {"ok": not check["problems"], "problems": check["problems"],
-                             "cited": len(check["cited"])},
-                "metrics": {"engine_ms": round(resp.latency_ms, 3), "with_checks_ms": round(total_ms, 3),
-                            "path": resp.path, "llm_input_tokens": resp.llm_input_tokens,
-                            "llm_output_tokens": resp.llm_output_tokens},
-                "reading": reading(parsed), "remembered": remembered(entry["session"]),
+                "session_id": sid,
+                "text": resp.text,
+                "action": resp.action,
+                "sources": sources,
+                "verified": {"ok": not check["problems"], "problems": check["problems"], "cited": len(check["cited"])},
+                "metrics": {
+                    "engine_ms": round(resp.latency_ms, 3),
+                    "with_checks_ms": round(total_ms, 3),
+                    "path": resp.path,
+                    "llm_input_tokens": resp.llm_input_tokens,
+                    "llm_output_tokens": resp.llm_output_tokens,
+                },
+                "reading": reading(parsed),
+                "remembered": remembered(entry["session"]),
                 "gaps": entry["gaps"].most_common(8),
-                "totals": {"queries": t["queries"], "mean_ms": round(t["ms"] / t["queries"], 3),
-                           "llm_tokens": t["llm_tokens"]},
+                "totals": {
+                    "queries": t["queries"],
+                    "mean_ms": round(t["ms"] / t["queries"], 3),
+                    "llm_tokens": t["llm_tokens"],
+                },
             }
 
     @staticmethod
@@ -146,8 +175,14 @@ class State:
             return " ".join(parsed.spec.desc_tokens)  # "laptop" after "black hoodie" is a request for a laptop
         if parsed.spec.type_tokens:  # a product named in this message is a new request: earlier filters don't apply
             s = type(s)()
-        words = list(dict.fromkeys(list(parsed.spec.filters.values()) + list(s.filters.values())
-                                   + (parsed.spec.type_tokens or s.type_tokens) + parsed.spec.desc_tokens))
+        words = list(
+            dict.fromkeys(
+                list(parsed.spec.filters.values())
+                + list(s.filters.values())
+                + (parsed.spec.type_tokens or s.type_tokens)
+                + parsed.spec.desc_tokens
+            )
+        )
         budget = parsed.spec.price_max if parsed.spec.price_max is not None else s.price_max
         label = " ".join(words)
         if label and budget is not None:

@@ -1,4 +1,5 @@
 """What the assistant returns for one message, and the per-shopper conversation state."""
+
 from __future__ import annotations
 
 import re
@@ -17,7 +18,7 @@ class Response:
     latency_ms: float = 0.0
     context_tokens: int = 0
     output_tokens: int = 0
-    path: str = "rules"        # rules | semantic | llm: which understanding path resolved the query
+    path: str = "rules"  # rules | semantic | llm: which understanding path resolved the query
     llm_input_tokens: int = 0  # real tokens sent to / produced by the instruct model (0 on other paths)
     llm_output_tokens: int = 0
 

@@ -5,21 +5,23 @@ understood, never what the reply asserts, and anything the model invents is drop
 
 Run: python -m unittest discover -s tests
 """
+
 import json
 import unittest
 
-from tools.calibrate_semantic import calibrate
-from groundtruth.paths import ROOT
-from groundtruth.grounding import Grounding
 from groundtruth.answering import ANSWER, REFUSE, ShoppingAssistant
 from groundtruth.catalogue import CatalogueIndex, load_catalogue
-from groundtruth.policy import load_policy
+from groundtruth.grounding import Grounding
 from groundtruth.models.normaliser import LLMNormaliser
 from groundtruth.models.semantic import SemanticFallback, type_words
+from groundtruth.paths import ROOT
+from groundtruth.policy import load_policy
+from tools.calibrate_semantic import calibrate
 
 
 class FakeEmbedder:
     """Each catalogue type word gets its own axis; listed shopper words lean towards one axis by a set amount."""
+
     name = "fake"
 
     def __init__(self, axes, leaning, policy_alias=None):
@@ -59,14 +61,19 @@ class FallbackTests(unittest.TestCase):
         refund = next(s for sec in cls.policy for s, _ in sec.sentences if "Refunds" in s)
         words = type_words(cls.index) + [refund]
         cls.axes = {w: i for i, w in enumerate(words)}
-        cls.leaning = {"zoomer": ("running", 0.9), "gizmo": ("earbud", 0.6), "nike": ("running", 0.99),
-                       "money back timeline": (refund, 0.8)}
+        cls.leaning = {
+            "zoomer": ("running", 0.9),
+            "gizmo": ("earbud", 0.6),
+            "nike": ("running", 0.99),
+            "money back timeline": (refund, 0.8),
+        }
 
     def assistant(self, embedder=None, normaliser=None):
         sem = None
         if embedder:
-            sem = SemanticFallback(self.index, self.policy, embedder, map_threshold=0.8, alt_threshold=0.5,
-                                   policy_threshold=0.7)
+            sem = SemanticFallback(
+                self.index, self.policy, embedder, map_threshold=0.8, alt_threshold=0.5, policy_threshold=0.7
+            )
         a = ShoppingAssistant(self.index, self.policy, semantic=sem, normaliser=normaliser)
         return a, Grounding(a.index, a.sections)
 
@@ -128,6 +135,7 @@ class FallbackTests(unittest.TestCase):
             if raises:
                 raise RuntimeError("model crashed")
             return (payload if isinstance(payload, str) else json.dumps(payload)), 321, 45
+
         return LLMNormaliser(generate), calls
 
     def test_llm_type_is_used_and_tokens_reported(self):
@@ -139,8 +147,9 @@ class FallbackTests(unittest.TestCase):
         self.grounded(g, r, "flurbos for my morning run under 3000")
 
     def test_llm_inventions_are_dropped(self):
-        norm, _ = self.fake_llm({"product_type": "spaceship", "filters": {"color": "ultraviolet", "brand": "Nike"},
-                                 "price_max": 999})
+        norm, _ = self.fake_llm(
+            {"product_type": "spaceship", "filters": {"color": "ultraviolet", "brand": "Nike"}, "price_max": 999}
+        )
         a, _ = self.assistant(normaliser=norm)
         r = a.ask("flurbos under 3000")  # 999 is not the shopper's number; spaceship isn't sold
         self.assertEqual(r.action, REFUSE)

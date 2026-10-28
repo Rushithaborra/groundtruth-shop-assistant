@@ -1,0 +1,37 @@
+[project]
+name = "groundtruth"
+version = "0.1.0"
+description = "A grounded shopping assistant that cites every claim and refuses when the catalogue can't support an answer."
+readme = "../README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+# The assistant itself uses only the Python standard library, so it runs on Python 3.9 with no install.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pip-audit==2.10.1",
+    "pytest==9.1.1",
+    "ruff==0.14.0",
+]
+
+[tool.uv]
+package = false
+# The dev tools are locked for Python 3.10+: their security fixes (pytest, pip-audit and its HTTP stack) are not
+# released for 3.9. The app itself stays 3.9-compatible; see README "How to run the tests".
+environments = ["python_full_version >= '3.10'"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+extend-exclude = ["data", "output", "models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["groundtruth", "api", "tools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,4 +1,5 @@
 """Replies that show several products: a ranked listing, or a clarifying question when "the" product is ambiguous."""
+
 from __future__ import annotations
 
 from ..catalogue import SIZE_KEY, CatalogueIndex, Product, Spec
@@ -10,17 +11,21 @@ from .response import ANSWER, CLARIFY, Response
 def listing(hits: list[Product], p: Parsed, spec: Spec, relaxed: bool, list_limit: int) -> Response:
     """The top matches, cited, with notes on words read differently or not verified."""
     shown = hits[:list_limit]
-    kind = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}.get(spec.sort, "best")
+    kind = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}.get(
+        spec.sort, "best"
+    )
     lines = [f"Here are the {kind} matches:"] + [product_line(h) for h in shown]
     if len(hits) > len(shown):
         lines.append("There are more matches; tell me a brand, colour or budget to narrow them down.")
     if p.mapped:
         lines.insert(0, "(I read " + ", ".join(f'"{w}" as "{t}"' for w, t in p.mapped) + ".)")
     if relaxed and spec.desc_tokens:
-        lines.append(f"I could not confirm \"{' '.join(spec.desc_tokens)}\" in the product descriptions, "
-                     "so these are the closest matches.")
+        lines.append(
+            f'I could not confirm "{" ".join(spec.desc_tokens)}" in the product descriptions, '
+            "so these are the closest matches."
+        )
     if p.unknown:
-        lines.append(f"I can't verify \"{' '.join(p.unknown)}\" from the catalogue.")
+        lines.append(f'I can\'t verify "{" ".join(p.unknown)}" from the catalogue.')
     return Response("\n".join(lines), ANSWER)
 
 

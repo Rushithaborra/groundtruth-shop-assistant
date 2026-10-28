@@ -1,8 +1,8 @@
 """Replies must not depend on Python's per-process hash seed: the same question gives the same reply on every run."""
+
 import unittest
 
 from groundtruth.answering import ANSWER
-
 from groundtruth.builder import build_assistant
 from groundtruth.paths import ROOT
 

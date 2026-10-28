@@ -1,4 +1,5 @@
 """Settings: the shipped config is valid, and a bad value stops start-up with a clear message."""
+
 import copy
 import json
 import os
@@ -28,9 +29,15 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(settings.paths.vocabulary.exists())
 
     def test_out_of_range_and_wrong_type_values_are_rejected(self):
-        for section, key, value in [("server", "port", 0), ("server", "port", 70000), ("server", "port", "8000"),
-                                    ("assistant", "list_limit", True), ("search", "typo_cutoff", 1.5),
-                                    ("logging", "level", "LOUD"), ("server", "host", "")]:
+        for section, key, value in [
+            ("server", "port", 0),
+            ("server", "port", 70000),
+            ("server", "port", "8000"),
+            ("assistant", "list_limit", True),
+            ("search", "typo_cutoff", 1.5),
+            ("logging", "level", "LOUD"),
+            ("server", "host", ""),
+        ]:
             with self.subTest(key=key, value=value), self.assertRaises(ConfigError) as ctx:
                 parse_settings(with_change(section, key, value))
             self.assertIn(f"{section}.{key}", str(ctx.exception))

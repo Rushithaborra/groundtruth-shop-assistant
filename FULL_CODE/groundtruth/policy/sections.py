@@ -1,4 +1,5 @@
 """Policy document: split plain text into cited sections and answer questions with extracted sentences."""
+
 from __future__ import annotations
 
 import heapq
@@ -54,8 +55,11 @@ def best_sentences(sections: list[Section], keywords: list[str], limit: int):
     best = None
     for sec in sections:
         bonus = bool(wanted & sec.heading_tokens)
-        scored = [(len(wanted & toks) + bonus, i, sent) for i, (sent, toks) in enumerate(sec.sentences)
-                  if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & STRONG)]
+        scored = [
+            (len(wanted & toks) + bonus, i, sent)
+            for i, (sent, toks) in enumerate(sec.sentences)
+            if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & STRONG)
+        ]
         if scored and (best is None or max(scored)[0] > best[0]):
             top = max(sc for sc, _, _ in scored)
             keep = heapq.nlargest(limit, scored, key=lambda t: (t[0], -t[1]))  # most relevant sentence first

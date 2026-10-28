@@ -1,4 +1,5 @@
 """Cited catalogue lines shared by the reply builders."""
+
 from __future__ import annotations
 
 from ..catalogue import CatalogueIndex, Product

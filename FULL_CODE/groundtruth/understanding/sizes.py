@@ -1,4 +1,5 @@
 """Sizes in shopper text: "size 9", "size: M", "M size", "king size", or a bare word like "medium"."""
+
 from __future__ import annotations
 
 import re
@@ -34,10 +35,10 @@ def extract_size(low: str, index: CatalogueIndex) -> tuple[str | None, str, bool
             if value is None and word in SIZE_WORDS:
                 # "queen size" when nothing comes in queen: still a constraint (-> "no queen size"); soft, so it's
                 # ignored for products that have no sizes at all ("large size bottle")
-                return SIZE_WORDS[word], low[:m.start()] + " " + low[m.end():], True
+                return SIZE_WORDS[word], low[: m.start()] + " " + low[m.end() :], True
             if value:  # spoken size words ("large size") stay soft: ignored for products that have no sizes
-                return value, low[:m.start()] + " " + low[m.end():], word in SIZE_WORDS
+                return value, low[: m.start()] + " " + low[m.end() :], word in SIZE_WORDS
     m = _SIZE_WORD.search(low)
     if m and (value := _size_value(m.group(1), index)):
-        return value, low[:m.start()] + " " + low[m.end():], True
+        return value, low[: m.start()] + " " + low[m.end() :], True
     return None, low, False

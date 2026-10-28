@@ -6,7 +6,7 @@ Question format (one JSON object per line); extra keys are ignored:
     {"id": "q1", "turns": ["...", "..."],            # or "question": "..."  (a single turn)
      "expected": {"behaviour": "answer" | "clarify" | "refuse",
                   "product_ids": [...],              # all must be cited (helpfulness)
-                  "valid_ids": [...],                # every product satisfying the request; cited ids must come from here
+                  "valid_ids": [...],                # every product fitting the request; cited ids must be among them
                   "policy_sections": [...],          # at least one must be cited
                   "must_include": ["₹2,499", ...]}}  # substrings (case-insensitive) the reply must contain
 Adapt `load_cases` if the real test file uses other field names.
@@ -23,6 +23,7 @@ Scoring
   final          weighted sum minus the hallucinated-price penalty; weights and penalty are in config.json
                  (evaluation section; default 0.35 / 0.35 / 0.30 and 0.10)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,9 +33,8 @@ import statistics
 from pathlib import Path
 
 from ..answering import Session
-
-from ..builder import build_assistant
 from ..arguments import add_data_arguments, add_model_arguments
+from ..builder import build_assistant
 from ..config import get_settings
 from ..console import write_out
 from ..grounding import Grounding
@@ -47,7 +47,9 @@ def load_cases(path: Path) -> list[dict]:
             continue
         raw = json.loads(line)
         turns = raw.get("turns") or [raw.get("question") or raw.get("query") or raw.get("q")]
-        expected = raw.get("expected") or {k: v for k, v in raw.items() if k not in {"id", "turns", "question", "query"}}
+        expected = raw.get("expected") or {
+            k: v for k, v in raw.items() if k not in {"id", "turns", "question", "query"}
+        }
         cases.append({"id": raw.get("id", f"q{len(cases) + 1}"), "turns": turns, "expected": expected})
     return cases
 
@@ -77,15 +79,17 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     add_model_arguments(ap)
     ap.add_argument("--questions", default=str(paths.questions))
     ap.add_argument("--out", default=str(paths.reports_dir))
-    ap.add_argument("--price-in", type=float, default=0.0, help="USD per 1M input tokens (0 for the rules-based assistant)")
+    ap.add_argument(
+        "--price-in", type=float, default=0.0, help="USD per 1M input tokens (0 for the rules-based assistant)"
+    )
     ap.add_argument("--price-out", type=float, default=0.0, help="USD per 1M output tokens")
     ap.add_argument("--verbose", action="store_true", help="print every failing case")
 
 
 def run(args: argparse.Namespace) -> None:
-
-    assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model,
-                                measure_tokens=True)
+    assistant = build_assistant(
+        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=True
+    )
     grounding = Grounding(assistant.index, assistant.sections)
     cases = load_cases(Path(args.questions))
     rows, confusion = [], {}
@@ -99,14 +103,26 @@ def run(args: argparse.Namespace) -> None:
         g = grounding.check(resp.text, " ".join(case["turns"]))
         behaviour_ok = resp.action in accept
         confusion[(exp.get("behaviour"), resp.action)] = confusion.get((exp.get("behaviour"), resp.action), 0) + 1
-        rows.append({
-            "id": case["id"], "query": " | ".join(case["turns"]), "expected": exp.get("behaviour"),
-            "action": resp.action, "behaviour_ok": behaviour_ok, "grounded": not g["problems"],
-            "hallucinated_prices": g["hallucinated_prices"], "helpfulness": helpfulness(resp, exp, g["cited"]),
-            "problems": "; ".join(g["problems"]), "latency_ms": round(resp.latency_ms, 3),
-            "context_tokens": resp.context_tokens, "output_tokens": resp.output_tokens, "path": resp.path,
-            "llm_input_tokens": resp.llm_input_tokens, "llm_output_tokens": resp.llm_output_tokens, "reply": resp.text,
-        })
+        rows.append(
+            {
+                "id": case["id"],
+                "query": " | ".join(case["turns"]),
+                "expected": exp.get("behaviour"),
+                "action": resp.action,
+                "behaviour_ok": behaviour_ok,
+                "grounded": not g["problems"],
+                "hallucinated_prices": g["hallucinated_prices"],
+                "helpfulness": helpfulness(resp, exp, g["cited"]),
+                "problems": "; ".join(g["problems"]),
+                "latency_ms": round(resp.latency_ms, 3),
+                "context_tokens": resp.context_tokens,
+                "output_tokens": resp.output_tokens,
+                "path": resp.path,
+                "llm_input_tokens": resp.llm_input_tokens,
+                "llm_output_tokens": resp.llm_output_tokens,
+                "reply": resp.text,
+            }
+        )
 
     n = len(rows)
     answerable = [r for r in rows if r["expected"] == "answer"]
@@ -115,8 +131,13 @@ def run(args: argparse.Namespace) -> None:
     refusal_acc = sum(r["behaviour_ok"] for r in rows) / n
     hallucinated = sum(r["hallucinated_prices"] for r in rows)
     w = get_settings().evaluation
-    final = max(0.0, w.weight_groundedness * groundedness + w.weight_helpfulness * helpful
-                + w.weight_refusal * refusal_acc - w.hallucinated_price_penalty * hallucinated)
+    final = max(
+        0.0,
+        w.weight_groundedness * groundedness
+        + w.weight_helpfulness * helpful
+        + w.weight_refusal * refusal_acc
+        - w.hallucinated_price_penalty * hallucinated,
+    )
 
     def rate(expected: str):
         sub = [r for r in rows if r["expected"] == expected]
@@ -127,21 +148,36 @@ def run(args: argparse.Namespace) -> None:
     out = [r["output_tokens"] for r in rows]
     cost = sum(c * args.price_in + o * args.price_out for c, o in zip(ctx, out)) / 1e6
     summary = {
-        "questions": n, "groundedness": round(groundedness, 4), "helpfulness": round(helpful, 4),
-        "refusal_accuracy": round(refusal_acc, 4), "hallucinated_prices": hallucinated, "final_score": round(final, 4),
-        "correct_answer_rate": rate("answer")[0], "correct_clarify_rate": rate("clarify")[0],
+        "questions": n,
+        "groundedness": round(groundedness, 4),
+        "helpfulness": round(helpful, 4),
+        "refusal_accuracy": round(refusal_acc, 4),
+        "hallucinated_prices": hallucinated,
+        "final_score": round(final, 4),
+        "correct_answer_rate": rate("answer")[0],
+        "correct_clarify_rate": rate("clarify")[0],
         "correct_refusal_rate": rate("refuse")[0],
-        "latency_ms": {"mean": round(statistics.mean(lat), 3), "p50": round(statistics.median(lat), 3),
-                       "p95": round(statistics.quantiles(lat, n=20)[-1], 3), "max": round(max(lat), 3)},
-        "tokens_per_query": {"context_mean": round(statistics.mean(ctx), 1), "output_mean": round(statistics.mean(out), 1),
-                             "context_total": sum(ctx), "output_total": sum(out),
-                             "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "
-                                     "this assistant makes zero LLM calls"},
+        "latency_ms": {
+            "mean": round(statistics.mean(lat), 3),
+            "p50": round(statistics.median(lat), 3),
+            "p95": round(statistics.quantiles(lat, n=20)[-1], 3),
+            "max": round(max(lat), 3),
+        },
+        "tokens_per_query": {
+            "context_mean": round(statistics.mean(ctx), 1),
+            "output_mean": round(statistics.mean(out), 1),
+            "context_total": sum(ctx),
+            "output_total": sum(out),
+            "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "
+            "this assistant makes zero LLM calls",
+        },
         "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
-        "llm_tokens_real": {"input_total": sum(r["llm_input_tokens"] for r in rows),
-                            "output_total": sum(r["llm_output_tokens"] for r in rows),
-                            "calls": sum(r["path"] == "llm" for r in rows),
-                            "note": "measured from the instruct model's tokenizer; 0 when no model is configured"},
+        "llm_tokens_real": {
+            "input_total": sum(r["llm_input_tokens"] for r in rows),
+            "output_total": sum(r["llm_output_tokens"] for r in rows),
+            "calls": sum(r["path"] == "llm" for r in rows),
+            "note": "measured from the instruct model's tokenizer; 0 when no model is configured",
+        },
         "estimated_cost_usd": round(cost, 6),
         "confusion": {f"{a}->{b}": c for (a, b), c in sorted(confusion.items(), key=str)},
     }
@@ -159,5 +195,7 @@ def run(args: argparse.Namespace) -> None:
     write_out(f"\n{len(failing)} of {n} questions have a failure (see {out_dir / 'query_report.csv'})")
     if args.verbose:
         for r in failing:
-            write_out(f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "
-                  f"grounded={r['grounded']} {r['problems']}\n  reply: {r['reply'][:300]}")
+            write_out(
+                f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "
+                f"grounded={r['grounded']} {r['problems']}\n  reply: {r['reply'][:300]}"
+            )

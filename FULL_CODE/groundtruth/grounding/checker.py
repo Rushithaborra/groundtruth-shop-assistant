@@ -5,6 +5,7 @@ own bookkeeping. A reply is grounded when every citation resolves, every ₹ amo
 policy section or the user's own query, every other number appears in the cited sources, every product title named
 is cited, and every factual sentence carries a citation.
 """
+
 from __future__ import annotations
 
 import re
@@ -40,8 +41,10 @@ class Grounding:
         if not p:
             return None
         attrs = " ".join(f"{k} {' '.join(p.attr_values(k))}" for k in p.attributes)
-        return (f"{p.id} {p.title} {p.description} {p.category} {attrs} {p.price:g} {format_inr(p.price)} "
-                f"{p.rating if p.rating is not None else ''} {p.rating_count or ''}")
+        return (
+            f"{p.id} {p.title} {p.description} {p.category} {attrs} {p.price:g} {format_inr(p.price)} "
+            f"{p.rating if p.rating is not None else ''} {p.rating_count or ''}"
+        )
 
     def check(self, text: str, query_text: str) -> dict:
         cites = list(dict.fromkeys(CITE.findall(text)))
@@ -59,8 +62,11 @@ class Grounding:
             p = self.index.products.get(c)
             if p:
                 allowed_money.add(float(p.price))
-        allowed_money |= {float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*(?:\.\d+)?", query_text)
-                          if n.replace(",", "").replace(".", "").isdigit()}
+        allowed_money |= {
+            float(n.replace(",", ""))
+            for n in re.findall(r"\d[\d,]*(?:\.\d+)?", query_text)
+            if n.replace(",", "").replace(".", "").isdigit()
+        }
         for m in RUPEE.findall(body):
             if float(m.replace(",", "")) not in allowed_money:
                 hallucinated.append(m)
@@ -76,8 +82,11 @@ class Grounding:
             u = unit.strip(" -")
             if not u:
                 continue
-            states_fact = bool(RUPEE.search(u)) or any(t in u for t in self.titles) or \
-                bool(re.search(r"\b(in stock|out of stock|rated|stars)\b", u))
+            states_fact = (
+                bool(RUPEE.search(u))
+                or any(t in u for t in self.titles)
+                or bool(re.search(r"\b(in stock|out of stock|rated|stars)\b", u))
+            )
             if states_fact and not CITE.search(u):
                 problems.append(f"uncited claim: {u[:60]}")
         problems += [f"hallucinated price ₹{h}" for h in hallucinated]

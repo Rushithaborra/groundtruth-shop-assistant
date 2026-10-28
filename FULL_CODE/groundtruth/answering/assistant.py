@@ -8,6 +8,7 @@ several products fit a question about "the" product it asks which one.
 Thread safety: the assistant and its index are read-only after construction, so one instance can serve all
 threads. All per-user state lives in a `Session`, which callers keep per user (see `SessionStore`).
 """
+
 from __future__ import annotations
 
 import time
@@ -25,11 +26,19 @@ from .response import ANSWER, CLARIFY, REFUSE, Response, Session
 
 
 class ShoppingAssistant:
-    def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int | None = None,
-                 clarify_limit: int | None = None, measure_tokens: bool = False, semantic=None, normaliser=None):
+    def __init__(
+        self,
+        index: CatalogueIndex,
+        policy: list[Section],
+        list_limit: int | None = None,
+        clarify_limit: int | None = None,
+        measure_tokens: bool = False,
+        semantic=None,
+        normaliser=None,
+    ):
         limits = get_settings().assistant
         self.index, self.policy = index, policy
-        self.semantic = semantic      # optional SemanticFallback (embedding model), miss path only
+        self.semantic = semantic  # optional SemanticFallback (embedding model), miss path only
         self.head_nouns = head_nouns(index)
         self.normaliser = normaliser  # optional LLMNormaliser (instruct model), last resort on the miss path
         self.sections = {s.id: s for s in policy}
@@ -62,7 +71,9 @@ class ShoppingAssistant:
         resp.latency_ms = (time.perf_counter() - start) * 1000
         if self.measure_tokens:
             resp.output_tokens = approx_tokens(resp.text)
-            resp.context_tokens = approx_tokens(query) + sum(approx_tokens(self._source_text(c)) for c in resp.citations)
+            resp.context_tokens = approx_tokens(query) + sum(
+                approx_tokens(self._source_text(c)) for c in resp.citations
+            )
         return resp
 
     @staticmethod
@@ -86,15 +97,21 @@ class ShoppingAssistant:
             session.clear()
             return Response("Okay, starting fresh. What are you looking for?", CLARIFY)
         if "thanks" in p.intents:
-            return Response("You're welcome! Ask me about another product, a price or a store policy whenever you like.",
-                            CLARIFY)
+            return Response(
+                "You're welcome! Ask me about another product, a price or a store policy whenever you like.", CLARIFY
+            )
         if "account" in p.intents:
-            return Response("I can't see orders, accounts, payments, stores or offers. I can only answer from the product "
-                            "catalogue and the store's returns, exchange, shipping, cancellation and warranty policies.",
-                            REFUSE)
+            return Response(
+                "I can't see orders, accounts, payments, stores or offers. I can only answer from the product "
+                "catalogue and the store's returns, exchange, shipping, cancellation and warranty policies.",
+                REFUSE,
+            )
         if "greet" in p.intents:
-            return Response("Hi! I can help you find products, check price, stock and ratings, and answer "
-                            "questions about returns, shipping and warranty. What do you need?", CLARIFY)
+            return Response(
+                "Hi! I can help you find products, check price, stock and ratings, and answer "
+                "questions about returns, shipping and warranty. What do you need?",
+                CLARIFY,
+            )
         if "policy" in p.intents:
             if p.external and not (p.product_id or p.mentioned):  # "warranty on samsung tv"
                 return refusals.external_policy(p, self._policy(p))
@@ -135,24 +152,42 @@ class ShoppingAssistant:
                     sec, sentence, _ = hit
                     return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic")
             return refusals.unknown_refusal(self.index, p, self.list_limit)
-        only_exclusions = not (spec.type_tokens or spec.filters or spec.desc_tokens or spec.size or spec.sort
-                               or spec.price_min is not None or spec.price_max is not None)
+        only_exclusions = not (
+            spec.type_tokens
+            or spec.filters
+            or spec.desc_tokens
+            or spec.size
+            or spec.sort
+            or spec.price_min is not None
+            or spec.price_max is not None
+        )
         if (spec.is_empty() or only_exclusions) and not spec.sort:  # "not nike" alone says what isn't wanted
-            return Response("What are you looking for? Tell me the kind of product, and a brand, colour or budget "
-                            "if you have one.", CLARIFY)
+            return Response(
+                "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one.",
+                CLARIFY,
+            )
 
         unlisted = _drop_unlisted_filters(self.index, spec, p)
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
             return refusals.no_match(self.index, spec, p, self.list_limit)
         new_words = p.spec.desc_tokens
-        only_words = not (p.spec.filters or p.spec.size or p.spec.sort or p.spec.price_min is not None
-                          or p.spec.price_max is not None)
-        if p.refined and relaxed and new_words and only_words and \
-                not any(t in self.index.desc_tokens[h.id] for h in hits for t in new_words):
+        only_words = not (
+            p.spec.filters or p.spec.size or p.spec.sort or p.spec.price_min is not None or p.spec.price_max is not None
+        )
+        if (
+            p.refined
+            and relaxed
+            and new_words
+            and only_words
+            and not any(t in self.index.desc_tokens[h.id] for h in hits for t in new_words)
+        ):
             # "laptop" after "black hoodie": none of the products being discussed match, so don't re-show them
-            return Response(f"I don't have anything matching \"{' '.join(new_words)}\" among the products we were "
-                            "looking at. Tell me what you'd like instead, or say \"start over\".", REFUSE)
+            return Response(
+                f'I don\'t have anything matching "{" ".join(new_words)}" among the products we were '
+                'looking at. Tell me what you\'d like instead, or say "start over".',
+                REFUSE,
+            )
         session.spec = spec
 
         specific = p.intents & {"price", "rating", "detail"}
@@ -180,8 +215,10 @@ class ShoppingAssistant:
         session.last_product = hits[0].id if len(hits) == 1 else None
         resp = listings.listing(hits, p, spec, relaxed, self.list_limit)
         if unlisted:
-            resp.text += (f"\n(The catalogue doesn't list {' or '.join(unlisted)} for these products, so I couldn't "
-                          "filter by it.)")
+            resp.text += (
+                f"\n(The catalogue doesn't list {' or '.join(unlisted)} for these products, so I couldn't "
+                "filter by it.)"
+            )
         return resp
 
     def _resolve(self, p: Parsed, session: Session) -> tuple[Product | None, Spec]:

@@ -2,12 +2,13 @@
 
 Run: python -m unittest discover -s tests
 """
+
 import unittest
 
-from groundtruth.paths import ROOT
-from groundtruth.grounding import Grounding
 from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session
 from groundtruth.builder import build_assistant
+from groundtruth.grounding import Grounding
+from groundtruth.paths import ROOT
 
 
 class ShopperPhrasingTests(unittest.TestCase):
@@ -77,6 +78,7 @@ class ShopperPhrasingTests(unittest.TestCase):
 
     def test_sizes_is_not_read_as_size_s(self):
         from groundtruth.understanding import understand
+
         self.assertIsNone(understand("what sizes does it come in", self.a.index).spec.size)
 
     def test_filter_on_an_attribute_the_type_lacks_is_dropped_with_a_note(self):
@@ -91,8 +93,15 @@ class ShopperPhrasingTests(unittest.TestCase):
         self.assertIn("doesn't list gender", r.text)
 
     def test_orders_accounts_and_offers_get_one_clear_refusal(self):
-        for q in ("track my order", "mere order ka status", "apply coupon", "is there any discount",
-                  "do you have gift cards", "can i pay with paytm", "do you have a store in hyderabad"):
+        for q in (
+            "track my order",
+            "mere order ka status",
+            "apply coupon",
+            "is there any discount",
+            "do you have gift cards",
+            "can i pay with paytm",
+            "do you have a store in hyderabad",
+        ):
             r = self.ask(q)
             self.assertEqual(r.action, REFUSE, q)
             self.assertTrue(r.text.startswith("I can't see orders"), q)

@@ -9,6 +9,7 @@ Environment overrides (see .env.example):
     GROUNDTRUTH_EMBED_MODEL  embedding model folder   GROUNDTRUTH_LLM_MODEL   instruct model folder
     GROUNDTRUTH_HOST, GROUNDTRUTH_PORT                GROUNDTRUTH_LOG_LEVEL
 """
+
 from __future__ import annotations
 
 import json
@@ -16,7 +17,7 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .paths import ROOT
 
@@ -73,8 +74,8 @@ class SessionSettings:
 
 @dataclass(frozen=True)
 class ModelSettings:
-    embed_model: Optional[str]
-    llm_model: Optional[str]
+    embed_model: str | None
+    llm_model: str | None
     embed_max_length: int
     llm_max_new_tokens: int
     llm_max_values_per_attribute: int
@@ -186,7 +187,9 @@ def parse_settings(raw: dict) -> Settings:
         weight_groundedness=_float("evaluation.weight_groundedness", e["weight_groundedness"], 0, 1),
         weight_helpfulness=_float("evaluation.weight_helpfulness", e["weight_helpfulness"], 0, 1),
         weight_refusal=_float("evaluation.weight_refusal", e["weight_refusal"], 0, 1),
-        hallucinated_price_penalty=_float("evaluation.hallucinated_price_penalty", e["hallucinated_price_penalty"], 0, 1),
+        hallucinated_price_penalty=_float(
+            "evaluation.hallucinated_price_penalty", e["hallucinated_price_penalty"], 0, 1
+        ),
     )
     total = evaluation.weight_groundedness + evaluation.weight_helpfulness + evaluation.weight_refusal
     if abs(total - 1.0) > 1e-9:
@@ -218,8 +221,9 @@ def parse_settings(raw: dict) -> Settings:
             llm_model=_optional_text("models.llm_model", m["llm_model"]),
             embed_max_length=_int("models.embed_max_length", m["embed_max_length"], 8, 8192),
             llm_max_new_tokens=_int("models.llm_max_new_tokens", m["llm_max_new_tokens"], 1, 4096),
-            llm_max_values_per_attribute=_int("models.llm_max_values_per_attribute",
-                                              m["llm_max_values_per_attribute"], 1, 1000),
+            llm_max_values_per_attribute=_int(
+                "models.llm_max_values_per_attribute", m["llm_max_values_per_attribute"], 1, 1000
+            ),
         ),
         calibration=CalibrationSettings(
             margin=_float("calibration.margin", c["margin"], 0, 1),

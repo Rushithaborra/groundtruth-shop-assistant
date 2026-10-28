@@ -1,4 +1,5 @@
 """Policy answers: the matching sentences from the policy text, each cited to its section."""
+
 from __future__ import annotations
 
 from ..policy import Section, best_sentences

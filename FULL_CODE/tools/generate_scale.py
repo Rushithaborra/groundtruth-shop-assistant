@@ -5,12 +5,12 @@ Run:  python data/generate_scale.py     (writes data/scale/*, which is git-ignor
 Differences from the small synthetic set: colour appears in titles, brands/models come from large pools, and about a
 tenth of products have messy attributes (alternative key spelling, odd casing, trailing spaces, missing fields).
 """
+
 from __future__ import annotations
 
 import json
 import random
 import shutil
-from pathlib import Path
 
 from groundtruth.config import get_settings
 from groundtruth.console import write_out
@@ -20,8 +20,34 @@ OUT = get_settings().paths.scale_dir
 N_PRODUCTS = 5000
 rng = random.Random(11)
 
-SYLLABLES = ["ar", "ben", "cor", "del", "eni", "fa", "gor", "hel", "ivo", "jun", "kor", "lum", "mar", "nex", "ori",
-             "pra", "quo", "rin", "sol", "tav", "uma", "vex", "wyn", "xel", "yor", "zan"]
+SYLLABLES = [
+    "ar",
+    "ben",
+    "cor",
+    "del",
+    "eni",
+    "fa",
+    "gor",
+    "hel",
+    "ivo",
+    "jun",
+    "kor",
+    "lum",
+    "mar",
+    "nex",
+    "ori",
+    "pra",
+    "quo",
+    "rin",
+    "sol",
+    "tav",
+    "uma",
+    "vex",
+    "wyn",
+    "xel",
+    "yor",
+    "zan",
+]
 
 
 def brand_pool(n: int) -> list[str]:
@@ -32,8 +58,28 @@ def brand_pool(n: int) -> list[str]:
 
 
 BRANDS = brand_pool(60)
-MODEL_WORDS = small.MODELS + ["Aero", "Bolt", "Cruz", "Drift", "Edge", "Flare", "Grove", "Haze", "Iris", "Jet",
-                              "Kite", "Lark", "Mist", "Noble", "Onyx", "Prime", "Quill", "Ridge", "Sage", "Tide"]
+MODEL_WORDS = small.MODELS + [
+    "Aero",
+    "Bolt",
+    "Cruz",
+    "Drift",
+    "Edge",
+    "Flare",
+    "Grove",
+    "Haze",
+    "Iris",
+    "Jet",
+    "Kite",
+    "Lark",
+    "Mist",
+    "Noble",
+    "Onyx",
+    "Prime",
+    "Quill",
+    "Ridge",
+    "Sage",
+    "Tide",
+]
 
 
 def make_scale_catalogue() -> list[dict]:
@@ -64,35 +110,48 @@ def make_scale_catalogue() -> list[dict]:
             else:
                 attrs.pop("material")
         lo, hi = t["price"]
-        products.append({
-            "id": f"P{len(products) + 1:05d}",
-            "title": title,
-            "description": t["desc"].format(material=material),
-            "category": t["category"],
-            "attributes": attrs,
-            "price": int(round(rng.uniform(lo, hi), -1)) - 1,
-            "in_stock": rng.random() > 0.15,
-            "rating": round(rng.uniform(3.0, 4.9), 1),
-            "rating_count": rng.randint(3, 5000),
-        })
+        products.append(
+            {
+                "id": f"P{len(products) + 1:05d}",
+                "title": title,
+                "description": t["desc"].format(material=material),
+                "category": t["category"],
+                "attributes": attrs,
+                "price": int(round(rng.uniform(lo, hi), -1)) - 1,
+                "in_stock": rng.random() > 0.15,
+                "rating": round(rng.uniform(3.0, 4.9), 1),
+                "rating_count": rng.randint(3, 5000),
+            }
+        )
     return products
 
 
 def main() -> None:
     OUT.mkdir(exist_ok=True)
     products = make_scale_catalogue()
-    (OUT / "catalogue.jsonl").write_text("\n".join(json.dumps(p, ensure_ascii=False) for p in products) + "\n",
-                                         encoding="utf-8")
+    (OUT / "catalogue.jsonl").write_text(
+        "\n".join(json.dumps(p, ensure_ascii=False) for p in products) + "\n", encoding="utf-8"
+    )
     shutil.copy(get_settings().paths.data_dir / "policy.txt", OUT / "policy.txt")
     # the same question templates as the small set; expectations are recomputed against this catalogue
     # (messy attribute spellings are normalised here the way a careful reader would, so expectations stay fair)
-    clean = [dict(p, attributes={k.lower().replace("colour", "color"): (v.strip().lower() if k.lower() in {"colour", "color", "material"} else v)
-                                 for k, v in p["attributes"].items()}) for p in products]
+    clean = [
+        dict(
+            p,
+            attributes={
+                k.lower().replace("colour", "color"): (
+                    v.strip().lower() if k.lower() in {"colour", "color", "material"} else v
+                )
+                for k, v in p["attributes"].items()
+            },
+        )
+        for p in products
+    ]
     qs = small.make_questions(clean)
-    (OUT / "test_questions.jsonl").write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n",
-                                              encoding="utf-8")
+    (OUT / "test_questions.jsonl").write_text(
+        "\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n", encoding="utf-8"
+    )
     write_out(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
-
 
 
 if __name__ == "__main__":

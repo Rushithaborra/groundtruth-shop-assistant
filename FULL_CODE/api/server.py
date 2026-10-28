@@ -11,6 +11,7 @@ to the reply. Citation chips open the exact catalogue record or policy section t
 for but not stocked, and which questions needed clarifying. It keeps counts and short labels only, in memory; no
 full conversations, no session ids, nothing written to disk.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,8 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from groundtruth.builder import build_assistant
 from groundtruth.arguments import add_model_arguments
+from groundtruth.builder import build_assistant
 from groundtruth.config import get_settings
 from groundtruth.paths import ROOT, WEB_DIR
 
@@ -40,8 +41,7 @@ def pick_data(catalogue: str | None, policy: str | None) -> tuple[str, str]:
         return catalogue, policy or str(paths.policy)
     if not paths.demo_catalogue.exists():
         logger.info("Generating the 5,000-product demo catalogue (first run only)...")
-        subprocess.run([sys.executable, "-m", "tools.generate_scale"], check=True, cwd=ROOT,
-                       stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, "-m", "tools.generate_scale"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
     return str(paths.demo_catalogue), policy or str(paths.demo_policy)
 
 
@@ -90,7 +90,7 @@ def make_handler(state: State, page: bytes, info: dict, insights_page: bytes = b
                 return self._json(400, {"error": "Request body must be JSON"})
             sid = data.get("session_id")
             if self.path == "/api/chat":
-                message = str(data.get("message", "")).strip()[:limits.max_message_chars]
+                message = str(data.get("message", "")).strip()[: limits.max_message_chars]
                 if not message:
                     return self._json(400, {"error": "Type a question first"})
                 try:
@@ -112,8 +112,10 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     add_model_arguments(ap)
     ap.add_argument("--host", default=server.host)
     ap.add_argument("--port", type=int, default=server.port)
-    ap.add_argument("--snapshot", help="date the catalogue prices were taken, e.g. 2026-10-01 "
-                                       "(default: the catalogue file's last-modified date)")
+    ap.add_argument(
+        "--snapshot",
+        help="date the catalogue prices were taken, e.g. 2026-10-01 (default: the catalogue file's last-modified date)",
+    )
 
 
 def run(args: argparse.Namespace) -> None:
@@ -122,15 +124,28 @@ def run(args: argparse.Namespace) -> None:
     snapshot, source = args.snapshot, "given"
     if not snapshot:
         snapshot, source = datetime.fromtimestamp(Path(args.catalogue).stat().st_mtime).date().isoformat(), "file date"
-    info = {"products": len(assistant.index.products), "policy_sections": len(assistant.sections),
-            "semantic": assistant.semantic is not None, "llm": assistant.normaliser is not None,
-            "snapshot": snapshot, "snapshot_source": source, "examples": build_examples(assistant)}
+    info = {
+        "products": len(assistant.index.products),
+        "policy_sections": len(assistant.sections),
+        "semantic": assistant.semantic is not None,
+        "llm": assistant.normaliser is not None,
+        "snapshot": snapshot,
+        "snapshot_source": source,
+        "examples": build_examples(assistant),
+    }
     page = (WEB_DIR / "index.html").read_bytes()
     insights_page = (WEB_DIR / "insights.html").read_bytes()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(State(assistant), page, info, insights_page))
-    logger.info("GroundTruth is running at http://%s:%d (%d products, prices as of %s). "
-                "Retailer view: http://%s:%d/insights  Ctrl+C to stop.",
-                args.host, args.port, info["products"], snapshot, args.host, args.port)
+    logger.info(
+        "GroundTruth is running at http://%s:%d (%d products, prices as of %s). "
+        "Retailer view: http://%s:%d/insights  Ctrl+C to stop.",
+        args.host,
+        args.port,
+        info["products"],
+        snapshot,
+        args.host,
+        args.port,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

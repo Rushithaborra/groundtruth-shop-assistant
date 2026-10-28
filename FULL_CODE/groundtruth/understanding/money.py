@@ -1,4 +1,5 @@
 """Budgets in shopper text: "under 2k", "₹500 se kam", "between 1000 and 2000", a bare "₹500"."""
+
 from __future__ import annotations
 
 import re
@@ -8,8 +9,10 @@ _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|hazar|hajar)?(?![a-z])"
 _AMT = rf"{_CUR}\s*{_NUM}"
 _BETWEEN = re.compile(rf"(?:between|from)\s*{_AMT}\s*(?:and|to|-|se)\s*{_AMT}")
 _MAX = [
-    re.compile(rf"(?:under|below|less than|lesser than|upto|up to|within|max(?:imum)?|not more than|at most|"
-               rf"budget(?: of| is)?|<=?)\s*{_AMT}"),
+    re.compile(
+        rf"(?:under|below|less than|lesser than|upto|up to|within|max(?:imum)?|not more than|at most|"
+        rf"budget(?: of| is)?|<=?)\s*{_AMT}"
+    ),
     re.compile(rf"{_AMT}\s*(?:tak|ke andar|ke ander|se kam|ke niche|or less|or below|and below|max)\b"),
 ]
 _MIN = [
@@ -38,6 +41,7 @@ def extract_money(text: str):
         def repl(m):
             found[key] = _amount(m[1], m[2])
             return " "
+
         return pattern.sub(repl, text)
 
     text = _BETWEEN.sub(between, text)

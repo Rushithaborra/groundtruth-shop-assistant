@@ -3,12 +3,13 @@
 These pin the behaviours the task scores: grounded answers, refusals, clarification, multi-turn budgets,
 and the evaluator's ability to catch a hallucinated price.
 """
+
 import unittest
 
-from groundtruth.paths import ROOT
-from groundtruth.grounding import Grounding
 from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session, SessionStore
 from groundtruth.builder import build_assistant
+from groundtruth.grounding import Grounding
+from groundtruth.paths import ROOT
 from groundtruth.text import format_inr
 
 
@@ -80,7 +81,9 @@ class AssistantTests(unittest.TestCase):
 
     def test_evaluator_catches_uncited_and_unknown_citations(self):
         p = next(iter(self.products.values()))
-        self.assertTrue(self.grounding.check(f"The {p.title} is priced at {format_inr(p.price)}.", "price?")["problems"])
+        self.assertTrue(
+            self.grounding.check(f"The {p.title} is priced at {format_inr(p.price)}.", "price?")["problems"]
+        )
         self.assertTrue(self.grounding.check("It costs something [P9999].", "price?")["problems"])
 
     def test_split_words_and_negation(self):
@@ -129,6 +132,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_concurrent_users_get_consistent_answers(self):
         from concurrent.futures import ThreadPoolExecutor
+
         p = next(iter(self.products.values()))
         with ThreadPoolExecutor(8) as pool:
             replies = list(pool.map(lambda _: self.a.ask(f"price of {p.title}").text, range(200)))

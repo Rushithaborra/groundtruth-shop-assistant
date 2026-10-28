@@ -1,0 +1,4 @@
+# LF line endings in the repository and on checkout, on every platform
+* text=auto eol=lf
+*.png binary
+*.jpg binary
