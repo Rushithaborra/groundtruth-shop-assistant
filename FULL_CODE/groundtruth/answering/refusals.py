@@ -6,7 +6,7 @@ from ..catalogue import CatalogueIndex, Spec
 from ..text import EXTERNAL_DISPLAY, format_inr
 from ..understanding import Parsed
 from .formatting import product_line
-from .response import ANSWER, REFUSE, Response
+from .response import ANSWER, REFUSE, Claims, Response
 
 
 def describe(spec: Spec) -> str:
@@ -25,6 +25,8 @@ def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> R
         if alt:
             lowest = spec.price_max is not None
             pick = (min if lowest else max)(alt, key=lambda x: x.price)
+            claims = Claims()
+            claims.price(pick)
             what = describe(spec)
             if what:
                 if spec.price_min is not None and spec.price_max is not None:
@@ -38,11 +40,13 @@ def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> R
                     f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
                     f"at {format_inr(pick.price)} [{pick.id}].",
                     REFUSE,
+                    claims=claims,
                 )
             return Response(
                 f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
                 f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].",
                 REFUSE,
+                claims=claims,
             )
     if spec.filters or spec.size:
         looser = spec.copy()
@@ -50,16 +54,21 @@ def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> R
         alt, _ = index.search(looser, p.all_tokens)
         if alt:
             lines = [f"{base} Similar products without that exact combination:"]
-            lines += [f"- {h.title} [{h.id}]" for h in alt[:list_limit]]
-            return Response("\n".join(lines), REFUSE)
+            claims = Claims()
+            for h in alt[:list_limit]:
+                lines.append(f"- {h.title} [{h.id}]")
+                claims.cite(h)
+            return Response("\n".join(lines), REFUSE, claims=claims)
     return Response(base, REFUSE)
 
 
-def alternatives(index: CatalogueIndex, spec: Spec, p: Parsed, header: str, list_limit: int) -> list[str]:
+def alternatives(
+    index: CatalogueIndex, spec: Spec, p: Parsed, header: str, list_limit: int, claims: Claims
+) -> list[str]:
     hits, _ = index.search(spec, p.all_tokens)
     if not hits:
         return []
-    return [header] + [product_line(h) for h in hits[:list_limit]]
+    return [header] + [product_line(h, claims) for h in hits[:list_limit]]
 
 
 def _brand_names(p: Parsed) -> str:
@@ -68,26 +77,29 @@ def _brand_names(p: Parsed) -> str:
 
 def external(index: CatalogueIndex, p: Parsed, list_limit: int) -> Response:
     """A brand or product the shop doesn't carry ("nike shoes", "iphone")."""
-    lines = [f"I don't have {_brand_names(p)} products in the catalogue."]
+    lines, claims = [f"I don't have {_brand_names(p)} products in the catalogue."], Claims()
     if p.spec.type_tokens:
         other = p.spec.copy()
         other.desc_tokens = []
-        lines += alternatives(index, other, p, "Similar products from brands I do carry:", list_limit)
-    return Response("\n".join(lines), REFUSE)
+        lines += alternatives(index, other, p, "Similar products from brands I do carry:", list_limit, claims)
+    return Response("\n".join(lines), REFUSE, claims=claims)
 
 
 def external_policy(p: Parsed, general: Response) -> Response:
     """A policy question about a brand the shop doesn't carry; adds the general policy when there is one."""
     text = f"I don't have {_brand_names(p)} products in the catalogue, so I can't say what applies to one."
+    claims = Claims()
     if general.action == ANSWER:
         text += f" The general policy is: {general.text}"
-    return Response(text, REFUSE)
+        claims.merge(general.claims)
+    return Response(text, REFUSE, claims=claims)
 
 
 def unknown_refusal(index: CatalogueIndex, p: Parsed, list_limit: int) -> Response:
     """Product words the catalogue doesn't contain; offers a related type the shop does sell, if one is known."""
-    lines = [f'I don\'t have anything in the catalogue matching "{" ".join(p.unknown)}".']
+    lines, claims = [f'I don\'t have anything in the catalogue matching "{" ".join(p.unknown)}".'], Claims()
     for alt in dict.fromkeys(p.alternatives):
-        lines += alternatives(index, Spec(type_tokens=[alt]), p, "The closest products I do have:", list_limit)
+        header = "The closest products I do have:"
+        lines += alternatives(index, Spec(type_tokens=[alt]), p, header, list_limit, claims)
         break
-    return Response("\n".join(lines), REFUSE)
+    return Response("\n".join(lines), REFUSE, claims=claims)

@@ -20,7 +20,7 @@ from ..text import approx_tokens, format_inr
 from ..understanding import Parsed, understand
 from . import listings, product_answers, refusals
 from .formatting import SORT_LABELS, head_nouns
-from .policy_answers import policy_answer
+from .policy_answers import cited_section, policy_answer
 from .product_answers import FACTS
 from .response import ANSWER, CLARIFY, REFUSE, Response, Session
 
@@ -120,7 +120,11 @@ class ShoppingAssistant:
         if "policy_q" in p.intents and resp.action != CLARIFY:  # "price of X and what is the return policy"
             pol = self._policy(p)
             if pol.action == ANSWER:
-                return Response(f"{resp.text}\n{pol.text}", ANSWER) if resp.action == ANSWER else pol
+                if resp.action != ANSWER:
+                    return pol
+                both = Response(f"{resp.text}\n{pol.text}", ANSWER, claims=resp.claims)
+                both.claims.merge(pol.claims)
+                return both
         return resp
 
     def _policy(self, p: Parsed) -> Response:
@@ -150,7 +154,9 @@ class ShoppingAssistant:
                 hit = self.semantic.policy_sentence(p.raw)
                 if hit:
                     sec, sentence, _ = hit
-                    return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic")
+                    return Response(
+                        f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic", claims=cited_section(sec.id)
+                    )
             return refusals.unknown_refusal(self.index, p, self.list_limit)
         only_exclusions = not (
             spec.type_tokens

@@ -5,7 +5,7 @@ from __future__ import annotations
 from ..catalogue import SIZE_KEY, CatalogueIndex, Product, Spec
 from ..understanding import Parsed
 from .formatting import product_line
-from .response import ANSWER, CLARIFY, Response
+from .response import ANSWER, CLARIFY, Claims, Response
 
 
 def listing(hits: list[Product], p: Parsed, spec: Spec, relaxed: bool, list_limit: int) -> Response:
@@ -14,7 +14,8 @@ def listing(hits: list[Product], p: Parsed, spec: Spec, relaxed: bool, list_limi
     kind = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}.get(
         spec.sort, "best"
     )
-    lines = [f"Here are the {kind} matches:"] + [product_line(h) for h in shown]
+    claims = Claims()
+    lines = [f"Here are the {kind} matches:"] + [product_line(h, claims) for h in shown]
     if len(hits) > len(shown):
         lines.append("There are more matches; tell me a brand, colour or budget to narrow them down.")
     if p.mapped:
@@ -26,7 +27,7 @@ def listing(hits: list[Product], p: Parsed, spec: Spec, relaxed: bool, list_limi
         )
     if p.unknown:
         lines.append(f'I can\'t verify "{" ".join(p.unknown)}" from the catalogue.')
-    return Response("\n".join(lines), ANSWER)
+    return Response("\n".join(lines), ANSWER, claims=claims)
 
 
 def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> Response:
@@ -34,12 +35,19 @@ def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> R
     lowered = index.attr_lower
     keys = dict.fromkeys(k for h in hits for k in lowered[h.id] if k != SIZE_KEY)
     varying = [k for k in keys if len({lowered[h.id].get(k) for h in hits}) > 1][:3]
-    lines = ["I found more than one match, so I don't want to guess. Which one do you mean?"]
+    lines, claims = ["I found more than one match, so I don't want to guess. Which one do you mean?"], Claims()
     for h in hits[:clarify_limit]:
         detail = ", ".join(v for k in varying for v in h.attr_values(k)[:1])
         lines.append(f"- {h.title}{f' ({detail})' if detail else ''} [{h.id}]")
+        claims.cite(h)
+        for key in varying:  # the reply shows only the first value of a list attribute, so only that is claimed
+            value = h.attributes.get(key)
+            if isinstance(value, (list, tuple)):
+                value = value[0] if value else None
+            if value is not None:
+                claims.fact(h, h.source_key(key), value)
     if len(hits) > clarify_limit:
         lines.append("There are more options too.")
     if varying:
         lines.append("You can tell me the " + " or ".join(varying) + " to pick one.")
-    return Response("\n".join(lines), CLARIFY)
+    return Response("\n".join(lines), CLARIFY, claims=claims)

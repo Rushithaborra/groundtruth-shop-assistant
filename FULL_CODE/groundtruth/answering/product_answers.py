@@ -8,7 +8,7 @@ from ..catalogue import CatalogueIndex, Product
 from ..text import format_inr
 from ..understanding import Parsed
 from .formatting import product_line, stock_text
-from .response import ANSWER, REFUSE, Response
+from .response import ANSWER, REFUSE, Claims, Response
 
 FACTS = frozenset({"price", "stock", "rating", "detail"})
 
@@ -22,6 +22,8 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
     facts_only = not want and bool(p.spec.desc_tokens or p.unknown or foreign)  # "is X waterproof?"
     defaults = not want and not facts_only
     sentences, supported, named = [], False, False
+    claims = Claims()
+    claims.cite(prod)
 
     def say(predicate: str) -> None:
         nonlocal named
@@ -32,14 +34,18 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
         say(f"is the {lead} match")
     if "price" in want or defaults:
         say(f"is priced at {format_inr(prod.price)}")
+        claims.price(prod)
         supported = True
     if "stock" in want or defaults:
         say(f"is {stock_text(prod)}" if prod.in_stock is not None else "has no stock status in the catalogue")
+        if prod.in_stock is not None:
+            claims.stock(prod)
         supported = True
     if "rating" in want or defaults:
         if prod.rating is not None:
             count = f" from {prod.rating_count} ratings" if prod.rating_count else ""
             say(f"is rated {prod.rating} stars{count}")
+            claims.rating(prod)
             supported = True
         elif "rating" in want:
             sentences.append(f"The catalogue has no rating for the {prod.title} {cite}.")
@@ -47,6 +53,7 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
         values = prod.attr_values(key)
         if values:
             sentences.append(f"The {key} of the {prod.title} is {', '.join(values)} {cite}.")
+            claims.attribute(prod, key)
             supported = True
         else:
             sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
@@ -54,29 +61,34 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
         extra, ok = description_check(index, prod, p, foreign)
         sentences += extra
         supported = supported or ok
-    return Response(" ".join(sentences), ANSWER if supported else REFUSE)
+    return Response(" ".join(sentences), ANSWER if supported else REFUSE, claims=claims)
 
 
 def compare(index: CatalogueIndex, pids: list[str], p: Parsed) -> Response:
     """Up to four products side by side; names the cheaper / costlier / better-rated one when asked."""
     prods = [index.products[i] for i in pids][:4]
     want = (p.intents & {"price", "stock", "rating"}) or {"price"}
+    claims = Claims()
     lines = ["Here is the comparison:"]
-    lines += [product_line(x, "price" in want, "rating" in want, "stock" in want) for x in prods]
+    lines += [product_line(x, claims, "price" in want, "rating" in want, "stock" in want) for x in prods]
     sort = p.spec.sort
     if sort in ("price_asc", "price_desc"):
         pick = (min if sort == "price_asc" else max)(prods, key=lambda x: x.price)
         if any(x.price != pick.price for x in prods):
             word = "cheaper" if sort == "price_asc" else "more expensive"
             lines.append(f"The {pick.title} is the {word} one at {format_inr(pick.price)} [{pick.id}].")
+            claims.price(pick)
         else:
             lines.append(
                 f"They are the same price, {format_inr(pick.price)} " + " ".join(f"[{x.id}]" for x in prods) + "."
             )
+            for x in prods:
+                claims.price(x)
     elif sort == "rating_desc" and (rated := [x for x in prods if x.rating is not None]):
         pick = max(rated, key=lambda x: x.rating)
         lines.append(f"The {pick.title} has the higher rating, {pick.rating} stars [{pick.id}].")
-    return Response("\n".join(lines), ANSWER)
+        claims.fact(pick, "rating", pick.rating)
+    return Response("\n".join(lines), ANSWER, claims=claims)
 
 
 def description_check(
