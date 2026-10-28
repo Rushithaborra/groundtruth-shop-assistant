@@ -20,6 +20,7 @@ HERE = get_settings().paths.data_dir
 
 
 def load(path: Path) -> list[dict]:
+    """Read a catalogue and normalise attribute spellings the way the loader does, so expectations match."""
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     for r in rows:  # same normalisation the loader applies
         r["attributes"] = {
@@ -32,10 +33,12 @@ def load(path: Path) -> list[dict]:
 
 
 def make(products: list[dict], seed: int = 3) -> list[dict]:
+    """The adversarial questions for a catalogue; expectations come from filtering it, never from the assistant."""
     rng = random.Random(seed)
     qs: list[dict] = []
 
     def of_type(name, **filters):
+        """Products whose title has this product type as whole words and that match every given attribute value."""
         pat = re.compile(rf"(?<![-\w]){re.escape(name.lower())}\b")
         out = []
         for p in products:
@@ -46,6 +49,7 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
         return out
 
     def add(turns, behaviour, **expected):
+        """Add one question with its expected behaviour and any expected products, policy sections or text."""
         qs.append(
             {
                 "id": f"h{len(qs) + 1:03d}",
@@ -55,6 +59,7 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
         )
 
     def ids(items, max_price=None, min_price=None):
+        """Ids of the products within the price range."""
         return [
             p["id"]
             for p in items
@@ -62,6 +67,7 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
         ]
 
     def search(q, items, max_price=None, min_price=None):
+        """Add a search question: answerable if any product fits, otherwise expected to be refused."""
         v = ids(items, max_price, min_price)
         add(q, "answer" if v else "refuse", valid_ids=v)
 
@@ -208,11 +214,13 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
 
 
 def write(path: Path, qs: list[dict]) -> None:
+    """Write the questions as JSON lines and say where."""
     path.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n", encoding="utf-8")
     write_out(f"wrote {len(qs)} questions to {path}")
 
 
 def main() -> None:
+    """Write the hard questions for the small catalogue and, if it exists, the 5,000-product one."""
     write(HERE / "hard_questions.jsonl", make(load(HERE / "catalogue.jsonl")))
     scale = HERE / "scale" / "catalogue.jsonl"
     if scale.exists():
