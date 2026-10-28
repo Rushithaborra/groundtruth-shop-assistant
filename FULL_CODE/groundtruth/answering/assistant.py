@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import time
+from typing import TYPE_CHECKING
 
 from ..catalogue import CatalogueIndex, Product, Spec
 from ..config import get_settings
@@ -25,6 +26,10 @@ from .policy_answers import cited_section, policy_answer, policy_silent
 from .product_answers import FACTS
 from .response import ANSWER, CLARIFY, REFUSE, Response, Session
 
+if TYPE_CHECKING:  # only for the annotations below: the model fallbacks are optional and load lazily
+    from ..models.normaliser import LLMNormaliser
+    from ..models.semantic import SemanticFallback
+
 
 class ShoppingAssistant:
     def __init__(
@@ -34,9 +39,9 @@ class ShoppingAssistant:
         list_limit: int | None = None,
         clarify_limit: int | None = None,
         measure_tokens: bool = False,
-        semantic=None,
-        normaliser=None,
-    ):
+        semantic: SemanticFallback | None = None,
+        normaliser: LLMNormaliser | None = None,
+    ) -> None:
         limits = get_settings().assistant
         self.index, self.policy = index, policy
         self.semantic = semantic  # optional SemanticFallback (embedding model), miss path only
@@ -222,7 +227,7 @@ class ShoppingAssistant:
             )
         return resp
 
-    def _pick_one(self, p: Parsed, spec: Spec, hits: list[Product]):
+    def _pick_one(self, p: Parsed, spec: Spec, hits: list[Product]) -> Product | object | None:
         """The one product the message is about; _AMBIGUOUS when several fit and differ; None for a listing."""
         specific = p.intents & {"price", "rating", "detail"}
         # "is the grey backpack in stock", "Sanchayo NimbusMax container set stock me hai?": about these products
