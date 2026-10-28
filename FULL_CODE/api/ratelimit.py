@@ -14,7 +14,7 @@ class RateLimiter:
 
     def __init__(
         self, limit: int, window_s: float, max_keys: int = 10_000, clock: Callable[[], float] = time.monotonic
-    ):
+    ) -> None:
         self.limit, self.window_s, self.max_keys, self._clock = limit, window_s, max_keys, clock
         self._hits: OrderedDict[str, deque] = OrderedDict()
         self._lock = threading.Lock()
