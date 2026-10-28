@@ -3,7 +3,8 @@
 It re-derives what each citation licenses from the raw catalogue and policy text; it does not trust the assistant's
 own bookkeeping. A reply is grounded when every citation resolves, every ₹ amount belongs to a cited product, cited
 policy section or the user's own query, every other number appears in the cited sources, every product title named
-is cited, and every factual sentence carries a citation.
+is cited, every factual sentence carries a citation, every colour, material, brand or other attribute word comes
+from the record cited beside it (or the shopper's own question), and every policy sentence is quoted word for word.
 """
 
 from __future__ import annotations
@@ -12,9 +13,10 @@ import re
 
 from ..catalogue import CatalogueIndex
 from ..policy import Section
-from ..text import format_inr
+from ..text import STOPWORDS, format_inr, tokenize
 
 CITE = re.compile(r"\[([^\]]+)\]")
+POLICY_CITE = re.compile(r"\[policy:([^\]]+)\]")
 RUPEE = re.compile(r"₹\s?(\d[\d,]*(?:\.\d+)?)")
 NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
 UNITS = re.compile(r"(?<=[.!?])\s+(?!\[)|\n")  # sentences and lines; a citation stays with the sentence before it
@@ -34,6 +36,14 @@ class Grounding:
         self.title_ids: dict[str, set[str]] = {}
         for p in index.products.values():
             self.title_ids.setdefault(p.title, set()).add(p.id)
+        # words that name a colour, material, brand, gender, ... in this catalogue (sizes and numbers excluded)
+        self.attr_words = frozenset(
+            t
+            for values in index.attr_values.values()
+            for tokens in values
+            for t in tokens
+            if len(t) >= 3 and not t.isdigit() and t not in STOPWORDS
+        )
 
     def source(self, cite: str) -> str | None:
         """The text a citation stands for (a catalogue record or policy section), or None if it doesn't exist."""
@@ -58,6 +68,8 @@ class Grounding:
         problems += self._unsupported_numbers(body, sources, query_text)
         problems += self._uncited_titles(body, sources)
         problems += self._uncited_claims(text)
+        problems += self._unsupported_attributes(text, query_text)
+        problems += self._unquoted_policy(text)
         problems += [f"hallucinated price ₹{h}" for h in hallucinated]
         return {"problems": problems, "hallucinated_prices": len(hallucinated), "cited": cites}
 
@@ -125,4 +137,28 @@ class Grounding:
             )
             if states_fact and not CITE.search(u):
                 problems.append(f"uncited claim: {u[:60]}")
+        return problems
+
+    def _unsupported_attributes(self, text: str, query_text: str) -> list[str]:
+        """A problem for each attribute word (colour, material, brand, ...) given by neither the record cited in the
+        same sentence or line nor the shopper's own question, e.g. "the material is silk" for a cotton product."""
+        asked = set(tokenize(query_text))
+        problems = []
+        for unit in UNITS.split(text):
+            cited = " ".join(self.source(c) or "" for c in dict.fromkeys(CITE.findall(unit)))
+            known = asked | set(tokenize(cited))
+            words = set(tokenize(CITE.sub("", unit))) & self.attr_words
+            problems += [f"'{w}' is not in the cited record" for w in sorted(words - known)]
+        return problems
+
+    def _unquoted_policy(self, text: str) -> list[str]:
+        """A problem for each policy citation whose sentence is not a word-for-word sentence of that section."""
+        problems = []
+        for unit in UNITS.split(text):
+            start = 0
+            for m in POLICY_CITE.finditer(unit):
+                said, start = unit[start : m.start()].strip(), m.end()
+                section = self.sections.get(m.group(1))
+                if section and not any(said.endswith(sentence) for sentence, _ in section.sentences):
+                    problems.append(f"policy claim not quoted from [policy:{m.group(1)}]: {said[-60:]}")
         return problems
