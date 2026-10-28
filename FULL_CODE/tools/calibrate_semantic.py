@@ -98,6 +98,8 @@ POLICY_NEG = [
 
 
 def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: float | None = None) -> dict:
+    """Choose the embedding fallback's thresholds from the model's own scores, and report how well they
+    separate words that should map to a product type from words that must not."""
     settings = get_settings().calibration
     margin = margin if margin is not None else settings.margin
     alt_gap = alt_gap if alt_gap is not None else settings.alt_gap
@@ -140,12 +142,14 @@ def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: 
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The calibration's options: the embedding model, the data files and where to write the thresholds."""
     ap.add_argument("--embed-model", required=True)
     add_data_arguments(ap)
     ap.add_argument("--out", default=str(get_settings().paths.semantic_config))
 
 
 def run(args: argparse.Namespace) -> None:
+    """Score the model on the word and policy test lists, print the table and save the thresholds."""
     index, policy = CatalogueIndex(load_catalogue(args.catalogue)), load_policy(args.policy)
     fb = SemanticFallback(index, policy, LocalEmbedder(args.embed_model), map_threshold=1.0)
     result = calibrate(fb)
