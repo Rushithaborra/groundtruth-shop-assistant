@@ -68,11 +68,22 @@ class Spec:
 
 
 class CatalogueIndex:
-    def __init__(self, products: list[Product], typo_cutoff: float | None = None, typo_cache_size: int | None = None):
+    def __init__(
+        self, products: list[Product], typo_cutoff: float | None = None, typo_cache_size: int | None = None
+    ) -> None:
         search = get_settings().search
         self.typo_cutoff = typo_cutoff if typo_cutoff is not None else search.typo_cutoff
         self.products = {p.id: p for p in products}
         self.ids_upper = {pid.upper(): pid for pid in self.products}
+        self._declare_tables()
+        doc_freq: Counter = Counter()
+        for p in products:
+            doc_freq.update(self._index_product(p))
+        self._build_vocabulary(doc_freq, len(products))
+        self._build_typo_lookup(typo_cache_size if typo_cache_size is not None else search.typo_cache_size)
+
+    def _declare_tables(self) -> None:
+        """The empty lookup tables that `_index_product` fills."""
         self.title_tokens: dict[str, frozenset[str]] = {}
         self.desc_tokens: dict[str, frozenset[str]] = {}
         self.attr_lower: dict[str, dict[str, frozenset[str]]] = {}  # pid -> key -> lower-cased values
@@ -86,50 +97,55 @@ class CatalogueIndex:
         self._attr_postings: defaultdict[tuple, set[str]] = defaultdict(set)  # (key, lower value) -> pids
         # (key, value tokens) -> pids: "Kurtas" and "Kurtis" read the same, so a filter on one matches both
         self._attr_token_postings: defaultdict[tuple, set[str]] = defaultdict(set)
-        df: Counter = Counter()
-        for p in products:
-            title = frozenset(tokenize(p.title))
-            for words in (tokenize(p.title), tokenize(str(p.attributes.get("sub_category", "")))):
-                self.name_pairs.update(zip(words, words[1:]))
-            text = set(title) | set(tokenize(p.category))
-            lowered = {}
-            for key in p.attributes:
-                values = p.attr_values(key)
-                lowered[key] = frozenset(v.lower() for v in values)
-                for low in lowered[key]:
-                    self._attr_postings[(key, low)].add(p.id)
-                if key == SIZE_KEY:
-                    continue
-                for val in values:
-                    toks = tuple(tokenize(val))
-                    if toks:
-                        self.attr_values.setdefault(key, {})[toks] = val
-                        self._attr_token_postings[(key, toks)].add(p.id)
-                        text.update(toks)
-                self._index_key_name(key)
-            desc = frozenset(tokenize(p.description))
-            self.title_tokens[p.id], self.desc_tokens[p.id], self.attr_lower[p.id] = title, desc, lowered
-            for tok in text:
-                self._text_postings[tok].add(p.id)
-            for tok in title:
-                self._title_postings[tok].add(p.id)
-            df.update(text | desc)
+
+    def _index_product(self, p: Product) -> set[str]:
+        """Add one product to every lookup table; returns its words, for the document frequencies."""
+        title = frozenset(tokenize(p.title))
+        for words in (tokenize(p.title), tokenize(str(p.attributes.get("sub_category", "")))):
+            self.name_pairs.update(zip(words, words[1:]))
+        text = set(title) | set(tokenize(p.category))
+        lowered = {}
+        for key in p.attributes:
+            values = p.attr_values(key)
+            lowered[key] = frozenset(v.lower() for v in values)
+            for low in lowered[key]:
+                self._attr_postings[(key, low)].add(p.id)
+            if key == SIZE_KEY:
+                continue
+            for val in values:
+                toks = tuple(tokenize(val))
+                if toks:
+                    self.attr_values.setdefault(key, {})[toks] = val
+                    self._attr_token_postings[(key, toks)].add(p.id)
+                    text.update(toks)
+            self._index_key_name(key)
+        desc = frozenset(tokenize(p.description))
+        self.title_tokens[p.id], self.desc_tokens[p.id], self.attr_lower[p.id] = title, desc, lowered
+        for tok in text:
+            self._text_postings[tok].add(p.id)
+        for tok in title:
+            self._title_postings[tok].add(p.id)
+        return text | desc
+
+    def _build_vocabulary(self, doc_freq: Counter, n_products: int) -> None:
+        """Word weights, the product-type and description vocabularies, and the attribute values to look for."""
         self.size_values = {low for (key, low) in self._attr_postings if key == SIZE_KEY}
-        n = len(products)
-        self.idf = {t: math.log((n + 1) / (c + 0.5)) + 1 for t, c in df.items()}
+        self.idf = {t: math.log((n_products + 1) / (c + 0.5)) + 1 for t, c in doc_freq.items()}
         self.type_vocab = set(self._text_postings)
-        self.desc_vocab = {t for t in df if t not in self.type_vocab}
+        self.desc_vocab = {t for t in doc_freq if t not in self.type_vocab}
         self.vocab = self.type_vocab | self.desc_vocab
         # longest attribute values first, so "sky blue" wins over "blue"; used by the query parser
         self.attr_candidates = sorted(
             ((len(toks), toks, key, val) for key, vals in self.attr_values.items() for toks, val in vals.items()),
             key=lambda c: -c[0],
         )
+
+    def _build_typo_lookup(self, cache_size: int) -> None:
+        """Group the product-type words by length (typo matching only compares similar lengths) and cache matches."""
         by_len: defaultdict[int, list[str]] = defaultdict(list)
         for word in self.type_vocab:
             by_len[len(word)].append(word)
         self._vocab_by_len = by_len
-        cache_size = typo_cache_size if typo_cache_size is not None else search.typo_cache_size
         self.closest = lru_cache(maxsize=cache_size)(self._closest)
 
     def _index_key_name(self, key: str) -> None:
@@ -218,7 +234,7 @@ class CatalogueIndex:
         if spec.sort == "rating_desc":
             return sorted(hits, key=lambda p: (-(p.rating or 0), -(p.rating_count or 0), p.price, p.id))
 
-        def score(p: Product):
+        def score(p: Product) -> tuple[bool, float, float, float, str]:
             rel = sum(self.idf.get(t, 1.0) for t in query_tokens & self.title_tokens[p.id])
             return (not p.in_stock, -rel, -(p.rating or 0), p.price, p.id)
 
@@ -253,7 +269,7 @@ def _unit_values(p: Product, unit: str) -> list:
     return [v for k, v in p.attributes.items() if k == unit or k.endswith(f"_{unit}")]
 
 
-def _numeric(value) -> float | None:
+def _numeric(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
