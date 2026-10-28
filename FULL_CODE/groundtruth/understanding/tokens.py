@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
 from ..catalogue import CatalogueIndex
+from ..text import normalise_word
 
 
 def repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
@@ -26,3 +29,25 @@ def repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
             out.append(tok)
         i += 1
     return out
+
+
+def join_split_names(text: str, index: CatalogueIndex) -> str:
+    """Rejoin a product-line name typed as two words, before stemming can change them ("nimbus air" -> "nimbusair";
+    stemming alone would turn "nimbus" into "nimbu" and the pair would no longer match)."""
+    words = re.findall(r"[a-z0-9]+|\S", text)
+    out, i = [], 0
+    while i < len(words):
+        a = words[i]
+        b = words[i + 1] if i + 1 < len(words) else ""
+        joined = normalise_word(a + b) if a.isalpha() and b.isalpha() else ""
+        if (
+            joined
+            and joined in index.vocab
+            and not (normalise_word(a) in index.vocab and normalise_word(b) in index.vocab)
+        ):
+            out.append(a + b)
+            i += 2
+            continue
+        out.append(a)
+        i += 1
+    return " ".join(out)

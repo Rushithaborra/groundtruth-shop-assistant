@@ -225,7 +225,9 @@ class ShoppingAssistant:
     def _pick_one(self, p: Parsed, spec: Spec, hits: list[Product]):
         """The one product the message is about; _AMBIGUOUS when several fit and differ; None for a listing."""
         specific = p.intents & {"price", "rating", "detail"}
-        if "stock" in p.intents and {"the", "this", "that"} & p.all_tokens:  # "is the grey backpack in stock"
+        # "is the grey backpack in stock", "Sanchayo NimbusMax container set stock me hai?": about these products
+        about_these = {"the", "this", "that"} & p.all_tokens or (p.is_question and len(hits) <= self.clarify_limit)
+        if "stock" in p.intents and about_these:
             specific = specific | {"stock"}
         if len(hits) == 1:
             return hits[0] if specific else None

@@ -294,7 +294,9 @@
     "kala": "black",
     "safed": "white",
     "hara": "green",
-    "peela": "yellow"
+    "peela": "yellow",
+    "rate": "price",
+    "rates": "price"
   },
   "external_brands": [
     "nike",

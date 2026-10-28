@@ -22,6 +22,7 @@ class Parsed:
     mapped: list[tuple[str, str]] = field(default_factory=list)  # (shopper word, catalogue word) from the fallback
     refined: bool = False  # set by the assistant when this turn was merged into the previous search
     superlative: bool = False  # one product wanted ("sabse sasta"), not a list
+    is_question: bool = False  # asked as a question ("?", "kya", "hai"), not a request to browse
     choice: list[str] = field(default_factory=list)  # two product kinds to choose between ("tshirt or shirt")
     all_tokens: set[str] = field(default_factory=set)  # every token (exact title matching)
 

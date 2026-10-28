@@ -38,7 +38,7 @@ from .measures import extract_measures
 from .money import extract_money
 from .parsed import Parsed
 from .sizes import extract_size
-from .tokens import repair_tokens
+from .tokens import join_split_names, repair_tokens
 
 
 def understand(query: str, index: CatalogueIndex) -> Parsed:
@@ -56,7 +56,7 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     low, parsed.spec.measures = extract_measures(low)
     low, parsed.spec.price_min, parsed.spec.price_max = extract_money(low)
 
-    tokens = repair_tokens(tokenize(low), index)
+    tokens = repair_tokens(tokenize(join_split_names(low, index)), index)
     parsed.all_tokens = set(tokens)
     token_set = set(tokens)
     parsed.mentioned = (
@@ -64,9 +64,10 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     )
 
     asks = bool(token_set & (WH_W | QUESTION_W)) or "?" in query or bool(parsed.product_id)
+    parsed.is_question = asks
     consumed = _match_attribute_names(parsed, tokens, index, asks)
     _apply_attribute_filters(parsed, tokens, index, consumed)
-    _detect_fact_intents(parsed, token_set, index, asks)
+    _detect_fact_intents(parsed, tokens, index, asks)
     _detect_sort(parsed, token_set)
     _classify_tokens(parsed, tokens, consumed, index)
     if token_set & CHOICE_W and token_set & (PREFERENCE_W | WH_W | BEST_W) and not parsed.spec.sort:
@@ -104,8 +105,10 @@ def _normalise(query: str, index: CatalogueIndex) -> tuple[str, bool, bool]:
     low = re.sub(r"\bsame[\s-]*day\b", "sameday", low)  # one delivery-time term, like "express"
     account = any(ph in low for ph in ACCOUNT_PHRASES)
     helpq = any(ph in low for ph in HELP_PHRASES)
-    if "backpack" in index.type_vocab:
-        low = BACKPACK_PHRASE.sub(lambda m: f"{m.group(1)} backpack", low)
+    if "backpack" in index.type_vocab:  # unless the catalogue itself sells "school bags"
+        low = BACKPACK_PHRASE.sub(
+            lambda m: m.group(0) if m.group(1) in index.type_vocab else f"{m.group(1)} backpack", low
+        )
     return low, account, helpq
 
 
@@ -151,8 +154,9 @@ def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: Catalogue
                 break
 
 
-def _detect_fact_intents(parsed: Parsed, token_set: set[str], index: CatalogueIndex, asks: bool) -> None:
+def _detect_fact_intents(parsed: Parsed, tokens: list[str], index: CatalogueIndex, asks: bool) -> None:
     """Price, stock, rating, and attribute questions ("what colour", "kitni moti", "material of P0042")."""
+    token_set = set(tokens)
     if token_set & PRICE_W:
         parsed.intents.add("price")
     if token_set & STOCK_W:
@@ -160,8 +164,9 @@ def _detect_fact_intents(parsed: Parsed, token_set: set[str], index: CatalogueIn
     if token_set & RATING_W:
         parsed.intents.add("rating")
     asked_words = token_set | {ATTRIBUTE_WORDS[t] for t in token_set if t in ATTRIBUTE_WORDS}  # "moti" -> thickness
+    in_names = _words_in_product_names(tokens, index)
     for ktok, keys in index.attr_key_groups.items():
-        if ktok not in asked_words or ktok in PRICE_W or not asks:
+        if ktok not in asked_words or ktok in PRICE_W or ktok in in_names or not asks:
             continue
         for key in keys:  # "water" asks about water_resistant and water_resistance_rating
             if key not in parsed.spec.filters and key not in parsed.spec.exclude and key not in parsed.detail_keys:
@@ -172,6 +177,14 @@ def _detect_fact_intents(parsed: Parsed, token_set: set[str], index: CatalogueIn
         parsed.intents.add("detail")
         if not token_set & EXPLICIT_PRICE_W:  # "kitni moti" asks how thick, not how much
             parsed.intents.discard("price")
+
+
+def _words_in_product_names(tokens: list[str], index: CatalogueIndex) -> set[str]:
+    """Words used as part of a product name here: "hair" in "hair dryers", "craft" in "art & craft kits".
+
+    Such a word doesn't ask about the attribute it also names (hair_type, craft_theme); an alias does ("paani").
+    """
+    return {w for pair in zip(tokens, tokens[1:]) if pair in index.name_pairs for w in pair}
 
 
 def _detect_sort(parsed: Parsed, token_set: set[str]) -> None:

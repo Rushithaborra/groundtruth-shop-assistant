@@ -425,6 +425,39 @@ A docstring script briefly broke a one-line method in `models/semantic.py`; ruff
 it, and every changed file is now compile-checked. 169 tests pass on Python 3.9 and 3.12; ruff clean with
 `--no-cache`; `pip-audit` clean.
 
+## Stress set from the catalogue, 28 October
+
+The dev questions are used up, so `main.py stress` (`tools/stress.py`) builds questions from the pack's catalogue
+(never from its dev or test questions), as the pack README says shoppers type: product-line names split
+("ripple flex") or joined, a dropped letter in the brand, lower case, Hinglish price / stock / material / water
+questions, colour + kind requests that match several products, and 14 items the store doesn't sell. Expected
+behaviour comes from plain catalogue filtering; the official scorer scores it. Products are split by hash into a
+**tune** part (68 questions, failures read and fixed) and a **holdout** part (81, scored only).
+
+General fixes from the tune failures:
+
+| Failure | Fix |
+|---|---|
+| "nimbus air" not matched to NimbusAir (stemming made "nimbus" "nimbu") | Split line names are rejoined from the raw words, before stemming |
+| "hair dryers kitne ka" refused for a missing `hair_type`; "art & craft kits paani me chalega" answered with `craft_theme` | A word that is part of a product name here (adjacent catalogue name words: "hair dryer", "craft kit") doesn't ask about the attribute it also names; aliases like "paani" still do |
+| "school bags" rewritten to "school backpack" in a catalogue that sells School Bags | The rewrite applies only when the catalogue doesn't use the word itself |
+| "ka rate kya hai" read as browsing | "rate" means price |
+| (regression found on dev) "Sanchayo NimbusMax ... container set stock me hai?" clarified only because "container" was misread as an attribute question | A stock question that narrows to a few products is about those products (asks which one when they differ); a broad "backpacks in stock?" still lists |
+
+| Official scorer | Before | After |
+|---|---|---|
+| Stress tune (68) | 0.933 | 0.9996 |
+| **Stress holdout (81, not inspected)** | **0.885** | **0.961** |
+| Dev tune half (20) | 1.000 | 1.000 |
+| **Dev check half (20, not inspected)** | **0.840** | **0.865** |
+| All 40 dev | 0.920 | 0.9325 |
+| Hallucinated prices | 0 | 0 |
+
+Dev replies changed: "krida ion flex football rate?" now clarifies between sizes at different prices, and
+"Pagecraft BlazePro 10 pack fountain pen stock me hai?" now names its product and stock. Synthetic sets all 1.0.
+14 of the 150 test predictions changed (answer 67, clarify 34, refuse 49). Mean latency 0.69 ms. 178 tests pass
+(9 new: 6 for name handling, 3 of which fail on the previous commit, and 3 for the stress generator).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

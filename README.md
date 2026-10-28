@@ -57,6 +57,7 @@ against the pack's format before writing. To score the dev questions with the or
 ```bash
 uv sync                                          # once: the scorer needs pandas and numpy (dev-only)
 uv run python main.py score --baseline --details # reports in output/reports/
+uv run python main.py stress --part holdout      # catalogue-built stress set, scored by the same official scorer
 ```
 
 The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column spellings (`id|product_id|sku`,
@@ -202,10 +203,12 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
 
 ## Limitations
 
-* **Official scores are on 20 questions.** The 40 dev questions were split in half: rules were tuned on one half,
-  and the other half (never inspected) scores **0.840**, against the shipped baseline's 0.8275 on the same 20
-  questions. That lead is within noise. All 40 dev score 0.920 (baseline 0.7315), but that includes the tuned half.
-  The organisers' 150 test questions are only used to write the submission. Weakest type: attribute questions.
+* **Official scores are on small samples.** The 40 dev questions were split in half: rules were tuned on one half,
+  and the other half (never inspected question by question) scores **0.865**, against the shipped baseline's 0.8275
+  on the same 20 questions. All 40 dev score 0.9325 (baseline 0.7315), but that includes the tuned half. A stress
+  set built from the catalogue (`main.py stress`: split and misspelt product names, Hinglish, unsold items,
+  unlisted facts) scores 0.961 on its held-back half; it was written by us, so it measures robustness to those
+  phrasings, not general accuracy. The organisers' 150 test questions are only used to write the submission.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
 * **No model in the shipped path.** The provided models were measured and didn't help on dev (see AI usage), so

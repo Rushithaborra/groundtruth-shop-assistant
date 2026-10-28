@@ -80,6 +80,7 @@ class CatalogueIndex:
         self.attr_keys: dict[str, str] = {}  # normalised key token -> key
         self.attr_key_groups: dict[str, list[str]] = {}  # key token -> every key containing it ("water" -> 2 keys)
         self.attr_key_phrases: dict[tuple, str] = {}  # multi-word key names: ("shoe", "compartment") -> key
+        self.name_pairs: set[tuple[str, str]] = set()  # adjacent words in product names: ("hair", "dryer")
         self._text_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title/category/attrs -> pids
         self._title_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title -> pids
         self._attr_postings: defaultdict[tuple, set[str]] = defaultdict(set)  # (key, lower value) -> pids
@@ -88,6 +89,8 @@ class CatalogueIndex:
         df: Counter = Counter()
         for p in products:
             title = frozenset(tokenize(p.title))
+            for words in (tokenize(p.title), tokenize(str(p.attributes.get("sub_category", "")))):
+                self.name_pairs.update(zip(words, words[1:]))
             text = set(title) | set(tokenize(p.category))
             lowered = {}
             for key in p.attributes:
