@@ -85,7 +85,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 179 tests
+uv run pytest        # 198 tests
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -133,7 +133,8 @@ The core (`groundtruth/`) does not depend on the web layer and is tested on its 
 Product cards are built only from the cited catalogue records. Tapping a citation flips the card to the exact record or
 policy section. Every reply is re-checked by the grounding checker, and the result is shown next to it. The page also
 shows the remembered filters and budget, how the last message was read, a side-by-side compare, and a retailer view
-(`/insights`) of what was asked for but isn't stocked.
+(`/insights`) of what was asked for that nothing in the catalogue fits, kept apart from words the assistant couldn't
+place (a typo or synonym may be stocked).
 
 A tested 90-second walkthrough, with the questions to type and the numbers to quote, is in
 `FULL_CODE/docs/demo_script.md`.

@@ -508,6 +508,33 @@ must stay 0.9996) were not run, because the pack was not on the machine used. Th
 only; every new type annotation is a string under `from __future__ import annotations`, so Python 3.9 should be
 unaffected, but it was not run there.
 
+## Review findings fixed, 28 October
+
+An outside review of `main` raised four code issues. Each was reproduced first, then fixed with a regression test
+(16 new tests, 198 in all; ruff clean; the 327 synthetic reply and score entries are unchanged).
+
+1. **The price checker could be fooled** (`grounding/checker.py`). It accepted a price that was right for *another*
+   cited product, and a price only the shopper had typed. Now each ₹ amount must belong to the citation next to it
+   (the next one after it in the same sentence or line), and the shopper's own numbers count only as a budget
+   ("under ₹500"). Three of the seven new tests fail on the old checker. The assistant's own replies never made these
+   mistakes (checked), so this makes the safety net as strong as the README says; it does not change any reply.
+2. **"ships in 3 days" was read as "in stock"** (`catalogue/loader.py`). Shipping and delivery times ("ships
+   tomorrow", "dispatched in 24 hours", "available in 5 days") now leave the stock status unknown; an explicit
+   state ("in stock") or count ("Only 5 left") still counts, even beside a shipping time. The old test that expected
+   `True` for "ships in 3 days" was changed. If the real pack writes stock as "ships in N days" for items it has, those
+   products now say "no stock status in the catalogue", which is honest but less helpful; check the pack's values.
+3. **The retailer view claimed more than it knew** (`api/state.py`, `web/`). A refusal caused by a word the parser
+   couldn't place (the typo "sneekers") was counted as "asked for, not stocked". The view now keeps requests it fully
+   understood and couldn't fill ("not stocked") apart from words it couldn't place ("not understood"), and the CSV
+   has a `kind` column. A visitor's own list of refused requests is unchanged.
+4. **Catalogue loading could drop products silently** (`builder.py`, `config.py`, `config.json`). The organisers'
+   catalogue is now loaded strictly: a malformed row or duplicate id stops the run, and so does a count other than
+   `catalogue.pack_expected_products` (5000, from the brief; set it to `null` or the right number if the pack differs).
+   Other catalogues are loaded as before, skipping bad rows with a warning. `build_assistant(strict=...)` overrides.
+
+Still to do before submitting: run `score`, `stress`, `submit` and `package` on the final commit with the pack (strict
+loading is exercised only there), and the tests on Python 3.9 and 3.12; they were run on 3.13 only.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
