@@ -9,7 +9,7 @@ from .response import Claims
 SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}
 
 
-def head_nouns(index: CatalogueIndex) -> frozenset:
+def head_nouns(index: CatalogueIndex) -> frozenset[str]:
     """Words that name what a product is: the last word of each title (\"... Running Shoes (Blue)\" -> \"shoe\")."""
     nouns = set()
     for p in index.products.values():
@@ -28,7 +28,7 @@ def stock_text(p: Product) -> str:
     return "in stock" if p.in_stock else "out of stock"
 
 
-def product_line(p: Product, claims: Claims, price=True, rating=True, stock=True) -> str:
+def product_line(p: Product, claims: Claims, price: bool = True, rating: bool = True, stock: bool = True) -> str:
     """One cited catalogue line, e.g. '- Title: ₹1,299, rated 4.1 stars, in stock [P0001]', recorded in `claims`."""
     claims.cite(p)
     parts = []
