@@ -18,48 +18,67 @@ def describe(spec: Spec) -> str:
 def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> Response:
     """Nothing satisfies every constraint: refuse, naming the nearest product outside the budget or filters."""
     base = "I don't have that in the catalogue."
-    if spec.price_max is not None or spec.price_min is not None:
-        looser = spec.copy()
-        looser.price_min = looser.price_max = None
-        alt, _ = index.search(looser, p.all_tokens)
-        if alt:
-            lowest = spec.price_max is not None
-            pick = (min if lowest else max)(alt, key=lambda x: x.price)
-            claims = Claims()
-            claims.price(pick)
-            what = describe(spec)
-            if what:
-                if spec.price_min is not None and spec.price_max is not None:
-                    budget = f"between {format_inr(spec.price_min)} and {format_inr(spec.price_max)}"
-                elif lowest:
-                    budget = f"under {format_inr(spec.price_max)}"
-                else:
-                    budget = f"over {format_inr(spec.price_min)}"
-                return Response(
-                    f"No {what} {budget} in the catalogue; the "
-                    f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
-                    f"at {format_inr(pick.price)} [{pick.id}].",
-                    REFUSE,
-                    claims=claims,
-                )
-            return Response(
-                f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
-                f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].",
-                REFUSE,
-                claims=claims,
-            )
-    if spec.filters or spec.size:
-        looser = spec.copy()
-        looser.filters, looser.size = {}, None
-        alt, _ = index.search(looser, p.all_tokens)
-        if alt:
-            lines = [f"{base} Similar products without that exact combination:"]
-            claims = Claims()
-            for h in alt[:list_limit]:
-                lines.append(f"- {h.title} [{h.id}]")
-                claims.cite(h)
-            return Response("\n".join(lines), REFUSE, claims=claims)
-    return Response(base, REFUSE)
+    return (
+        _outside_budget(index, spec, p, base)
+        or _without_filters(index, spec, p, list_limit, base)
+        or Response(base, REFUSE)
+    )
+
+
+def _outside_budget(index: CatalogueIndex, spec: Spec, p: Parsed, base: str) -> Response | None:
+    """The cheapest (or dearest) product that fits except for the budget, when the budget is what ruled things out."""
+    if spec.price_max is None and spec.price_min is None:
+        return None
+    looser = spec.copy()
+    looser.price_min = looser.price_max = None
+    alt, _ = index.search(looser, p.all_tokens)
+    if not alt:
+        return None
+    lowest = spec.price_max is not None
+    pick = (min if lowest else max)(alt, key=lambda x: x.price)
+    claims = Claims()
+    claims.price(pick)
+    what = describe(spec)
+    if what:
+        return Response(
+            f"No {what} {_budget_phrase(spec)} in the catalogue; the "
+            f"{'cheapest' if lowest else 'most expensive'} {what} I have is {pick.title} "
+            f"at {format_inr(pick.price)} [{pick.id}].",
+            REFUSE,
+            claims=claims,
+        )
+    return Response(
+        f"{base} The {'lowest' if lowest else 'highest'}-priced option that matches otherwise "
+        f"is {pick.title} at {format_inr(pick.price)} [{pick.id}].",
+        REFUSE,
+        claims=claims,
+    )
+
+
+def _budget_phrase(spec: Spec) -> str:
+    """The shopper's budget in words: "under ₹500", "over ₹500" or "between ₹500 and ₹900"."""
+    if spec.price_min is not None and spec.price_max is not None:
+        return f"between {format_inr(spec.price_min)} and {format_inr(spec.price_max)}"
+    if spec.price_max is not None:
+        return f"under {format_inr(spec.price_max)}"
+    return f"over {format_inr(spec.price_min)}"
+
+
+def _without_filters(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int, base: str) -> Response | None:
+    """Products of the right kind without the asked-for filter or size, when that combination is what's missing."""
+    if not (spec.filters or spec.size):
+        return None
+    looser = spec.copy()
+    looser.filters, looser.size = {}, None
+    alt, _ = index.search(looser, p.all_tokens)
+    if not alt:
+        return None
+    lines = [f"{base} Similar products without that exact combination:"]
+    claims = Claims()
+    for h in alt[:list_limit]:
+        lines.append(f"- {h.title} [{h.id}]")
+        claims.cite(h)
+    return Response("\n".join(lines), REFUSE, claims=claims)
 
 
 def alternatives(
