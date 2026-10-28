@@ -210,6 +210,8 @@ TYPES = [
 
 
 def make_catalogue() -> list[dict]:
+    """The small synthetic catalogue, with exactly three blue running shoes so that 'the blue running
+    shoe' is an ambiguous question."""
     products, used, counter = [], set(), 1
     for t in TYPES:
         made = 0
@@ -278,6 +280,7 @@ POLICY = (
 
 
 def is_match(p, *, title_has=None, filters=None, max_price=None, min_price=None):
+    """Whether a product fits a title word, attribute values and a price range; used to work out expectations."""
     if title_has and title_has.lower() not in (p["title"] + " " + p["category"]).lower():
         return False
     for k, v in (filters or {}).items():
@@ -290,9 +293,12 @@ def is_match(p, *, title_has=None, filters=None, max_price=None, min_price=None)
 
 
 def make_questions(products: list[dict]) -> list[dict]:
+    """The standard question set for a catalogue (facts, searches, ambiguity, refusals, policy,
+    multi-turn), with expectations computed by brute force over the catalogue."""
     qs: list[dict] = []
 
     def add(turns, behaviour, **expected):
+        """Add one question with its expected behaviour and details."""
         qs.append(
             {
                 "id": f"q{len(qs) + 1:03d}",
@@ -302,6 +308,7 @@ def make_questions(products: list[dict]) -> list[dict]:
         )
 
     def unique(**kw):
+        """Products matching the given constraints."""
         return [p for p in products if is_match(p, **kw)]
 
     # --- specific facts about a uniquely named product ---
@@ -328,6 +335,7 @@ def make_questions(products: list[dict]) -> list[dict]:
 
     # --- searches with constraints (valid_ids = every product satisfying them) ---
     def search(q, **kw):
+        """Add a search question: answerable if any product fits, otherwise expected to be refused."""
         ids = [p["id"] for p in unique(**kw)]
         add(q, "answer" if ids else "refuse", valid_ids=ids)
 
@@ -415,6 +423,7 @@ def make_questions(products: list[dict]) -> list[dict]:
 
 
 def main() -> None:
+    """Write the catalogue, the policy and the questions into data/."""
     products = make_catalogue()
     (OUT / "catalogue.jsonl").write_text(
         "\n".join(json.dumps(p, ensure_ascii=False) for p in products) + "\n", encoding="utf-8"
