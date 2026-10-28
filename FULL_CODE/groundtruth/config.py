@@ -42,6 +42,7 @@ class PathSettings:
     pack_policy: Path
     dev_questions: Path
     dev_truth: Path
+    dev_split: Path
     test_questions: Path
     official_scorer: Path
     submission: Path

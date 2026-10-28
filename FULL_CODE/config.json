@@ -12,6 +12,7 @@
     "pack_policy": "data/pack/data/policy.md",
     "dev_questions": "data/pack/data/questions_dev.csv",
     "dev_truth": "data/pack/data/questions_dev_truth.jsonl",
+    "dev_split": "data/dev_split.json",
     "test_questions": "data/pack/data/questions_test.csv",
     "official_scorer": "data/pack/evaluate.py",
     "submission": "../submission/R3_predictions.jsonl",
