@@ -10,6 +10,9 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    # the pack's official scorer and baseline need numpy and pandas; the assistant does not
+    "numpy==2.2.6",
+    "pandas==2.3.3",
     "pip-audit==2.10.1",
     "pytest==9.1.1",
     "ruff==0.14.0",

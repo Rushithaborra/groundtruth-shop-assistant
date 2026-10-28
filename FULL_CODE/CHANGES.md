@@ -189,6 +189,55 @@ So the lockfile now targets 3.10+ (`[tool.uv] environments`) and the dev environ
 No evaluation set was tuned on in Task 1, so contamination is unchanged: the last clean generalisation estimate is
 still **0.987** (held-out set 2).
 
+## Task 2: the organisers' data and format, 28 October
+
+The problem pack (5,000-product catalogue, Markdown policy, 40 dev questions with expected behaviour, 150 test
+questions, `evaluate.py`, a baseline) lives in the git-ignored `data/pack/`. Its README changed several assumptions:
+submissions are **structured** (cited products and policy sections, stated prices and facts under exact catalogue
+field names); the score is `action_correct × (0.4 + 0.3·grounded + 0.3·helpful) − 3 × hallucinated prices`; clarify
+only when the matching products differ in what was asked; refuse when an attribute is absent (except a missing
+`warranty_months`, which policy 3.1 answers).
+
+| Commit | Change |
+|---|---|
+| `7cb6fd5` | Load the pack: keep the catalogue's own field names, `mrp_inr` and the 3-way `stock_status`; Markdown policy split into its 30 numbered sub-sections; question CSVs with multi-turn conversations |
+| `1033c1e` | Every reply records its citations, prices and facts as structured claims, copied from the catalogue record in code |
+| `df35f0d` | `main.py submit` writes `submission/R3_predictions.jsonl` (validated: one line per question, required keys, prices only for cited products) |
+| this commit | `main.py score` runs the pack's `evaluate.py` unchanged, beside the pack's baseline |
+
+**Honest starting point** (official scorer, 40 dev questions, `uv run python main.py score --baseline`). This is the
+assistant as built for the synthetic data, before any change for the pack's rules:
+
+| | Shipped baseline | GroundTruth (untuned) |
+|---|---|---|
+| **Primary score** | **0.7315** | **0.6738** |
+| Action accuracy | 0.825 | 0.713 |
+| Grounded / helpful (action right) | 0.849 / 0.774 | 0.931 / 0.891 |
+| Refusal P / R | 0.857 / 0.600 | 0.500 / 0.700 |
+| Clarify P / R | 0.667 / 1.000 | 0.750 / 0.750 |
+| Hallucinated prices | 0 | 0 |
+| Mean latency | 2.27 ms | 1.26 ms |
+
+| Question type (n) | Baseline | GroundTruth |
+|---|---|---|
+| answer_lookup (9) | 0.767 | 0.889 |
+| answer_attribute (3) | 0.850 | 0.283 |
+| answer_filter (3) | 0.800 | 0.300 |
+| answer_superlative (2) | 0.700 | 0.200 |
+| answer_compare (1) | 0.900 | 0.900 |
+| answer_policy (4) | 0.450 | 0.600 |
+| clarify_ambiguous (8) | 0.914 | 0.812 |
+| refuse_out_of_catalogue (6) | 0.500 | 0.833 |
+| refuse_unanswerable (3) | 0.667 | 0.333 |
+| refuse_policy_gap (1) | 1.000 | 1.000 |
+
+What to fix (on dev only; the 150 test questions are only ever used to write the submission): attribute and
+superlative questions, "show me" filters, refusing facts the catalogue doesn't list, and clarifying only when the
+matches differ. The committed `submission/R3_predictions.jsonl` is from this untuned version and will be regenerated.
+
+Development dependencies added: numpy 2.2.6 and pandas 2.3.3 (the official scorer and baseline need them; the
+assistant doesn't). `pip-audit` still finds no known vulnerabilities. 117 tests pass on Python 3.9 and 3.12.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

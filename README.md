@@ -45,8 +45,13 @@ python3 main.py submit --split dev     # the 40 dev questions -> output/R3_dev_p
 ```
 
 `submit` answers each conversation in turn order (later turns keep the earlier constraints) and checks every line
-against the pack's format before writing. To score the dev file with the organisers' own scorer, run
-`evaluate.py` from `data/pack/`, as the pack's README describes; it needs `pandas` and `numpy`.
+against the pack's format before writing. To score the dev questions with the organisers' own scorer (the pack's
+`evaluate.py`, run unchanged), beside their shipped baseline:
+
+```bash
+uv sync                                          # once: the scorer needs pandas and numpy (dev-only)
+uv run python main.py score --baseline --details # reports in output/reports/
+```
 
 The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column spellings (`id|product_id|sku`,
 `title|name`, prices like "₹1,299", stock like "Only 2 left", attributes as a dict, JSON string or flat columns). Bad
@@ -157,14 +162,15 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
 
 ## Limitations
 
-* **Synthetic data so far.** The catalogue, the questions and the fixes were all written by the same people, so the
-  scores below are optimistic. Every set scores 1.0 because the sets were tuned on; the last clean (untuned)
-  generalisation estimate was **0.987** on held-out set 2, before its two failures were fixed. Expect lower scores on
-  the organisers' catalogue and 150 hidden questions, mostly from vocabulary (synonyms, Hinglish spellings),
-  ambiguity thresholds and policy wording.
-* **Not yet run on the problem pack** (its catalogue, policy and question format) and **not yet run with the provided
-  models**, so the real token and latency cost of the fallbacks is unmeasured.
-* **The scoring weights are our assumption** (`config.json`, evaluation section) until the official rubric is known.
+* **Official dev score, before tuning for the pack's rules: 0.674**, below the shipped baseline's 0.7315 on the same
+  40 dev questions. Grounding is stronger than the baseline's (grounded 0.931 vs 0.849, helpfulness 0.891 vs 0.774,
+  0 hallucinated prices); choosing the action is weaker (0.713 vs 0.825), mainly on attribute, filter and superlative
+  questions and on refusing facts the catalogue doesn't list. Only the 40 dev questions are used for tuning.
+* **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
+  1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
+* **Not yet run with the provided models**, so the real token and latency cost of the fallbacks is unmeasured.
+* **`main.py evaluate`** scores the synthetic sets with our own assumed weights (`config.json`, evaluation
+  section); the official score comes from `main.py score`.
 * **Known behaviour gaps:** "which sizes" as a follow-up after a listing; "tshirt or shirt which is better" refuses
   instead of clarifying; "do you deliver on sunday" gives delivery days without saying the policy doesn't mention
   Sundays; a describing word plus an unknown noun leans towards refusing (safer, but it may refuse unusual synonyms).

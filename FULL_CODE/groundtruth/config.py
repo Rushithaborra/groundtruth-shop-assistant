@@ -101,6 +101,7 @@ class EvaluationSettings:
     weight_helpfulness: float
     weight_refusal: float
     hallucinated_price_penalty: float
+    scorer_timeout_s: float
 
 
 @dataclass(frozen=True)
@@ -198,6 +199,7 @@ def parse_settings(raw: dict) -> Settings:
         hallucinated_price_penalty=_float(
             "evaluation.hallucinated_price_penalty", e["hallucinated_price_penalty"], 0, 1
         ),
+        scorer_timeout_s=_float("evaluation.scorer_timeout_s", e["scorer_timeout_s"], 1, 3600),
     )
     total = evaluation.weight_groundedness + evaluation.weight_helpfulness + evaluation.weight_refusal
     if abs(total - 1.0) > 1e-9:
