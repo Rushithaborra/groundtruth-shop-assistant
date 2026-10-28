@@ -11,16 +11,19 @@ from pathlib import Path
 from typing import Sequence
 
 from ..config import get_settings
+from ..errors import GroundTruthError
 from .calls import call_model
 from .semantic import unit
 
 
-class ModelLoadError(RuntimeError):
+class ModelLoadError(GroundTruthError, RuntimeError):
     """A model or the library that runs it is missing."""
 
 
 def _missing_library(name: str) -> ModelLoadError:
-    return ModelLoadError(f"{name} is not installed; run `uv sync --group models` to use the provided models")
+    return ModelLoadError(
+        f"{name} is not installed; the model libraries are optional and installed by hand (see README, 'How to run')"
+    )
 
 
 class LocalEmbedder:
@@ -42,6 +45,7 @@ class LocalEmbedder:
         )
 
     def encode(self, texts: Sequence[str]) -> list[list[float]]:
+        """Unit-length vectors for the texts (through call_model)."""
         batch = list(texts)
         vectors = call_model(
             lambda: self._model.encode(batch, normalize_embeddings=True).tolist(),

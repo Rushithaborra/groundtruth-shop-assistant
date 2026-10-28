@@ -91,6 +91,7 @@ def summarise(rows: list[dict]) -> dict:
 
 
 def write_report(rows: list[dict], summary: dict, out_dir: Path) -> tuple[Path, Path]:
+    """Write the per-query CSV and the summary JSON; returns their paths."""
     out_dir.mkdir(parents=True, exist_ok=True)
     per_query, totals = out_dir / "cost_report.csv", out_dir / "cost_report.json"
     with per_query.open("w", encoding="utf-8", newline="") as fh:

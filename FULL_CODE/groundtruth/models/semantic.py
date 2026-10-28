@@ -26,15 +26,19 @@ from ..policy import Section
 class Embedder(Protocol):
     name: str
 
-    def encode(self, texts: Sequence[str]) -> list[list[float]]: ...
+    def encode(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed texts as vectors."""
+        ...
 
 
 def unit(v: Sequence[float]) -> list[float]:
+    """The vector scaled to length 1."""
     n = math.sqrt(sum(x * x for x in v)) or 1.0
     return [x / n for x in v]
 
 
 def dot(a: Sequence[float], b: Sequence[float]) -> float:
+    """Dot product (cosine similarity for unit vectors)."""
     return sum(x * y for x, y in zip(a, b))
 
 
@@ -91,6 +95,7 @@ class SemanticFallback:
         return vecs
 
     def nearest_type(self, word: str) -> Match | None:
+        """The catalogue product-type word closest to a shopper word, with its similarity."""
         if word not in self._memo:
             if not self.targets:
                 self._memo[word] = None
@@ -120,6 +125,7 @@ class SemanticFallback:
         return changed
 
     def policy_sentence(self, query: str) -> tuple[Section, str, float] | None:
+        """The policy sentence closest to the query, if it clears the calibrated threshold."""
         if self.policy_threshold is None or not self.policy_units:
             return None
         v = self.embedder.encode([query])[0]
@@ -131,5 +137,6 @@ class SemanticFallback:
 
 
 def load_config(path: str | Path) -> dict | None:
+    """Calibrated thresholds from main.py calibrate, or None if not calibrated yet."""
     path = Path(path)
     return json.loads(path.read_text()) if path.exists() else None

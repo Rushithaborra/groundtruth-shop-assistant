@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..errors import DataFileError
 from ..text import content_tokens, split_sentences, tokenize
 
 
@@ -37,7 +38,11 @@ _MARKUP = re.compile(r"\*\*|__|`")
 
 
 def load_policy(path: str | Path) -> list[Section]:
-    text = Path(path).read_text(encoding="utf-8")
+    """Policy sections from Markdown with numbered sub-sections, or from plain text split on blank lines."""
+    path = Path(path)
+    if not path.is_file():
+        raise DataFileError(f"policy file not found: {path}")
+    text = path.read_text(encoding="utf-8")
     if _SUBSECTION.search(text):
         return _numbered_sections(text)
     return _plain_sections(text)

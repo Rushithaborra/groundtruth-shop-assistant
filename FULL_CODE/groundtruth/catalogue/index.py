@@ -38,6 +38,7 @@ class Spec:
     in_stock_only: bool = False  # "cheapest one that's in stock"
 
     def copy(self) -> Spec:
+        """An independent copy that can be changed without touching this one."""
         return Spec(
             self.type_tokens[:],
             self.desc_tokens[:],
@@ -53,6 +54,7 @@ class Spec:
         )
 
     def is_empty(self) -> bool:
+        """No product, filter, budget, size or exclusion at all."""
         return not (
             self.type_tokens
             or self.desc_tokens
@@ -205,6 +207,7 @@ class CatalogueIndex:
         return self.rank(hits, spec, query_tokens), relaxed
 
     def rank(self, hits: list[Product], spec: Spec, query_tokens: set[str] | frozenset[str]) -> list[Product]:
+        """Order matches: by the requested sort, else in stock first, then query-word relevance and rating."""
         if spec.sort == "price_asc":
             return sorted(hits, key=lambda p: (p.price, -(p.rating or 0), p.id))
         if spec.sort == "price_desc":

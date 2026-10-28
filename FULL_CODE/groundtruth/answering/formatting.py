@@ -22,6 +22,7 @@ def head_nouns(index: CatalogueIndex) -> frozenset:
 
 
 def stock_text(p: Product) -> str:
+    """Stock as shopper words; unknown stock is said to be not listed."""
     if p.in_stock is None:
         return "stock status not listed"
     return "in stock" if p.in_stock else "out of stock"

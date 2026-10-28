@@ -65,6 +65,7 @@ def no_match(index: CatalogueIndex, spec: Spec, p: Parsed, list_limit: int) -> R
 def alternatives(
     index: CatalogueIndex, spec: Spec, p: Parsed, header: str, list_limit: int, claims: Claims
 ) -> list[str]:
+    """Cited lines for the closest products a refusal can offer, with a header."""
     hits, _ = index.search(spec, p.all_tokens)
     if not hits:
         return []

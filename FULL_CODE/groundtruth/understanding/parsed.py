@@ -27,11 +27,13 @@ class Parsed:
 
     @property
     def has_product_ref(self) -> bool:
+        """The message names a product, a kind of product, a filter or a size."""
         s = self.spec
         return bool(self.product_id or self.mentioned or s.type_tokens or s.desc_tokens or s.filters or s.size)
 
     @property
     def has_constraint(self) -> bool:
+        """Any product reference, budget, measurement or exclusion."""
         s = self.spec
         return (
             self.has_product_ref

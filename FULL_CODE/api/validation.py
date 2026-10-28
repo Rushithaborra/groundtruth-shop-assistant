@@ -84,5 +84,6 @@ def chat_request(data: dict, max_chars: int) -> ChatRequest:
 
 
 def reset_request(data: dict) -> str | None:
+    """A reset request: only an optional session id."""
     _only_keys(data, {"session_id"})
     return session_id(data)

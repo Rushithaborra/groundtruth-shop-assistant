@@ -23,6 +23,7 @@ import sys
 
 from groundtruth.config import ConfigError, get_settings
 from groundtruth.console import configure_console
+from groundtruth.errors import GroundTruthError
 from groundtruth.paths import ROOT
 
 # Generators in the order their inputs need them (the scale and question sets read the catalogues written before).
@@ -44,6 +45,7 @@ def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     # imported here, after the settings have loaded: these modules read settings at import time
+    """The command-line parser, one sub-command per task."""
     from api import server
     from groundtruth import cli
     from groundtruth.evaluation import cost_report, official, scoring, submission
@@ -70,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run one command; returns the exit code."""
     try:
         settings = get_settings()
     except ConfigError as exc:
@@ -78,7 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     configure_console(settings.logging.level)
     args = build_parser().parse_args(argv)
-    args.handler(args)
+    try:
+        args.handler(args)
+    except GroundTruthError as exc:  # the user can fix these; the message says how
+        logging.getLogger("groundtruth").error("%s", exc)
+        return 1
     return 0
 
 

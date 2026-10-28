@@ -19,6 +19,7 @@ from ..arguments import add_model_arguments
 from ..builder import build_assistant
 from ..config import get_settings
 from ..console import write_out
+from ..errors import GroundTruthError
 from .questions import load_questions
 from .submission import predict, validate_predictions, write_predictions
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 FORMAT_ERROR_EXIT = 2  # the official scorer's exit code for a malformed submission
 
 
-class ScorerError(RuntimeError):
+class ScorerError(GroundTruthError, RuntimeError):
     """The official scorer could not run, timed out, or rejected the submission."""
 
 

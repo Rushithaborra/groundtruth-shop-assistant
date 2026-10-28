@@ -24,24 +24,29 @@ class Claims:
     facts: list[tuple[str, str, Any]] = field(default_factory=list)  # (product id, catalogue field, value)
 
     def cite(self, product: Product) -> None:
+        """Cite a product (once)."""
         if product.id not in self.products:
             self.products.append(product.id)
 
     def price(self, product: Product) -> None:
+        """State a product's selling price, from its catalogue record."""
         self.cite(product)
         if (product.id, product.price) not in self.prices:
             self.prices.append((product.id, product.price))
 
     def fact(self, product: Product, catalogue_field: str, value: Any) -> None:
+        """State a fact about a product under a catalogue field name."""
         self.cite(product)
         if (product.id, catalogue_field, value) not in self.facts:
             self.facts.append((product.id, catalogue_field, value))
 
     def stock(self, product: Product) -> None:
+        """State the catalogue's own stock value, if it gives one."""
         if product.stock_status is not None:
             self.fact(product, "stock_status", product.stock_status)
 
     def rating(self, product: Product) -> None:
+        """State the rating and review count, if the catalogue has a rating."""
         if product.rating is not None:
             self.fact(product, "rating", product.rating)
             if product.rating_count:
@@ -53,10 +58,12 @@ class Claims:
             self.fact(product, product.source_key(key), product.attributes[key])
 
     def section(self, section_id: str) -> None:
+        """Cite a policy section (once)."""
         if section_id not in self.sections:
             self.sections.append(section_id)
 
     def merge(self, other: Claims) -> None:
+        """Add another reply's claims (for a reply made of two parts)."""
         for pid in other.products:
             if pid not in self.products:
                 self.products.append(pid)
@@ -80,6 +87,7 @@ class Response:
 
     @property
     def citations(self) -> list[str]:
+        """The citations written in the text, in order, without repeats."""
         return list(dict.fromkeys(CITATION.findall(self.text)))
 
 
@@ -90,4 +98,5 @@ class Session:
     shown: list[str] = field(default_factory=list)  # products in the last listing, for "which sizes?"
 
     def clear(self) -> None:
+        """Forget everything the session remembers."""
         self.spec, self.last_product, self.shown = Spec(), None, []

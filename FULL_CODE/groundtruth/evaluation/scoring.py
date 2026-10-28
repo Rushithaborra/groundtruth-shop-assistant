@@ -41,6 +41,7 @@ from ..grounding import Grounding
 
 
 def load_cases(path: Path) -> list[dict]:
+    """Synthetic question cases (JSONL), accepting a few field spellings."""
     cases = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -55,6 +56,7 @@ def load_cases(path: Path) -> list[dict]:
 
 
 def helpfulness(resp, exp: dict, cited: list[str]) -> float:
+    """Share of the expected facts, products and policy sections the reply got right (0 to 1)."""
     if exp.get("behaviour") != "answer":
         return 1.0 if resp.action == exp.get("behaviour") else 0.0
     if resp.action != "answer":
@@ -91,39 +93,44 @@ def run(args: argparse.Namespace) -> None:
         args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=True
     )
     grounding = Grounding(assistant.index, assistant.sections)
-    cases = load_cases(Path(args.questions))
-    rows, confusion = [], {}
-    for case in cases:
-        session, resp = Session(), None
-        for turn in case["turns"]:
-            resp = assistant.ask(turn, session)
-        exp = case["expected"]
-        accept = exp["behaviour"] if isinstance(exp.get("behaviour"), list) else [exp.get("behaviour")]
-        exp = {**exp, "behaviour": resp.action if resp.action in accept else accept[0]}
-        g = grounding.check(resp.text, " ".join(case["turns"]))
-        behaviour_ok = resp.action in accept
-        confusion[(exp.get("behaviour"), resp.action)] = confusion.get((exp.get("behaviour"), resp.action), 0) + 1
-        rows.append(
-            {
-                "id": case["id"],
-                "query": " | ".join(case["turns"]),
-                "expected": exp.get("behaviour"),
-                "action": resp.action,
-                "behaviour_ok": behaviour_ok,
-                "grounded": not g["problems"],
-                "hallucinated_prices": g["hallucinated_prices"],
-                "helpfulness": helpfulness(resp, exp, g["cited"]),
-                "problems": "; ".join(g["problems"]),
-                "latency_ms": round(resp.latency_ms, 3),
-                "context_tokens": resp.context_tokens,
-                "output_tokens": resp.output_tokens,
-                "path": resp.path,
-                "llm_input_tokens": resp.llm_input_tokens,
-                "llm_output_tokens": resp.llm_output_tokens,
-                "reply": resp.text,
-            }
-        )
+    rows = [score_case(assistant, grounding, case) for case in load_cases(Path(args.questions))]
+    summary = summarise(rows, args.price_in, args.price_out)
+    out_dir = write_reports(rows, summary, Path(args.out))
+    write_out(json.dumps(summary, indent=2, ensure_ascii=False))
+    report_failures(rows, out_dir, args.verbose)
 
+
+def score_case(assistant, grounding: Grounding, case: dict) -> dict:
+    """Ask one case's turns in one session and score the last reply."""
+    session, resp = Session(), None
+    for turn in case["turns"]:
+        resp = assistant.ask(turn, session)
+    exp = case["expected"]
+    accept = exp["behaviour"] if isinstance(exp.get("behaviour"), list) else [exp.get("behaviour")]
+    exp = {**exp, "behaviour": resp.action if resp.action in accept else accept[0]}
+    g = grounding.check(resp.text, " ".join(case["turns"]))
+    return {
+        "id": case["id"],
+        "query": " | ".join(case["turns"]),
+        "expected": exp.get("behaviour"),
+        "action": resp.action,
+        "behaviour_ok": resp.action in accept,
+        "grounded": not g["problems"],
+        "hallucinated_prices": g["hallucinated_prices"],
+        "helpfulness": helpfulness(resp, exp, g["cited"]),
+        "problems": "; ".join(g["problems"]),
+        "latency_ms": round(resp.latency_ms, 3),
+        "context_tokens": resp.context_tokens,
+        "output_tokens": resp.output_tokens,
+        "path": resp.path,
+        "llm_input_tokens": resp.llm_input_tokens,
+        "llm_output_tokens": resp.llm_output_tokens,
+        "reply": resp.text,
+    }
+
+
+def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
+    """Scores, behaviour rates, latency and token totals over all scored cases."""
     n = len(rows)
     answerable = [r for r in rows if r["expected"] == "answer"]
     groundedness = sum(r["grounded"] for r in rows) / n
@@ -139,24 +146,27 @@ def run(args: argparse.Namespace) -> None:
         - w.hallucinated_price_penalty * hallucinated,
     )
 
-    def rate(expected: str):
+    def rate(expected: str) -> float:
         sub = [r for r in rows if r["expected"] == expected]
-        return (sum(r["behaviour_ok"] for r in sub) / len(sub)) if sub else float("nan"), len(sub)
+        return (sum(r["behaviour_ok"] for r in sub) / len(sub)) if sub else float("nan")
 
+    confusion: dict = {}
+    for r in rows:
+        confusion[(r["expected"], r["action"])] = confusion.get((r["expected"], r["action"]), 0) + 1
     lat = [r["latency_ms"] for r in rows]
     ctx = [r["context_tokens"] for r in rows]
     out = [r["output_tokens"] for r in rows]
-    cost = sum(c * args.price_in + o * args.price_out for c, o in zip(ctx, out)) / 1e6
-    summary = {
+    cost = sum(c * price_in + o * price_out for c, o in zip(ctx, out)) / 1e6
+    return {
         "questions": n,
         "groundedness": round(groundedness, 4),
         "helpfulness": round(helpful, 4),
         "refusal_accuracy": round(refusal_acc, 4),
         "hallucinated_prices": hallucinated,
         "final_score": round(final, 4),
-        "correct_answer_rate": rate("answer")[0],
-        "correct_clarify_rate": rate("clarify")[0],
-        "correct_refusal_rate": rate("refuse")[0],
+        "correct_answer_rate": rate("answer"),
+        "correct_clarify_rate": rate("clarify"),
+        "correct_refusal_rate": rate("refuse"),
         "latency_ms": {
             "mean": round(statistics.mean(lat), 3),
             "p50": round(statistics.median(lat), 3),
@@ -182,18 +192,23 @@ def run(args: argparse.Namespace) -> None:
         "confusion": {f"{a}->{b}": c for (a, b), c in sorted(confusion.items(), key=str)},
     }
 
-    out_dir = Path(args.out)
+
+def write_reports(rows: list[dict], summary: dict, out_dir: Path) -> Path:
+    """query_report.csv (one row per case) and summary.json."""
     out_dir.mkdir(parents=True, exist_ok=True)
     with (out_dir / "query_report.csv").open("w", encoding="utf-8", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out_dir
 
-    write_out(json.dumps(summary, indent=2, ensure_ascii=False))
+
+def report_failures(rows: list[dict], out_dir: Path, verbose: bool) -> None:
+    """Print how many cases failed, and each failure when verbose."""
     failing = [r for r in rows if not (r["behaviour_ok"] and r["grounded"] and r["helpfulness"] == 1.0)]
-    write_out(f"\n{len(failing)} of {n} questions have a failure (see {out_dir / 'query_report.csv'})")
-    if args.verbose:
+    write_out(f"\n{len(failing)} of {len(rows)} questions have a failure (see {out_dir / 'query_report.csv'})")
+    if verbose:
         for r in failing:
             write_out(
                 f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "

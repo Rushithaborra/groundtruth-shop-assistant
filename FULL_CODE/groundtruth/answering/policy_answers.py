@@ -24,6 +24,7 @@ def policy_answer(
 
 
 def cited_section(section_id: str) -> Claims:
+    """Claims holding one cited policy section."""
     claims = Claims()
     claims.section(section_id)
     return claims

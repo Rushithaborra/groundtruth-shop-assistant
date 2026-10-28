@@ -8,6 +8,7 @@ from pathlib import Path
 from .answering import ShoppingAssistant
 from .catalogue import CatalogueIndex, load_catalogue
 from .config import get_settings
+from .errors import DataFileError
 from .policy import load_policy
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,12 @@ def build_assistant(
     paths = get_settings().paths
     semantic_config = semantic_config or paths.semantic_config
     cache_dir = cache_dir or paths.cache_dir
-    index, policy = CatalogueIndex(load_catalogue(catalogue_path)), load_policy(policy_path)
+    products = load_catalogue(catalogue_path)
+    if not products:
+        raise DataFileError(f"no products could be read from {catalogue_path}")
+    index, policy = CatalogueIndex(products), load_policy(policy_path)
+    if not policy:
+        logger.warning("the policy file %s has no sections; policy questions will be refused", policy_path)
     if embed_model:
         from .models.local import LocalEmbedder
         from .models.semantic import SemanticFallback, load_config

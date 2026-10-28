@@ -23,6 +23,7 @@ _COD = re.compile(r"\bcod\b")
 
 
 def stem(tok: str) -> str:
+    """A light English stemmer: plurals and -ed endings."""
     if len(tok) > 4 and tok.endswith("ies"):
         return tok[:-3] + "y"
     if len(tok) > 4 and tok.endswith("es") and (tok[-3] in "sxz" or tok.endswith(("ches", "shes"))):
@@ -35,6 +36,7 @@ def stem(tok: str) -> str:
 
 
 def normalise_word(word: str) -> str:
+    """Lower-case, map synonyms and stem; function words are left as they are."""
     word = word.lower()
     if word in SYNONYMS:
         return stem(SYNONYMS[word])
@@ -70,16 +72,19 @@ POLICY_TIME_WORDS = frozenset(normalise_word(w) for w in _VOCAB["policy_time_wor
 
 
 def tokenize(text: str) -> list[str]:
+    """Normalised word tokens of a text."""
     text = text.lower().replace("t-shirt", "tshirt").replace("t shirt", "tshirt")
     text = _COD.sub("cash on delivery", text)
     return [normalise_word(w) for w in re.findall(r"[a-z0-9]+", text)]
 
 
 def content_tokens(text: str) -> list[str]:
+    """Tokens without function words or plain numbers."""
     return [t for t in tokenize(text) if t not in STOPWORDS and not t.isdigit()]
 
 
 def format_inr(amount: float) -> str:
+    """Rupees the Indian way: ₹1,23,456, with paise only when there are any."""
     whole, _, frac = f"{float(amount):.2f}".partition(".")
     if len(whole) > 3:
         head, tail = whole[:-3], whole[-3:]
@@ -94,5 +99,6 @@ def approx_tokens(text: str) -> int:
 
 
 def split_sentences(text: str) -> list[str]:
+    """Sentences of a text, split after . ! or ?."""
     parts = re.split(r"(?<=[.!?])\s+", text.strip())
     return [p.strip() for p in parts if p.strip()]

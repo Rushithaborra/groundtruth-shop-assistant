@@ -138,13 +138,10 @@ class ShoppingAssistant:
         return policy_answer(self.policy, self.semantic, p, self.policy_max_sentences, self.policy_words)
 
     def _product_route(self, p: Parsed, session: Session) -> Response:
-        if len(p.mentioned) >= 2 and not p.product_id:
-            session.shown = p.mentioned[:4]
-            return product_answers.compare(self.index, p.mentioned, p)
-        if p.external and not (p.product_id or p.mentioned):
-            return refusals.external(self.index, p, self.list_limit)
-        if p.choice:
-            return listings.choice(self.index, p, self.list_limit)
+        """Answer a product message: one product, a clarifying question, a listing, or a refusal."""
+        early = self._compare_unsold_or_choice(p, session)
+        if early is not None:
+            return early
         forced, spec = self._resolve(p, session)
         if forced is None and p.detail_keys and session.shown and not _names_products(p):
             shown = [self.index.products[pid] for pid in session.shown]  # "which sizes?" after a listing
@@ -152,91 +149,69 @@ class ShoppingAssistant:
         if forced is not None:
             session.last_product = forced.id
             return product_answers.product_answer(self.index, forced, p)
+        _treat_description_words_as_unknown(p, spec, session)
+        if self._names_nothing_sold(p):
+            return self._unplaced_words(p)
+        if _asks_for_nothing(spec):  # "not nike" alone says what isn't wanted
+            return Response(ASK_WHAT, CLARIFY)
+        return self._search(p, spec, session)
 
-        if not spec.type_tokens and not spec.filters and spec.desc_tokens and session.spec.is_empty():
-            # only description words (e.g. "laptop" appearing in a backpack's text): not a product the shop sells
-            p.unknown = p.unknown + spec.desc_tokens
-            p.spec.desc_tokens = spec.desc_tokens = []
+    def _compare_unsold_or_choice(self, p: Parsed, session: Session) -> Response | None:
+        """Messages answered before any search: two named products, a brand the shop lacks, "A or B"."""
+        if len(p.mentioned) >= 2 and not p.product_id:
+            session.shown = p.mentioned[:4]
+            return product_answers.compare(self.index, p.mentioned, p)
+        if p.external and not (p.product_id or p.mentioned):
+            return refusals.external(self.index, p, self.list_limit)
+        if p.choice:
+            return listings.choice(self.index, p, self.list_limit)
+        return None
+
+    def _names_nothing_sold(self, p: Parsed) -> bool:
+        """Unplaced words outweigh the catalogue words, and none of those names a kind of product we sell.
+
+        "sneakers for gym": shoes are sold, gym is a modifier. But a describing word alone ("wireless mouse",
+        "electric scooter") doesn't name a product we sell, and neither does a colour. A fallback that already
+        identified the product type counts as naming it.
+        """
         known = len(p.spec.type_tokens) + len(p.spec.desc_tokens) + len(p.spec.filters)
-        # "sneakers for gym": shoes are sold, gym is a modifier. But a describing word alone ("wireless mouse",
-        # "electric scooter") doesn't name a product we sell, and neither does a colour.
-        # (a fallback that already identified the product type counts as naming it)
         names_product = any(t in self.head_nouns for t in p.spec.type_tokens) or bool(p.mapped)
-        if p.unknown and not names_product and len(p.unknown) >= max(known, 1):
-            if self.semantic is not None and not p.external:  # "money back timeline": a policy question in other words
-                hit = self.semantic.policy_sentence(p.raw)
-                if hit:
-                    sec, sentence, _ = hit
-                    return Response(
-                        f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic", claims=cited_section(sec.id)
-                    )
-            if set(p.keywords) & self.policy_words:  # "GST alag se lagega": a policy question in product words
-                pol = self._policy(p)
-                if pol.action == ANSWER:
-                    return pol
-            return refusals.unknown_refusal(self.index, p, self.list_limit)
-        only_exclusions = not (
-            spec.type_tokens
-            or spec.filters
-            or spec.desc_tokens
-            or spec.size
-            or spec.sort
-            or spec.price_min is not None
-            or spec.price_max is not None
-        )
-        if (spec.is_empty() or only_exclusions) and not spec.sort:  # "not nike" alone says what isn't wanted
-            return Response(
-                "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one.",
-                CLARIFY,
-            )
+        return bool(p.unknown) and not names_product and len(p.unknown) >= max(known, 1)
 
+    def _unplaced_words(self, p: Parsed) -> Response:
+        """Words the catalogue doesn't have: a policy question in other words, or a refusal."""
+        if self.semantic is not None and not p.external:  # "money back timeline": a policy question in other words
+            hit = self.semantic.policy_sentence(p.raw)
+            if hit:
+                sec, sentence, _ = hit
+                return Response(f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic", claims=cited_section(sec.id))
+        if set(p.keywords) & self.policy_words:  # "GST alag se lagega": a policy question in product words
+            pol = self._policy(p)
+            if pol.action == ANSWER:
+                return pol
+        return refusals.unknown_refusal(self.index, p, self.list_limit)
+
+    def _search(self, p: Parsed, spec: Spec, session: Session) -> Response:
+        """Search with hard constraints, then name one product, ask which one, or list the best matches."""
         unlisted = _drop_unlisted_filters(self.index, spec, p)
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
             return refusals.no_match(self.index, spec, p, self.list_limit)
-        new_words = p.spec.desc_tokens
-        only_words = not (
-            p.spec.filters or p.spec.size or p.spec.sort or p.spec.price_min is not None or p.spec.price_max is not None
-        )
-        if (
-            p.refined
-            and relaxed
-            and new_words
-            and only_words
-            and not any(t in self.index.desc_tokens[h.id] for h in hits for t in new_words)
-        ):
+        if _off_topic_refinement(self.index, p, hits, relaxed):
             # "laptop" after "black hoodie": none of the products being discussed match, so don't re-show them
             return Response(
-                f'I don\'t have anything matching "{" ".join(new_words)}" among the products we were '
+                f'I don\'t have anything matching "{" ".join(p.spec.desc_tokens)}" among the products we were '
                 'looking at. Tell me what you\'d like instead, or say "start over".',
                 REFUSE,
             )
         session.spec = spec
-
-        specific = p.intents & {"price", "rating", "detail"}
-        if "stock" in p.intents and {"the", "this", "that"} & p.all_tokens:  # "is the grey backpack in stock"
-            specific = specific | {"stock"}
-        lead = SORT_LABELS.get(spec.sort)
-        pick = None
-        if len(hits) == 1 and specific:
-            pick = hits[0]
-        elif len(hits) > 1 and spec.sort and not p.spec.type_tokens and not specific and {"the", "one"} & p.all_tokens:
-            pick = hits[0]  # "the cheapest" after a search
-        elif len(hits) > 1 and p.superlative:
-            pick = hits[0]  # "sabse sasti king bedsheet": one product, not a list
-        elif len(hits) > 1 and specific:
-            if spec.sort:
-                pick = hits[0]
-            elif spec.price_max is None and spec.price_min is None:  # a budget implies browsing, not one product
-                exact = self.index.exact_title_matches(hits, p.all_tokens)
-                if len(exact) != 1:
-                    session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
-                    return listings.clarify(self.index, hits, self.clarify_limit)
-                pick = exact[0]
+        pick = self._pick_one(p, spec, hits)
+        if pick is _AMBIGUOUS:
+            session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
+            return listings.clarify(self.index, hits, self.clarify_limit)
         if pick is not None:
             session.last_product = pick.id
-            return product_answers.product_answer(self.index, pick, p, lead=lead)
-
+            return product_answers.product_answer(self.index, pick, p, lead=SORT_LABELS.get(spec.sort))
         session.last_product = hits[0].id if len(hits) == 1 else None
         session.shown = [h.id for h in hits[: self.list_limit]]
         resp = listings.listing(hits, p, spec, relaxed, self.list_limit)
@@ -246,6 +221,26 @@ class ShoppingAssistant:
                 "filter by it.)"
             )
         return resp
+
+    def _pick_one(self, p: Parsed, spec: Spec, hits: list[Product]):
+        """The one product the message is about; _AMBIGUOUS when several fit and differ; None for a listing."""
+        specific = p.intents & {"price", "rating", "detail"}
+        if "stock" in p.intents and {"the", "this", "that"} & p.all_tokens:  # "is the grey backpack in stock"
+            specific = specific | {"stock"}
+        if len(hits) == 1:
+            return hits[0] if specific else None
+        if spec.sort and not p.spec.type_tokens and not specific and {"the", "one"} & p.all_tokens:
+            return hits[0]  # "the cheapest" after a search
+        if p.superlative:
+            return hits[0]  # "sabse sasti king bedsheet": one product, not a list
+        if not specific:
+            return None
+        if spec.sort:
+            return hits[0]
+        if spec.price_max is not None or spec.price_min is not None:  # a budget implies browsing, not one product
+            return None
+        exact = self.index.exact_title_matches(hits, p.all_tokens)
+        return exact[0] if len(exact) == 1 else _AMBIGUOUS
 
     def _resolve(self, p: Parsed, session: Session) -> tuple[Product | None, Spec]:
         """Decide whether the turn is about one known product, a new search, or a refinement."""
@@ -301,3 +296,37 @@ def _names_products(p: Parsed) -> bool:
     """The message names products or a new search of its own, so it isn't a follow-up about the last listing."""
     s = p.spec
     return bool(p.product_id or p.mentioned or s.type_tokens or s.filters or s.desc_tokens)
+
+
+ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
+_AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
+
+
+def _treat_description_words_as_unknown(p: Parsed, spec: Spec, session: Session) -> None:
+    """Only description words ("laptop" in a backpack's text) don't name a product the shop sells."""
+    if not spec.type_tokens and not spec.filters and spec.desc_tokens and session.spec.is_empty():
+        p.unknown = p.unknown + spec.desc_tokens
+        p.spec.desc_tokens = spec.desc_tokens = []
+
+
+def _asks_for_nothing(spec: Spec) -> bool:
+    """No product, filter, budget or size: the message says what isn't wanted, or nothing at all."""
+    only_exclusions = not (
+        spec.type_tokens or spec.filters or spec.desc_tokens or spec.size or spec.sort
+        or spec.price_min is not None or spec.price_max is not None
+    )  # fmt: skip
+    return (spec.is_empty() or only_exclusions) and not spec.sort
+
+
+def _off_topic_refinement(index: CatalogueIndex, p: Parsed, hits: list[Product], relaxed: bool) -> bool:
+    """A follow-up adds only description words that none of the products being discussed has."""
+    s = p.spec
+    only_words = not (s.filters or s.size or s.sort or s.price_min is not None or s.price_max is not None)
+    new_words = s.desc_tokens
+    return bool(
+        p.refined
+        and relaxed
+        and new_words
+        and only_words
+        and not any(t in index.desc_tokens[h.id] for h in hits for t in new_words)
+    )

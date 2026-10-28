@@ -34,6 +34,7 @@ class Grounding:
             self.title_ids.setdefault(p.title, set()).add(p.id)
 
     def source(self, cite: str) -> str | None:
+        """The text a citation stands for (a catalogue record or policy section), or None if it doesn't exist."""
         if cite.startswith("policy:"):
             sec = self.sections.get(cite[7:])
             return f"{sec.heading} {sec.body}" if sec else None
@@ -47,6 +48,7 @@ class Grounding:
         )
 
     def check(self, text: str, query_text: str) -> dict:
+        """Problems with a reply's claims, the count of hallucinated prices, and its citations."""
         cites = list(dict.fromkeys(CITE.findall(text)))
         problems, hallucinated = [], []
         sources = {}

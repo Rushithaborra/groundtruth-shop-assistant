@@ -85,6 +85,7 @@ def noun_of(title: str, kinds) -> str:
 
 
 def product_record(p, kinds=frozenset()) -> dict:
+    """A product's full catalogue record, for its card and receipt."""
     return {
         "kind": "product",
         "id": p.id,
@@ -101,6 +102,7 @@ def product_record(p, kinds=frozenset()) -> dict:
 
 
 def policy_record(sec) -> dict:
+    """A policy section's text, for its receipt."""
     return {"kind": "policy", "id": f"policy:{sec.id}", "title": sec.heading, "body": sec.body}
 
 
@@ -124,6 +126,7 @@ def reading(parsed) -> dict:
 
 
 def remembered(session: Session) -> dict:
+    """What the session carries into the next message: filters, budget, size, last product."""
     s = session.spec
     return {
         "looking_for": s.type_tokens,

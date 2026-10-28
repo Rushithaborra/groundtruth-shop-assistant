@@ -401,6 +401,30 @@ After the fix, no dev prediction differs from the previous commit: tune 1.000, c
 Synthetic sets all 1.0. One of the 150 test predictions changed (a clarification's cited products). 160 tests
 pass on Python 3.9 and 3.12; the 3 new gap tests fail on the previous commit's code.
 
+## Task 8: hardening, 28 October
+
+* **Errors.** `GroundTruthError` (`groundtruth/errors.py`) marks errors the user can fix: a missing catalogue or
+  policy file, a catalogue with no readable product, an unsupported file type, a scorer failure, a failed packaging
+  check, missing model libraries. `main.py` prints these in one line with exit code 1; programming errors keep their
+  traceback. Before, a missing file gave a traceback and an empty catalogue started an assistant that refused
+  everything. The loader's one silent `except ...: pass` is now an explicit fallback (not JSON, so read
+  "key: value" pairs). The web server keeps one broad `except Exception`, at its boundary: it logs the traceback
+  and answers 500 so that one bad query can't stop the server.
+* **Short functions.** `_product_route` (109 lines) is now 16, delegating to named steps (`_compare_unsold_or_choice`,
+  `_names_nothing_sold`, `_unplaced_words`, `_search`, `_pick_one`); the synthetic evaluator's `run` (113 lines) is
+  split into `score_case`, `summarise`, `write_reports`, `report_failures`; the web `State.chat` (57) into `chat`,
+  `_sources`, `_record`.
+* **Docstrings** added to 55 core and API functions that had none (small inner helpers excepted). No unreferenced
+  functions or classes were found.
+* **Edge-case tests** (9): missing files, unsupported format, a catalogue with no readable product, a product
+  without optional fields (stock never assumed), an empty policy, empty / blank / digit-only / huge (42,000
+  characters, under 2 s) / markup / non-Latin questions, and `main.py`'s exit code for a data problem.
+
+Behaviour unchanged: all 40 dev and 150 test predictions and all six synthetic reports are identical to `86345f7`.
+A docstring script briefly broke a one-line method in `models/semantic.py`; ruff's cache hid it, the tests found
+it, and every changed file is now compile-checked. 169 tests pass on Python 3.9 and 3.12; ruff clean with
+`--no-cache`; `pip-audit` clean.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

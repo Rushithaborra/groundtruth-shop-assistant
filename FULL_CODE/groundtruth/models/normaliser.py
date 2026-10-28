@@ -50,6 +50,7 @@ class LLMNormaliser:
 
     @staticmethod
     def parse(text: str) -> dict | None:
+        """The first JSON object in the model's text, or None."""
         text = re.sub(r"```(?:json)?", "", text)
         m = _JSON.search(text)
         if not m:

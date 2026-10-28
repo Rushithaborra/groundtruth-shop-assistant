@@ -18,6 +18,7 @@ from pathlib import Path
 
 from groundtruth.config import get_settings
 from groundtruth.console import write_out
+from groundtruth.errors import GroundTruthError
 from groundtruth.evaluation.questions import load_questions
 from groundtruth.evaluation.submission import validate_predictions
 from groundtruth.paths import ROOT
@@ -33,7 +34,7 @@ README_SECTIONS = ("What it does", "How to run", "How to run the tests", "Archit
 REQUIRED_FILES = ("FULL_CODE/main.py", "FULL_CODE/uv.lock", "FULL_CODE/.env.example", "FULL_CODE/pyproject.toml")
 
 
-class PackagingError(RuntimeError):
+class PackagingError(GroundTruthError, RuntimeError):
     """The project can't be packaged: the clone failed or a checklist item failed."""
 
 

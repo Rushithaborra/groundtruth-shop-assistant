@@ -15,6 +15,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..errors import DataFileError
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +40,7 @@ class Product:
         return self.source_keys.get(key, key)
 
     def attr_values(self, key: str) -> list[str]:
+        """An attribute's values as strings (a list attribute gives several, a missing one none)."""
         value = self.attributes.get(key)
         if value is None:
             return []
@@ -53,6 +56,15 @@ def _first(raw: dict, *keys, default=None):
     return default
 
 
+def _json_object(text: str) -> dict | None:
+    """The text as a JSON object, or None if it isn't one."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _parse_attributes(value) -> dict:
     if isinstance(value, dict):
         return value
@@ -60,10 +72,10 @@ def _parse_attributes(value) -> dict:
         return {}
     text = str(value).strip()
     if text.startswith("{"):
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
+        parsed = _json_object(text)
+        if parsed is not None:
+            return parsed
+    # not JSON, or malformed JSON: read "key: value; key: value" pairs instead
     attrs = {}
     for chunk in text.replace("|", ";").split(";"):
         if ":" in chunk:
@@ -195,6 +207,7 @@ CORE = {
 
 
 def normalise_product(raw: dict) -> Product:
+    """One catalogue row as a Product; raises ValueError if it has no id, title or price."""
     raw = {str(k).strip().lower().lstrip("\ufeff"): v for k, v in raw.items()}  # CSV headers: case, spaces, BOM
     pid, title, price = (
         _first(raw, *ID_KEYS),
@@ -245,13 +258,16 @@ def _read_rows(path: Path) -> list:
     if path.suffix in (".csv", ".tsv"):
         with path.open(encoding="utf-8-sig", newline="") as fh:
             return list(csv.DictReader(fh, delimiter="\t" if path.suffix == ".tsv" else ","))
-    raise ValueError(f"Unsupported catalogue format: {path.suffix}")
+    raise DataFileError(f"unsupported catalogue format {path.suffix!r}: use .jsonl, .json, .csv or .tsv")
 
 
 def load_catalogue(path: str | Path, strict: bool = False) -> list[Product]:
     """Load products; bad rows are skipped and logged (strict=True raises instead)."""
+    path = Path(path)
+    if not path.is_file():
+        raise DataFileError(f"catalogue file not found: {path}")
     products, seen, skipped = [], set(), []
-    for n, row in enumerate(_read_rows(Path(path)), 1):
+    for n, row in enumerate(_read_rows(path), 1):
         try:
             if isinstance(row, Exception):
                 raise row

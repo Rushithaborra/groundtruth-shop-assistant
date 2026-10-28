@@ -36,4 +36,5 @@ class RateLimiter:
 
     @staticmethod
     def retry_after_header(wait_s: float) -> str:
+        """Whole seconds for the Retry-After header, at least 1."""
         return str(max(1, math.ceil(wait_s)))

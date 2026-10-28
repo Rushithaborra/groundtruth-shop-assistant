@@ -45,6 +45,7 @@ class Insights:
         check_ok: bool,
         llm_tokens: int,
     ) -> None:
+        """Count one answered message for the retailer view (labels are capped in length and number)."""
         with self.lock:
             self.actions[action] += 1
             self.paths[path] += 1
@@ -58,6 +59,7 @@ class Insights:
                 self.unclear[unclear[:60]] += 1
 
     def summary(self) -> dict:
+        """The retailer view's numbers: actions, paths, latency, refused requests, clarified requests."""
         with self.lock:
             n = sum(self.actions.values())
             lat = sorted(self.latency)
@@ -75,6 +77,7 @@ class Insights:
             }
 
     def gaps_csv(self) -> str:
+        """Requested-but-not-stocked items and how often they were refused, as CSV."""
         with self.lock:
             out = io.StringIO()
             w = csv.writer(out)
@@ -94,6 +97,7 @@ class State:
         self.max_sessions = get_settings().server.max_sessions
 
     def session(self, sid: str | None) -> tuple[str, dict]:
+        """The visitor's session, creating one for a missing or unknown id; least recently used are dropped."""
         with self.lock:
             if not sid or sid not in self.sessions:
                 sid = secrets.token_urlsafe(12)
@@ -110,45 +114,23 @@ class State:
             return sid, self.sessions[sid]
 
     def chat(self, sid: str | None, message: str) -> dict:
+        """Answer one message in a visitor's session; returns the reply with its sources, check and metrics."""
         sid, entry = self.session(sid)
-        a = self.assistant
         with entry["lock"]:
             start = time.perf_counter()
-            resp = a.ask(message, entry["session"])
+            resp = self.assistant.ask(message, entry["session"])
             entry["said"].append(message)
-            # like evaluate.py, numbers the shopper said earlier in the chat (a budget) are theirs, not invented
+            # like the evaluator, numbers the shopper said earlier in the chat (a budget) are theirs, not invented
             check = self.grounding.check(resp.text, " ".join(entry["said"]))
-            parsed = understand(message, a.index)
+            parsed = understand(message, self.assistant.index)
             total_ms = (time.perf_counter() - start) * 1000
-            sources = {}
-            for c in resp.citations:
-                if c.startswith("policy:") and c[7:] in a.sections:
-                    sources[c] = policy_record(a.sections[c[7:]])
-                elif c in a.index.products:
-                    sources[c] = product_record(a.index.products[c], self.kinds)
-            gap_labels = []
-            if resp.action == REFUSE and "account" not in parsed.intents:  # orders/coupons aren't products
-                gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
-                for w in gap_labels:
-                    entry["gaps"][w] += 1
-            self.insights.record(
-                resp.action,
-                resp.path,
-                resp.latency_ms,
-                gap_labels,
-                (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None,
-                not check["problems"],
-                resp.llm_input_tokens + resp.llm_output_tokens,
-            )
+            self._record(resp, parsed, entry, message, check_ok=not check["problems"])
             t = entry["totals"]
-            t["queries"] += 1
-            t["ms"] += resp.latency_ms
-            t["llm_tokens"] += resp.llm_input_tokens + resp.llm_output_tokens
             return {
                 "session_id": sid,
                 "text": resp.text,
                 "action": resp.action,
-                "sources": sources,
+                "sources": self._sources(resp.citations),
                 "verified": {"ok": not check["problems"], "problems": check["problems"], "cited": len(check["cited"])},
                 "metrics": {
                     "engine_ms": round(resp.latency_ms, 3),
@@ -166,6 +148,31 @@ class State:
                     "llm_tokens": t["llm_tokens"],
                 },
             }
+
+    def _sources(self, citations: list[str]) -> dict:
+        """The catalogue record or policy section behind each citation, for the cards and receipts."""
+        a, sources = self.assistant, {}
+        for c in citations:
+            if c.startswith("policy:") and c[7:] in a.sections:
+                sources[c] = policy_record(a.sections[c[7:]])
+            elif c in a.index.products:
+                sources[c] = product_record(a.index.products[c], self.kinds)
+        return sources
+
+    def _record(self, resp, parsed, entry: dict, message: str, check_ok: bool) -> None:
+        """Update this visitor's totals and refused requests, and the retailer view's counters."""
+        gap_labels = []
+        if resp.action == REFUSE and "account" not in parsed.intents:  # orders/coupons aren't products
+            gap_labels = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
+            for w in gap_labels:
+                entry["gaps"][w] += 1
+        unclear = (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None
+        tokens = resp.llm_input_tokens + resp.llm_output_tokens
+        self.insights.record(resp.action, resp.path, resp.latency_ms, gap_labels, unclear, check_ok, tokens)
+        t = entry["totals"]
+        t["queries"] += 1
+        t["ms"] += resp.latency_ms
+        t["llm_tokens"] += tokens
 
     @staticmethod
     def _wanted(parsed, session: Session) -> str:
@@ -190,6 +197,7 @@ class State:
         return label
 
     def reset(self, sid: str | None) -> dict:
+        """Forget a visitor's remembered filters, budget and chat so far."""
         sid, entry = self.session(sid)
         with entry["lock"]:
             entry["session"].clear()
