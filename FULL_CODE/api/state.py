@@ -11,12 +11,12 @@ import time
 from collections import Counter, OrderedDict, deque
 from datetime import datetime
 
-from groundtruth.answering import CLARIFY, REFUSE, Session
+from groundtruth.answering import CLARIFY, REFUSE, Response, Session, ShoppingAssistant
 from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
 from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr
-from groundtruth.understanding import understand
+from groundtruth.understanding import Parsed, understand
 
 from .views import policy_record, product_record, reading, remembered
 
@@ -24,7 +24,7 @@ from .views import policy_record, product_record, reading, remembered
 class Insights:
     """Counts across all chats since start-up, for the retailer view. Labels are capped in length and number."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lock = threading.Lock()
         self.started = time.time()
         self.actions: Counter = Counter()
@@ -87,7 +87,7 @@ class Insights:
 
 
 class State:
-    def __init__(self, assistant):
+    def __init__(self, assistant: ShoppingAssistant) -> None:
         self.assistant = assistant
         self.grounding = Grounding(assistant.index, assistant.sections)
         self.sessions: OrderedDict[str, dict] = OrderedDict()
@@ -159,7 +159,7 @@ class State:
                 sources[c] = product_record(a.index.products[c], self.kinds)
         return sources
 
-    def _record(self, resp, parsed, entry: dict, message: str, check_ok: bool) -> None:
+    def _record(self, resp: Response, parsed: Parsed, entry: dict, message: str, check_ok: bool) -> None:
         """Update this visitor's totals and refused requests, and the retailer view's counters."""
         gap_labels = []
         # only requests for products count as demand: not orders or coupons ("account"), not policy questions, and
@@ -178,7 +178,7 @@ class State:
         t["llm_tokens"] += tokens
 
     @staticmethod
-    def _wanted(parsed, session: Session) -> str:
+    def _wanted(parsed: Parsed, session: Session) -> str:
         """What a refused request was for, combining this message with the chat so far ("cotton running shoe")."""
         s = session.spec
         if parsed.spec.desc_tokens and not (parsed.spec.type_tokens or parsed.spec.filters):
