@@ -21,6 +21,7 @@ SEED = 2026
 
 
 def split(seed: int = SEED) -> dict:
+    """Split the dev conversations into tune and check halves, balanced by question type; one seed, one split."""
     paths = get_settings().paths
     truth = load_truth(paths.dev_truth)
     by_type: dict[str, list[list[str]]] = defaultdict(list)
@@ -40,6 +41,7 @@ def split(seed: int = SEED) -> dict:
 
 
 def main() -> None:
+    """Write the split to the dev-split file."""
     result = split()
     out = get_settings().paths.dev_split
     out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
