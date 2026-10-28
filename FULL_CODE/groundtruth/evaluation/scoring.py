@@ -32,7 +32,7 @@ import json
 import statistics
 from pathlib import Path
 
-from ..answering import Session
+from ..answering import Response, Session, ShoppingAssistant
 from ..arguments import add_data_arguments, add_model_arguments
 from ..builder import build_assistant
 from ..config import get_settings
@@ -55,7 +55,7 @@ def load_cases(path: Path) -> list[dict]:
     return cases
 
 
-def helpfulness(resp, exp: dict, cited: list[str]) -> float:
+def helpfulness(resp: Response, exp: dict, cited: list[str]) -> float:
     """Share of the expected facts, products and policy sections the reply got right (0 to 1)."""
     if exp.get("behaviour") != "answer":
         return 1.0 if resp.action == exp.get("behaviour") else 0.0
@@ -100,7 +100,7 @@ def run(args: argparse.Namespace) -> None:
     report_failures(rows, out_dir, args.verbose)
 
 
-def score_case(assistant, grounding: Grounding, case: dict) -> dict:
+def score_case(assistant: ShoppingAssistant, grounding: Grounding, case: dict) -> dict:
     """Ask one case's turns in one session and score the last reply."""
     session, resp = Session(), None
     for turn in case["turns"]:
@@ -129,8 +129,8 @@ def score_case(assistant, grounding: Grounding, case: dict) -> dict:
     }
 
 
-def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
-    """Scores, behaviour rates, latency and token totals over all scored cases."""
+def _scores(rows: list[dict]) -> dict:
+    """The three scores, the final weighted score, and how often each kind of reply was right."""
     n = len(rows)
     answerable = [r for r in rows if r["expected"] == "answer"]
     groundedness = sum(r["grounded"] for r in rows) / n
@@ -150,15 +150,7 @@ def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
         sub = [r for r in rows if r["expected"] == expected]
         return (sum(r["behaviour_ok"] for r in sub) / len(sub)) if sub else float("nan")
 
-    confusion: dict = {}
-    for r in rows:
-        confusion[(r["expected"], r["action"])] = confusion.get((r["expected"], r["action"]), 0) + 1
-    lat = [r["latency_ms"] for r in rows]
-    ctx = [r["context_tokens"] for r in rows]
-    out = [r["output_tokens"] for r in rows]
-    cost = sum(c * price_in + o * price_out for c, o in zip(ctx, out)) / 1e6
     return {
-        "questions": n,
         "groundedness": round(groundedness, 4),
         "helpfulness": round(helpful, 4),
         "refusal_accuracy": round(refusal_acc, 4),
@@ -167,20 +159,48 @@ def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
         "correct_answer_rate": rate("answer"),
         "correct_clarify_rate": rate("clarify"),
         "correct_refusal_rate": rate("refuse"),
-        "latency_ms": {
-            "mean": round(statistics.mean(lat), 3),
-            "p50": round(statistics.median(lat), 3),
-            "p95": round(statistics.quantiles(lat, n=20)[-1], 3),
-            "max": round(max(lat), 3),
-        },
-        "tokens_per_query": {
-            "context_mean": round(statistics.mean(ctx), 1),
-            "output_mean": round(statistics.mean(out), 1),
-            "context_total": sum(ctx),
-            "output_total": sum(out),
-            "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "
-            "this assistant makes zero LLM calls",
-        },
+    }
+
+
+def _latency_stats(latencies: list[float]) -> dict:
+    return {
+        "mean": round(statistics.mean(latencies), 3),
+        "p50": round(statistics.median(latencies), 3),
+        "p95": round(statistics.quantiles(latencies, n=20)[-1], 3),
+        "max": round(max(latencies), 3),
+    }
+
+
+def _token_stats(context: list[int], output: list[int]) -> dict:
+    return {
+        "context_mean": round(statistics.mean(context), 1),
+        "output_mean": round(statistics.mean(output), 1),
+        "context_total": sum(context),
+        "output_total": sum(output),
+        "note": "estimates (~4 chars/token): context = query + cited sources an LLM would be given; "
+        "this assistant makes zero LLM calls",
+    }
+
+
+def _confusion(rows: list[dict]) -> dict:
+    """How many replies of each (expected, actual) behaviour pair there were."""
+    counts: dict = {}
+    for r in rows:
+        counts[(r["expected"], r["action"])] = counts.get((r["expected"], r["action"]), 0) + 1
+    return {f"{a}->{b}": c for (a, b), c in sorted(counts.items(), key=str)}
+
+
+def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
+    """Scores, behaviour rates, latency and token totals over all scored cases."""
+    n = len(rows)
+    ctx = [r["context_tokens"] for r in rows]
+    out = [r["output_tokens"] for r in rows]
+    cost = sum(c * price_in + o * price_out for c, o in zip(ctx, out)) / 1e6
+    return {
+        "questions": n,
+        **_scores(rows),
+        "latency_ms": _latency_stats([r["latency_ms"] for r in rows]),
+        "tokens_per_query": _token_stats(ctx, out),
         "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
         "llm_tokens_real": {
             "input_total": sum(r["llm_input_tokens"] for r in rows),
@@ -189,7 +209,7 @@ def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
             "note": "measured from the instruct model's tokenizer; 0 when no model is configured",
         },
         "estimated_cost_usd": round(cost, 6),
-        "confusion": {f"{a}->{b}": c for (a, b), c in sorted(confusion.items(), key=str)},
+        "confusion": _confusion(rows),
     }
 
 
