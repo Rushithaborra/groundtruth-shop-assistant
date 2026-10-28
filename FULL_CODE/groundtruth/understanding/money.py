@@ -26,19 +26,19 @@ def _amount(num: str, unit: str | None) -> float:
     return float(num.replace(",", "").rstrip(".")) * (1000 if unit else 1)
 
 
-def extract_money(text: str):
+def extract_money(text: str) -> tuple[str, float | None, float | None]:
     """Pull budget expressions out of the text; returns (remaining_text, price_min, price_max)."""
     if not any(c.isdigit() for c in text):
         return text, None, None
     found: dict[str, float] = {}
 
-    def between(m):
+    def between(m: re.Match[str]) -> str:
         a, b = _amount(m[1], m[2]), _amount(m[3], m[4])
         found["lo"], found["hi"] = min(a, b), max(a, b)
         return " "
 
-    def strip(pattern, key):
-        def repl(m):
+    def strip(pattern: re.Pattern[str], key: str) -> str:
+        def repl(m: re.Match[str]) -> str:
             found[key] = _amount(m[1], m[2])
             return " "
 
