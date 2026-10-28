@@ -511,7 +511,7 @@ unaffected, but it was not run there.
 ## Review findings fixed, 28 October
 
 An outside review of `main` raised four code issues. Each was reproduced first, then fixed with a regression test
-(16 new tests, 198 in all; ruff clean; the 327 synthetic reply and score entries are unchanged).
+(16 new tests, 198 in all at that point; ruff clean; the 327 synthetic reply and score entries are unchanged).
 
 1. **The price checker could be fooled** (`grounding/checker.py`). It accepted a price that was right for *another*
    cited product, and a price only the shopper had typed. Now each ₹ amount must belong to the citation next to it
@@ -531,6 +531,17 @@ An outside review of `main` raised four code issues. Each was reproduced first, 
    catalogue is now loaded strictly: a malformed row or duplicate id stops the run, and so does a count other than
    `catalogue.pack_expected_products` (5000, from the brief; set it to `null` or the right number if the pack differs).
    Other catalogues are loaded as before, skipping bad rows with a warning. `build_assistant(strict=...)` overrides.
+
+5. **The checker did not hold attribute words or policy wording to the sources** (`grounding/checker.py`; a second
+   review). A reply saying "the material is silk" for a cotton product, or quoting a policy rule that isn't in the
+   policy, passed (only numbers, prices and titles were checked). Two checks were added: every colour, material,
+   brand or other attribute word in a sentence must come from the record cited in that sentence or from the
+   shopper's own words; and a sentence cited to a policy section must be a word-for-word sentence of that section
+   (the assistant's policy replies are verbatim extracts, so they pass). Six of the eight new tests fail on the
+   previous checker. The replies themselves did not change: the assistant never made these mistakes, and no reply
+   in the 325 synthetic questions or in about 16,000 generated queries (on both catalogues) is flagged by the new
+   rules. **Not yet confirmed on the real pack**: an attribute value there that is also an ordinary word could flag a
+   good reply (the demo would show a failed grounding check), so run the demo and `main.py evaluate` with the pack.
 
 Still to do before submitting: run `score`, `stress`, `submit` and `package` on the final commit with the pack (strict
 loading is exercised only there), and the tests on Python 3.9 and 3.12; they were run on 3.13 only.
