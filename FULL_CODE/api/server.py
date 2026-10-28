@@ -26,13 +26,13 @@ from urllib.parse import urlsplit
 
 from groundtruth.arguments import add_model_arguments
 from groundtruth.builder import build_assistant
-from groundtruth.config import get_settings
+from groundtruth.config import ServerSettings, get_settings
 from groundtruth.paths import ROOT, WEB_DIR
 
 from .ratelimit import RateLimiter
 from .security import SECURITY_HEADERS, content_security_policy, same_origin
 from .state import State
-from .validation import RequestError, chat_request, read_json_body, reset_request
+from .validation import ChatRequest, RequestError, chat_request, read_json_body, reset_request
 from .views import build_examples
 
 logger = logging.getLogger(__name__)
@@ -52,13 +52,112 @@ def pick_data(catalogue: str | None, policy: str | None) -> tuple[str, str]:
     return str(paths.demo_catalogue), policy or str(paths.demo_policy)
 
 
+class Handler(BaseHTTPRequestHandler):
+    """Answers one request. `make_handler` returns a subclass bound to the shared state, pages and rate limits."""
+
+    server_version = "GroundTruth/1"
+    sys_version = ""  # don't advertise the Python version
+    # bound by make_handler
+    state: State
+    info: dict
+    pages: dict[str, bytes]
+    policies: dict[str, str]
+    limits: ServerSettings
+    per_session: RateLimiter
+    per_address: RateLimiter
+
+    def log_message(self, fmt: str, *args: object) -> None:  # access log only at debug level
+        logger.debug("%s " + fmt, self.address_string(), *args)
+
+    def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        for name, value in {**SECURITY_HEADERS, **(extra or {})}.items():
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, code: int, data: dict, extra: dict | None = None) -> None:
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self._send(code, body, "application/json; charset=utf-8", extra)
+
+    def _route(self) -> str:
+        return urlsplit(self.path).path  # query strings are ignored, never parsed
+
+    def do_GET(self) -> None:
+        path = self._route()
+        if path in self.pages:
+            csp = {"Content-Security-Policy": self.policies[path]}
+            self._send(200, self.pages[path], "text/html; charset=utf-8", csp)
+        elif path == "/api/info":
+            self._json(200, self.info)
+        elif path == "/api/insights":
+            self._json(200, self.state.insights.summary())
+        elif path == "/api/insights.csv":
+            self._send(200, self.state.insights.gaps_csv().encode("utf-8"), "text/csv; charset=utf-8")
+        else:
+            self._json(404, {"error": "Not found"})
+
+    def do_POST(self) -> None:
+        declared, body = self._read_body()  # always consume the body, even when about to refuse (see _read_body)
+        path = self._route()
+        if path not in ("/api/chat", "/api/reset"):
+            return self._json(404, {"error": "Not found"})
+        if not same_origin(self.headers.get("Origin"), self.headers.get("Host")):
+            return self._json(403, {"error": "Requests from other sites are not accepted"})
+        try:
+            data = read_json_body(self.headers.get("Content-Type"), declared, body, self.limits.max_body_bytes)
+            if path == "/api/reset":
+                return self._json(200, self.state.reset(reset_request(data)))
+            request = chat_request(data, self.limits.max_message_chars)
+            wait = self._seconds_to_wait(request)
+            if wait:
+                retry = {"Retry-After": RateLimiter.retry_after_header(wait)}
+                return self._json(429, {"error": "Too many questions at once; please wait a moment"}, retry)
+        except RequestError as exc:
+            return self._json(exc.status, {"error": str(exc)})
+        self._chat(request)
+
+    def _seconds_to_wait(self, request: ChatRequest) -> float:
+        """How long the shopper must wait before this request is allowed (0 when it is allowed now)."""
+        wait = self.per_address.check(self.client_address[0])
+        if request.session_id:  # a first message has no session yet: only the address limit applies
+            wait = max(wait, self.per_session.check(request.session_id))
+        return wait
+
+    def _chat(self, request: ChatRequest) -> None:
+        try:
+            self._json(200, self.state.chat(request.session_id, request.message))
+        except Exception:  # boundary: one failing query must not stop the server; the shopper's text isn't logged
+            logger.exception("assistant error on a %d-character message", len(request.message))
+            self._json(500, {"error": "The assistant hit an error on that message"})
+
+    def _read_body(self) -> tuple[str | None, bytes]:
+        """Read the request body (never more than the cap). It is read before every reply, including early
+        refusals: closing a socket that still holds unread request data makes Windows reset the connection, and
+        the client then loses the reply (ConnectionAbortedError) instead of seeing the 403/404/405."""
+        declared = self.headers.get("Content-Length")
+        try:
+            to_read = min(max(int(declared or 0), 0), self.limits.max_body_bytes + 1)
+        except ValueError:
+            to_read = 0
+        return declared, (self.rfile.read(to_read) if to_read else b"")
+
+    def _not_allowed(self) -> None:
+        self._read_body()
+        self._json(405, {"error": "Method not allowed"}, {"Allow": "GET, POST"})
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _not_allowed
+
+
 def make_handler(
     state: State,
     page: bytes,
     info: dict,
     insights_page: bytes = b"",
     limiters: tuple[RateLimiter, RateLimiter] | None = None,
-):
+) -> type[Handler]:
     """The request handler class; `limiters` (per session, per address) default to the configured rate limits."""
     limits = get_settings().server
     per_session, per_address = limiters or (
@@ -66,89 +165,16 @@ def make_handler(
         RateLimiter(limits.rate_limit_per_address_per_minute, 60),
     )
     pages = {"/": page, "/index.html": page, **({"/insights": insights_page} if insights_page else {})}
-    policies = {path: content_security_policy(body) for path, body in pages.items()}
-
-    class Handler(BaseHTTPRequestHandler):
-        server_version = "GroundTruth/1"
-        sys_version = ""  # don't advertise the Python version
-
-        def log_message(self, fmt, *args):  # access log only at debug level
-            logger.debug("%s " + fmt, self.address_string(), *args)
-
-        def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
-            self.send_response(code)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(body)))
-            for name, value in {**SECURITY_HEADERS, **(extra or {})}.items():
-                self.send_header(name, value)
-            self.end_headers()
-            self.wfile.write(body)
-
-        def _json(self, code: int, data: dict, extra: dict | None = None) -> None:
-            body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-            self._send(code, body, "application/json; charset=utf-8", extra)
-
-        def _route(self) -> str:
-            return urlsplit(self.path).path  # query strings are ignored, never parsed
-
-        def do_GET(self):
-            path = self._route()
-            if path in pages:
-                csp = {"Content-Security-Policy": policies[path]}
-                self._send(200, pages[path], "text/html; charset=utf-8", csp)
-            elif path == "/api/info":
-                self._json(200, info)
-            elif path == "/api/insights":
-                self._json(200, state.insights.summary())
-            elif path == "/api/insights.csv":
-                self._send(200, state.insights.gaps_csv().encode("utf-8"), "text/csv; charset=utf-8")
-            else:
-                self._json(404, {"error": "Not found"})
-
-        def do_POST(self):
-            declared, body = self._read_body()  # always consume the body, even when about to refuse (see _read_body)
-            path = self._route()
-            if path not in ("/api/chat", "/api/reset"):
-                return self._json(404, {"error": "Not found"})
-            if not same_origin(self.headers.get("Origin"), self.headers.get("Host")):
-                return self._json(403, {"error": "Requests from other sites are not accepted"})
-            try:
-                data = read_json_body(self.headers.get("Content-Type"), declared, body, limits.max_body_bytes)
-                if path == "/api/reset":
-                    return self._json(200, state.reset(reset_request(data)))
-                request = chat_request(data, limits.max_message_chars)
-                wait = per_address.check(self.client_address[0])
-                if request.session_id:  # a first message has no session yet: only the address limit applies
-                    wait = max(wait, per_session.check(request.session_id))
-                if wait:
-                    retry = {"Retry-After": RateLimiter.retry_after_header(wait)}
-                    return self._json(429, {"error": "Too many questions at once; please wait a moment"}, retry)
-            except RequestError as exc:
-                return self._json(exc.status, {"error": str(exc)})
-            try:
-                return self._json(200, state.chat(request.session_id, request.message))
-            except Exception:  # boundary: one failing query must not stop the server; the shopper's text isn't logged
-                logger.exception("assistant error on a %d-character message", len(request.message))
-                return self._json(500, {"error": "The assistant hit an error on that message"})
-
-        def _read_body(self) -> tuple[str | None, bytes]:
-            """Read the request body (never more than the cap). It is read before every reply, including early
-            refusals: closing a socket that still holds unread request data makes Windows reset the connection, and
-            the client then loses the reply (ConnectionAbortedError) instead of seeing the 403/404/405."""
-            declared = self.headers.get("Content-Length")
-            try:
-                to_read = min(max(int(declared or 0), 0), limits.max_body_bytes + 1)
-            except ValueError:
-                to_read = 0
-            return declared, (self.rfile.read(to_read) if to_read else b"")
-
-        def _not_allowed(self):
-            self._read_body()
-            self._json(405, {"error": "Method not allowed"}, {"Allow": "GET, POST"})
-
-        do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _not_allowed
-
-    return Handler
+    bound = {
+        "state": state,
+        "info": info,
+        "pages": pages,
+        "policies": {path: content_security_policy(body) for path, body in pages.items()},
+        "limits": limits,
+        "per_session": per_session,
+        "per_address": per_address,
+    }
+    return type("BoundHandler", (Handler,), bound)
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
