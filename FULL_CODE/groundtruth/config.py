@@ -61,6 +61,12 @@ class SubmissionSettings:
 
 
 @dataclass(frozen=True)
+class CatalogueSettings:
+    pack_strict: bool  # the organisers' catalogue: a bad row or duplicate id stops the run instead of being skipped
+    pack_expected_products: int | None  # how many products it must hold (None: don't check the count)
+
+
+@dataclass(frozen=True)
 class AssistantSettings:
     list_limit: int
     clarify_limit: int
@@ -138,6 +144,7 @@ class LoggingSettings:
 class Settings:
     paths: PathSettings
     submission: SubmissionSettings
+    catalogue: CatalogueSettings
     assistant: AssistantSettings
     search: SearchSettings
     server: ServerSettings
@@ -165,6 +172,12 @@ def _text(name: str, value: Any, allowed: tuple[str, ...] = ()) -> str:
     if not isinstance(value, str) or not value.strip() or (allowed and value not in allowed):
         hint = f" (one of {', '.join(allowed)})" if allowed else ""
         raise ConfigError(f"{name} must be a non-empty string{hint}, got {value!r}")
+    return value
+
+
+def _flag(name: str, value: Any) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(f"{name} must be true or false, got {value!r}")
     return value
 
 
@@ -223,6 +236,16 @@ def _submission(sub: dict) -> SubmissionSettings:
     return SubmissionSettings(
         team_id=_identifier("submission.team_id", sub["team_id"]),
         problem_id=_identifier("submission.problem_id", sub["problem_id"]),
+    )
+
+
+def _catalogue(c: dict) -> CatalogueSettings:
+    expected = c["pack_expected_products"]
+    return CatalogueSettings(
+        pack_strict=_flag("catalogue.pack_strict", c["pack_strict"]),
+        pack_expected_products=None
+        if expected is None
+        else _int("catalogue.pack_expected_products", expected, 1, 10_000_000),
     )
 
 
@@ -322,6 +345,7 @@ def parse_settings(raw: dict) -> Settings:
         for name, kind in (
             ("paths", PathSettings),
             ("submission", SubmissionSettings),
+            ("catalogue", CatalogueSettings),
             ("assistant", AssistantSettings),
             ("search", SearchSettings),
             ("server", ServerSettings),
@@ -337,6 +361,7 @@ def parse_settings(raw: dict) -> Settings:
     return Settings(
         paths=_paths(sections["paths"]),
         submission=_submission(sections["submission"]),
+        catalogue=_catalogue(sections["catalogue"]),
         assistant=_assistant(sections["assistant"]),
         search=_search(sections["search"]),
         server=_server(sections["server"]),

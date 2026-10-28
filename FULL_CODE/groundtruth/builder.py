@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .answering import ShoppingAssistant
-from .catalogue import CatalogueIndex, load_catalogue
+from .catalogue import CatalogueIndex, Product, load_catalogue
 from .config import get_settings
 from .errors import DataFileError
 from .policy import Section, load_policy
@@ -26,6 +26,7 @@ def build_assistant(
     semantic_config: str | Path | None = None,
     llm_model: str | None = None,
     cache_dir: str | Path | None = None,
+    strict: bool | None = None,
     **kwargs: Any,
 ) -> ShoppingAssistant:
     """Build the assistant. The rule-based path always runs first; the optional fallbacks only see its misses.
@@ -33,11 +34,10 @@ def build_assistant(
     embed_model      path to the provided embedding model; enables the embedding fallback only if
                      `semantic_config` exists (thresholds written by `python main.py calibrate`)
     llm_model        path to the provided instruct model; enables the last-resort query normaliser
+    strict           reject bad or duplicate catalogue rows instead of skipping them (default: only for the pack's)
     """
     paths = get_settings().paths
-    products = load_catalogue(catalogue_path)
-    if not products:
-        raise DataFileError(f"no products could be read from {catalogue_path}")
+    products = _load_products(catalogue_path, strict)
     index, policy = CatalogueIndex(products), load_policy(policy_path)
     if not policy:
         logger.warning("the policy file %s has no sections; policy questions will be refused", policy_path)
@@ -52,6 +52,29 @@ def build_assistant(
     assistant = ShoppingAssistant(index, policy, **kwargs)
     assistant.warm_up()
     return assistant
+
+
+def _load_products(catalogue_path: str | Path, strict: bool | None) -> list[Product]:
+    """Load the catalogue. The organisers' catalogue is the single source of truth, so it is loaded strictly: a bad row,
+    a duplicate id or a wrong product count stops the run instead of silently dropping products."""
+    settings = get_settings()
+    is_pack = Path(catalogue_path).resolve() == settings.paths.pack_catalogue.resolve()
+    strict = (is_pack and settings.catalogue.pack_strict) if strict is None else strict
+    try:
+        products = load_catalogue(catalogue_path, strict=strict)
+    except DataFileError:
+        raise
+    except ValueError as exc:  # strict loading names the bad row
+        raise DataFileError(f"{catalogue_path}: {exc}") from exc
+    if not products:
+        raise DataFileError(f"no products could be read from {catalogue_path}")
+    expected = settings.catalogue.pack_expected_products
+    if is_pack and strict and expected is not None and len(products) != expected:
+        raise DataFileError(
+            f"the pack catalogue holds {len(products)} products, expected {expected} "
+            "(set catalogue.pack_expected_products in config.json if that is right)"
+        )
+    return products
 
 
 def _semantic_fallback(

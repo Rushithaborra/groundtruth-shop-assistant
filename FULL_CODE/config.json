@@ -26,6 +26,10 @@
     "team_id": "TEAM-000802",
     "problem_id": "R3"
   },
+  "catalogue": {
+    "pack_strict": true,
+    "pack_expected_products": 5000
+  },
   "assistant": {
     "list_limit": 3,
     "clarify_limit": 5,
