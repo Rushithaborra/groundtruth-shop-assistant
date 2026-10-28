@@ -32,7 +32,7 @@ def product_answer(index: CatalogueIndex, prod: Product, p: Parsed, lead: str | 
 
     if lead:
         say(f"is the {lead} match")
-    if "price" in want or defaults:
+    if "price" in want or defaults or lead:  # a "cheapest / costliest" pick always says the price
         say(f"is priced at {format_inr(prod.price)}")
         claims.price(prod)
         supported = True

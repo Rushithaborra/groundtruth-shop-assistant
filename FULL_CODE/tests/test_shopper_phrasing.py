@@ -9,6 +9,7 @@ from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session
 from groundtruth.builder import build_assistant
 from groundtruth.grounding import Grounding
 from groundtruth.paths import ROOT
+from groundtruth.text import format_inr
 
 
 class ShopperPhrasingTests(unittest.TestCase):
@@ -42,10 +43,13 @@ class ShopperPhrasingTests(unittest.TestCase):
         r = self.ask("sabse sasta earbuds")
         prices = [p.price for p in self.cited(r)]
         self.assertEqual(prices, sorted(prices))
+        # a superlative ("sabse" = the most) names one product, with its price, not a list
         r = self.ask("sabse mehenga kurta")
-        self.assertTrue(r.text.startswith("Here are the highest-priced matches"))
-        prices = [p.price for p in self.cited(r)]
-        self.assertEqual(prices, sorted(prices, reverse=True))
+        self.assertEqual(r.action, ANSWER)
+        [pick] = self.cited(r)
+        self.assertEqual(pick.price, max(p.price for p in self.products.values() if "Kurta" in p.title))
+        self.assertIn(format_inr(pick.price), r.text)
+        self.assertEqual(r.claims.prices, [(pick.id, pick.price)])
 
     def test_exclusion_follow_up_keeps_the_product(self):
         r = self.ask("earbuds", "not black")

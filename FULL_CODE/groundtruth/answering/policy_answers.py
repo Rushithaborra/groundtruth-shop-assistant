@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from ..policy import Section, best_sentences
+from ..policy import STRONG, Section, best_sentences
 from ..understanding import Parsed
 from .response import ANSWER, REFUSE, Claims, Response
 
 
-def policy_answer(policy: list[Section], semantic, p: Parsed, max_sentences: int) -> Response:
+def policy_answer(
+    policy: list[Section], semantic, p: Parsed, max_sentences: int, strong: frozenset = STRONG
+) -> Response:
     """Quote the best-matching policy sentences; the embedding fallback (if any) only runs when keywords miss."""
-    found = best_sentences(policy, p.keywords, max_sentences)
+    found = best_sentences(policy, p.keywords, max_sentences, strong)
     if not found and semantic is not None:
         hit = semantic.policy_sentence(p.raw)
         if hit:

@@ -61,6 +61,10 @@ SIZE_WORDS: dict[str, str] = _VOCAB["size_words"]
 # alternative alongside a refusal, never to answer as if the shopper asked for the alternative.
 RELATED = {normalise_word(k): v for k, v in _VOCAB["related"].items()}
 
+# Shopper words for an attribute (Hinglish or plain), mapped to a word in the attribute's name: "moti" (thick) ->
+# thickness_mm, "paani" -> water_resistant. Used only when the catalogue has an attribute with that word.
+ATTRIBUTE_WORDS = {normalise_word(k): normalise_word(v) for k, v in _VOCAB["attribute_words"].items()}
+
 
 def tokenize(text: str) -> list[str]:
     text = text.lower().replace("t-shirt", "tshirt").replace("t shirt", "tshirt")

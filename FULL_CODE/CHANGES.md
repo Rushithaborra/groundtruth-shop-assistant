@@ -238,6 +238,50 @@ matches differ. The committed `submission/R3_predictions.jsonl` is from this unt
 Development dependencies added: numpy 2.2.6 and pandas 2.3.3 (the official scorer and baseline need them; the
 assistant doesn't). `pip-audit` still finds no known vulnerabilities. 117 tests pass on Python 3.9 and 3.12.
 
+### Aligning with the pack's rules (tuned on half of dev only)
+
+To keep an untuned estimate, the 40 dev questions were split once into a **tune** half and a **check** half
+(`tools/split_dev.py`, seed 2026, conversations kept whole, question types dealt alternately; the IDs are in
+`data/dev_split.json`). Per-question results were read only for the tune half; the check half was scored as a whole
+and never inspected. The 150 test questions are used only to write the submission.
+
+Tune-half failures, each fixed as a general rule rather than for the exact wording:
+
+| Failure (tune half) | General fix |
+|---|---|
+| "65W charger dikhao" refused ("65w" unknown) | Measurements (`65W`, `6 mm`, `5.5 litre`, `500 piece`) are constraints on attributes in that unit (`output_w`, `thickness_mm`, ...); ignored when no candidate has such an attribute |
+| "king size ... bedsheet sabse sasti jo stock me ho" listed a double bedsheet | A size word that isn't a stocked size but is another attribute's value ("king" → `bed_size`) is read as that attribute; a superlative ("sabse", "cheapest") names one product with its price; with a stock word, only orderable products |
+| "... speaker paani me chalega?" listed the speaker | Hinglish attribute words (`moti` → thickness, `paani` → water) and every key sharing a word (`water_resistant`, `water_resistance_rating`); an attribute the product doesn't list is refused ("the catalogue doesn't say") |
+| "... mat kitni moti hai" answered the price | "kitna/kitni/kitne" with an attribute word asks about the attribute; the price is stated only when explicitly asked |
+| "... duffel me shoe compartment hai?" refused | Multi-word attribute names ("shoe compartment") are matched before product words; the synonym `jute → shoe` removed (jute is a catalogue material) |
+| "Chandni kurti kitne ki hai" refused | Attribute filters match every catalogue value that reads the same ("Kurtis" and "Kurtas") |
+| "GST alag se lagega kya" refused | The policy's named terms (capitalised: GST, COD, MRP, UPI) identify a policy question on their own |
+| "saffron coins ya loyalty points" answered | (the first version of the previous fix used any word found in only one policy section, which also matched the store's name; narrowed to named terms) |
+
+Two synthetic regressions appeared and were fixed before the final check: "is there a restocking fee" answered with
+the shipping fee (the single-section rule; replaced by named terms), and "do shoes have warranty" clarified (English
+"do / have / is" counted as attribute-question words; only Hinglish markers and "?" count now).
+
+| Official scorer | Shipped baseline | GroundTruth before | GroundTruth after |
+|---|---|---|---|
+| Tune half (20, tuned on) | 0.6355 | 0.7125 | 1.0000 |
+| **Check half (20, never inspected)** | **0.8275** | **0.6350** | **0.8400** |
+| All 40 dev (includes the tuned half) | 0.7315 | 0.6738 | 0.9200 |
+| Hallucinated prices | 0 | 0 | 0 |
+
+**The clean estimate is the check half: 0.840**, a small lead over the baseline's 0.8275 on 20 questions, which is
+within noise. The check half was measured once before the two synthetic-regression fixes and again after; both
+gave 0.840. All 40 dev, by type (after): lookup 1.00, filter 1.00, superlative 1.00, refuse_unanswerable 1.00,
+policy gap 1.00, clarify 0.94, compare 0.90, policy 0.85, out-of-catalogue 0.83, attribute 0.67.
+
+The six synthetic sets still score 1.0 (reply wording changed where the new rules apply). The superlative test now
+expects one product with its price instead of a list, as the pack's superlative questions require. 127 tests pass
+(10 new, on a pack-style catalogue built in the test). `submission/R3_predictions.jsonl` is regenerated
+(answer 66, clarify 33, refuse 51).
+
+Dev is now fully used: the tune half by tuning, the check half by one measurement. The next generalisation number
+has to come from new questions (Task 4).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

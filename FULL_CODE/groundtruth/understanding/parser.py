@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 
 from ..catalogue import CatalogueIndex
-from ..text import ABROAD, EXTERNAL_BRANDS, RELATED, STOPWORDS, tokenize
+from ..text import ABROAD, ATTRIBUTE_WORDS, EXTERNAL_BRANDS, RELATED, STOPWORDS, tokenize
 from .lexicon import (
     ACCOUNT_PHRASES,
     ACCOUNT_W,
@@ -16,6 +16,7 @@ from .lexicon import (
     BEST_W,
     CHEAP_W,
     EXPENSIVE_W,
+    EXPLICIT_PRICE_W,
     GREET_W,
     HELP_PHRASES,
     HELP_W,
@@ -23,12 +24,15 @@ from .lexicon import (
     NEG_W,
     POLICY_W,
     PRICE_W,
+    QUESTION_W,
     RATING_W,
     RESET_PHRASES,
     STOCK_W,
+    SUPERLATIVE_W,
     THANKS_W,
     WH_W,
 )
+from .measures import extract_measures
 from .money import extract_money
 from .parsed import Parsed
 from .sizes import extract_size
@@ -47,6 +51,7 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     if len(ids) == 1:
         parsed.product_id = ids[0]
     parsed.spec.size, low, parsed.spec.size_soft = extract_size(low, index)
+    low, parsed.spec.measures = extract_measures(low)
     low, parsed.spec.price_min, parsed.spec.price_max = extract_money(low)
 
     tokens = repair_tokens(tokenize(low), index)
@@ -56,8 +61,10 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
         ids + [m for m in index.mentioned(tokens) if m not in ids] if len(ids) > 1 else index.mentioned(tokens)
     )
 
-    consumed = _apply_attribute_filters(parsed, tokens, index)
-    _detect_fact_intents(parsed, token_set, query, index)
+    asks = bool(token_set & (WH_W | QUESTION_W)) or "?" in query or bool(parsed.product_id)
+    consumed = _match_attribute_names(parsed, tokens, index, asks)
+    _apply_attribute_filters(parsed, tokens, index, consumed)
+    _detect_fact_intents(parsed, token_set, index, asks)
     _detect_sort(parsed, token_set)
     _classify_tokens(parsed, tokens, consumed, index)
     if token_set & ABROAD:  # "delivery to dubai" is the "outside India" shipping question
@@ -88,12 +95,25 @@ def _extract_ids(low: str, index: CatalogueIndex) -> tuple[list[str], str]:
     return ids, low
 
 
-def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: CatalogueIndex) -> list[bool]:
+def _match_attribute_names(parsed: Parsed, tokens: list[str], index: CatalogueIndex, asks: bool) -> list[bool]:
+    """Multi-word attribute names ("shoe compartment" -> shoe_compartment) are questions about that attribute, not
+    product words: consumed here so "shoe" isn't read as the product type. Returns which tokens were consumed."""
+    consumed = [False] * len(tokens)
+    for toks, key in index.attr_key_phrases.items():
+        n = len(toks)
+        for i in range(len(tokens) - n + 1):
+            if tuple(tokens[i : i + n]) == toks and not any(consumed[i : i + n]):
+                consumed[i : i + n] = [True] * n
+                if asks and key not in parsed.detail_keys:
+                    parsed.detail_keys.append(key)
+    return consumed
+
+
+def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: CatalogueIndex, consumed: list[bool]) -> None:
     """Attribute-value filters (colour, material, brand, ...), longest values first; "not X" becomes an exclusion.
 
-    Returns which tokens were consumed as filter values.
+    Marks the tokens used as filter values in `consumed`.
     """
-    consumed = [False] * len(tokens)
     for n, toks, key, val in index.attr_candidates:
         for i in range(len(tokens) - n + 1):
             if tuple(tokens[i : i + n]) == toks and not any(consumed[i : i + n]):
@@ -104,32 +124,29 @@ def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: Catalogue
                 for j in range(i, i + n):
                     consumed[j] = True
                 break
-    return consumed
 
 
-def _detect_fact_intents(parsed: Parsed, token_set: set[str], query: str, index: CatalogueIndex) -> None:
-    """Price, stock, rating, and attribute questions ("what colour", "material of P0042")."""
+def _detect_fact_intents(parsed: Parsed, token_set: set[str], index: CatalogueIndex, asks: bool) -> None:
+    """Price, stock, rating, and attribute questions ("what colour", "kitni moti", "material of P0042")."""
     if token_set & PRICE_W:
         parsed.intents.add("price")
     if token_set & STOCK_W:
         parsed.intents.add("stock")
     if token_set & RATING_W:
         parsed.intents.add("rating")
-    wh = bool(token_set & WH_W) or "?" in query
-    about_one = bool(parsed.product_id)  # "colour of P0042" asks about that product even without a question word
-    for ktok, key in index.attr_keys.items():
-        if (
-            ktok in token_set
-            and key not in parsed.spec.filters
-            and key not in parsed.spec.exclude
-            and (wh or about_one)
-            and ktok not in PRICE_W
-        ):
-            parsed.detail_keys.append(key)
-    if "size" in token_set and not parsed.spec.size and (wh or about_one) and "size" not in parsed.detail_keys:
+    asked_words = token_set | {ATTRIBUTE_WORDS[t] for t in token_set if t in ATTRIBUTE_WORDS}  # "moti" -> thickness
+    for ktok, keys in index.attr_key_groups.items():
+        if ktok not in asked_words or ktok in PRICE_W or not asks:
+            continue
+        for key in keys:  # "water" asks about water_resistant and water_resistance_rating
+            if key not in parsed.spec.filters and key not in parsed.spec.exclude and key not in parsed.detail_keys:
+                parsed.detail_keys.append(key)
+    if "size" in token_set and not parsed.spec.size and asks and "size" not in parsed.detail_keys:
         parsed.detail_keys.append("size")
     if parsed.detail_keys:
         parsed.intents.add("detail")
+        if not token_set & EXPLICIT_PRICE_W:  # "kitni moti" asks how thick, not how much
+            parsed.intents.discard("price")
 
 
 def _detect_sort(parsed: Parsed, token_set: set[str]) -> None:
@@ -145,6 +162,9 @@ def _detect_sort(parsed: Parsed, token_set: set[str]) -> None:
 
     if "least" in token_set and token_set & EXPENSIVE_W:
         parsed.spec.sort = "price_asc"
+    parsed.superlative = bool(parsed.spec.sort and token_set & SUPERLATIVE_W)
+    if parsed.superlative and token_set & STOCK_W:  # "sabse sasti jo stock me ho": only products that can be ordered
+        parsed.spec.in_stock_only = True
 
 
 def _classify_tokens(parsed: Parsed, tokens: list[str], consumed: list[bool], index: CatalogueIndex) -> None:

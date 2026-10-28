@@ -11,12 +11,13 @@ threads. All per-user state lives in a `Session`, which callers keep per user (s
 
 from __future__ import annotations
 
+import re
 import time
 
 from ..catalogue import CatalogueIndex, Product, Spec
 from ..config import get_settings
-from ..policy import Section
-from ..text import approx_tokens, format_inr
+from ..policy import STRONG, Section
+from ..text import approx_tokens, format_inr, tokenize
 from ..understanding import Parsed, understand
 from . import listings, product_answers, refusals
 from .formatting import SORT_LABELS, head_nouns
@@ -45,6 +46,8 @@ class ShoppingAssistant:
         self.list_limit = list_limit if list_limit is not None else limits.list_limit
         self.clarify_limit = clarify_limit if clarify_limit is not None else limits.clarify_limit
         self.policy_max_sentences = limits.policy_max_sentences
+        # the policy's named terms ("GST", "COD"): one alone is enough to identify a policy question
+        self.policy_words = STRONG | _policy_terms(policy, index)
         self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
 
     # -- public --------------------------------------------------------------------------------
@@ -128,7 +131,7 @@ class ShoppingAssistant:
         return resp
 
     def _policy(self, p: Parsed) -> Response:
-        return policy_answer(self.policy, self.semantic, p, self.policy_max_sentences)
+        return policy_answer(self.policy, self.semantic, p, self.policy_max_sentences, self.policy_words)
 
     def _product_route(self, p: Parsed, session: Session) -> Response:
         if len(p.mentioned) >= 2 and not p.product_id:
@@ -157,6 +160,10 @@ class ShoppingAssistant:
                     return Response(
                         f"{sentence} [policy:{sec.id}]", ANSWER, path="semantic", claims=cited_section(sec.id)
                     )
+            if set(p.keywords) & self.policy_words:  # "GST alag se lagega": a policy question in product words
+                pol = self._policy(p)
+                if pol.action == ANSWER:
+                    return pol
             return refusals.unknown_refusal(self.index, p, self.list_limit)
         only_exclusions = not (
             spec.type_tokens
@@ -205,6 +212,8 @@ class ShoppingAssistant:
             pick = hits[0]
         elif len(hits) > 1 and spec.sort and not p.spec.type_tokens and not specific and {"the", "one"} & p.all_tokens:
             pick = hits[0]  # "the cheapest" after a search
+        elif len(hits) > 1 and p.superlative:
+            pick = hits[0]  # "sabse sasti king bedsheet": one product, not a list
         elif len(hits) > 1 and specific:
             if spec.sort:
                 pick = hits[0]
@@ -265,3 +274,13 @@ def _drop_unlisted_filters(index: CatalogueIndex, spec: Spec, p: Parsed) -> list
     for k in dropped:
         del spec.filters[k]
     return dropped
+
+
+def _policy_terms(policy: list[Section], index: CatalogueIndex) -> frozenset:
+    """Named terms of the policy: words it writes in capitals (GST, COD, MRP, UPI) and no product uses.
+
+    One of these alone identifies a policy question ("GST alag se lagega?"). Ordinary words, even rare ones like
+    "fee", don't: a question about a fee the policy never mentions must still be refused.
+    """
+    terms = {w for sec in policy for w in re.findall(r"\b[A-Z]{2,}\b", f"{sec.heading} {sec.body}")}
+    return frozenset(t for w in terms for t in tokenize(w) if t not in index.vocab)

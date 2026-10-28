@@ -132,6 +132,12 @@ ACCOUNT_PHRASES = (
     "contact number",
 )
 WH_W = {"what", "whats", "which", "kya", "kaun", "kaunsa", "kaunsi", "kis"}
+# Words that make a message a question about a product's details ("bluetooth hai?", "kitni moti hai")
+QUESTION_W = {"hai", "hain", "kitna", "kitni", "kitne"}  # Hinglish; an English question needs "?"
+# Words that ask for the price itself; "kitna" alone may ask "how much" of something else ("kitni moti")
+EXPLICIT_PRICE_W = {"price", "rate"}
+# One product wanted, not a list: "sabse sasta", "cheapest", "the most expensive"
+SUPERLATIVE_W = {"sabse", "cheapest", "lowest", "costliest", "priciest", "highest", "most", "least"}
 RESET_PHRASES = ("start over", "new search", "reset", "forget it", "clear all", "never mind", "nevermind")
 
 IGNORE = (

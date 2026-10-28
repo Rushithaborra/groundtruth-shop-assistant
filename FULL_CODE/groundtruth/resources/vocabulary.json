@@ -229,7 +229,6 @@
     "sneaker": "shoe",
     "joota": "shoe",
     "joote": "shoe",
-    "jute": "shoe",
     "juta": "shoe",
     "tee": "tshirt",
     "tees": "tshirt",
@@ -404,5 +403,13 @@
     "pant": "jeans",
     "bedcover": "bedsheet",
     "charger": "power"
+  },
+  "attribute_words": {
+    "moti": "thickness",
+    "mota": "thickness",
+    "thick": "thickness",
+    "paani": "water",
+    "pani": "water",
+    "waterproof": "water"
   }
 }

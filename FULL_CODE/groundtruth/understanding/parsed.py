@@ -21,6 +21,7 @@ class Parsed:
     alternatives: list[str] = field(default_factory=list)  # catalogue type words related to an unknown product word
     mapped: list[tuple[str, str]] = field(default_factory=list)  # (shopper word, catalogue word) from the fallback
     refined: bool = False  # set by the assistant when this turn was merged into the previous search
+    superlative: bool = False  # one product wanted ("sabse sasta"), not a list
     all_tokens: set[str] = field(default_factory=set)  # every token (exact title matching)
 
     @property
@@ -31,4 +32,10 @@ class Parsed:
     @property
     def has_constraint(self) -> bool:
         s = self.spec
-        return self.has_product_ref or s.price_min is not None or s.price_max is not None or bool(s.exclude)
+        return (
+            self.has_product_ref
+            or s.price_min is not None
+            or s.price_max is not None
+            or bool(s.exclude)
+            or bool(s.measures)
+        )

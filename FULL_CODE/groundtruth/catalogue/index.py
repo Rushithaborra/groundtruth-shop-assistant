@@ -16,6 +16,8 @@ from ..text import tokenize
 from .loader import Product
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
+# Unit suffixes in attribute names ("thickness_mm", "wattage_w"); they say how a value is measured, not what it is
+UNIT_WORDS = frozenset({"mm", "cm", "m", "ft", "in", "w", "l", "ml", "mah", "kg", "g", "c", "min", "hour", "hours"})
 GENDER_KEY = "gender"
 
 
@@ -32,6 +34,8 @@ class Spec:
     size: str | None = None
     sort: str | None = None  # price_asc | price_desc | rating_desc
     size_soft: bool = False  # size came from a bare word ("large"), not "size X"; dropped for unsized products
+    measures: list[tuple[str, float]] = field(default_factory=list)  # ("w", 65.0) from "65W": unit suffix, value
+    in_stock_only: bool = False  # "cheapest one that's in stock"
 
     def copy(self) -> Spec:
         return Spec(
@@ -44,6 +48,8 @@ class Spec:
             self.size,
             self.sort,
             self.size_soft,
+            self.measures[:],
+            self.in_stock_only,
         )
 
     def is_empty(self) -> bool:
@@ -53,6 +59,7 @@ class Spec:
             or self.filters
             or self.exclude
             or self.size
+            or self.measures
             or self.price_min is not None
             or self.price_max is not None
         )
@@ -69,9 +76,13 @@ class CatalogueIndex:
         self.attr_lower: dict[str, dict[str, frozenset[str]]] = {}  # pid -> key -> lower-cased values
         self.attr_values: dict[str, dict[tuple, str]] = {}  # key -> {token tuple: original value}
         self.attr_keys: dict[str, str] = {}  # normalised key token -> key
+        self.attr_key_groups: dict[str, list[str]] = {}  # key token -> every key containing it ("water" -> 2 keys)
+        self.attr_key_phrases: dict[tuple, str] = {}  # multi-word key names: ("shoe", "compartment") -> key
         self._text_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title/category/attrs -> pids
         self._title_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title -> pids
         self._attr_postings: defaultdict[tuple, set[str]] = defaultdict(set)  # (key, lower value) -> pids
+        # (key, value tokens) -> pids: "Kurtas" and "Kurtis" read the same, so a filter on one matches both
+        self._attr_token_postings: defaultdict[tuple, set[str]] = defaultdict(set)
         df: Counter = Counter()
         for p in products:
             title = frozenset(tokenize(p.title))
@@ -88,8 +99,9 @@ class CatalogueIndex:
                     toks = tuple(tokenize(val))
                     if toks:
                         self.attr_values.setdefault(key, {})[toks] = val
+                        self._attr_token_postings[(key, toks)].add(p.id)
                         text.update(toks)
-                self.attr_keys.update({t: key for t in tokenize(key) if t not in self.attr_keys})
+                self._index_key_name(key)
             desc = frozenset(tokenize(p.description))
             self.title_tokens[p.id], self.desc_tokens[p.id], self.attr_lower[p.id] = title, desc, lowered
             for tok in text:
@@ -115,6 +127,17 @@ class CatalogueIndex:
         cache_size = typo_cache_size if typo_cache_size is not None else search.typo_cache_size
         self.closest = lru_cache(maxsize=cache_size)(self._closest)
 
+    def _index_key_name(self, key: str) -> None:
+        """Make an attribute's name askable: by any of its words, and by its full name when that has several."""
+        words = [t for t in tokenize(key) if not t.isdigit() and t not in UNIT_WORDS]
+        for t in words:
+            self.attr_keys.setdefault(t, key)
+            group = self.attr_key_groups.setdefault(t, [])
+            if key not in group:
+                group.append(key)
+        if len(words) >= 2:
+            self.attr_key_phrases.setdefault(tuple(words), key)
+
     # -- typo tolerance ------------------------------------------------------------------------
     def _closest(self, token: str) -> str | None:
         pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._vocab_by_len.get(n, ())]
@@ -126,7 +149,9 @@ class CatalogueIndex:
         """Narrow the catalogue with postings before the per-product checks."""
         sets = [self._text_postings.get(t, set()) for t in spec.type_tokens]
         for k, v in spec.filters.items():
-            hit = self._attr_postings.get((k, v.lower()), set())
+            hit = self._attr_postings.get((k, v.lower()), set()) | self._attr_token_postings.get(
+                (k, tuple(tokenize(v))), set()
+            )
             if k == GENDER_KEY and v.lower() in ("men", "women"):  # unisex items suit everyone
                 hit = hit | self._attr_postings.get((k, "unisex"), set())
             sets.append(hit)
@@ -145,6 +170,10 @@ class CatalogueIndex:
             return False
         if spec.size and spec.size.lower() not in attrs.get(SIZE_KEY, ()):
             return False
+        if spec.in_stock_only and p.in_stock is not True:
+            return False
+        if any(not any(_numeric(v) == value for v in _unit_values(p, unit)) for unit, value in spec.measures):
+            return False
         if use_desc:
             text_hit = self.desc_tokens[p.id]
             return all(t in text_hit or p.id in self._text_postings.get(t, ()) for t in spec.desc_tokens)
@@ -153,6 +182,10 @@ class CatalogueIndex:
     def search(self, spec: Spec, query_tokens: set[str] | frozenset[str] = frozenset()) -> tuple[list[Product], bool]:
         """Return (ranked matches, description_tokens_were_relaxed)."""
         pool = [self.products[i] for i in self._candidate_ids(spec)]
+        usable = [m for m in spec.measures if any(_unit_values(p, m[0]) for p in pool)]
+        if usable != spec.measures:  # "65W kettle" when kettles list no wattage: the number can't be checked, drop it
+            spec = spec.copy()
+            spec.measures = usable
         hits = [p for p in pool if self._matches(p, spec, use_desc=True)]
         relaxed = False
         if not hits and spec.desc_tokens:
@@ -207,3 +240,19 @@ class CatalogueIndex:
             return []
         longest = max(len(self.title_tokens[p.id]) for p in full)
         return [p for p in full if len(self.title_tokens[p.id]) == longest]
+
+
+def _unit_values(p: Product, unit: str) -> list:
+    """Values of the product's attributes measured in `unit`: "w" -> wattage_w, output_w; "pieces" -> pieces."""
+    return [v for k, v in p.attributes.items() if k == unit or k.endswith(f"_{unit}")]
+
+
+def _numeric(value) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except ValueError:
+        return None

@@ -162,10 +162,10 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
 
 ## Limitations
 
-* **Official dev score, before tuning for the pack's rules: 0.674**, below the shipped baseline's 0.7315 on the same
-  40 dev questions. Grounding is stronger than the baseline's (grounded 0.931 vs 0.849, helpfulness 0.891 vs 0.774,
-  0 hallucinated prices); choosing the action is weaker (0.713 vs 0.825), mainly on attribute, filter and superlative
-  questions and on refusing facts the catalogue doesn't list. Only the 40 dev questions are used for tuning.
+* **Official scores are on 20 questions.** The 40 dev questions were split in half: rules were tuned on one half,
+  and the other half (never inspected) scores **0.840**, against the shipped baseline's 0.8275 on the same 20
+  questions. That lead is within noise. All 40 dev score 0.920 (baseline 0.7315), but that includes the tuned half.
+  The organisers' 150 test questions are only used to write the submission. Weakest type: attribute questions.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
 * **Not yet run with the provided models**, so the real token and latency cost of the fallbacks is unmeasured.

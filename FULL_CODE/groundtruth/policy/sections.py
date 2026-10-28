@@ -76,8 +76,11 @@ def _plain_sections(text: str) -> list[Section]:
 STRONG = frozenset({"refund", "exchange", "cancel", "warranty", "guarantee", "cash", "ship", "return", "dispatch"})
 
 
-def best_sentences(sections: list[Section], keywords: list[str], limit: int):
-    """Return (section, [sentences]) for the best-matching section, or None when nothing fits."""
+def best_sentences(sections: list[Section], keywords: list[str], limit: int, strong: frozenset = STRONG):
+    """Return (section, [sentences]) for the best-matching section, or None when nothing fits.
+
+    A sentence matches on two shared words, or on one word from `strong` (words that alone identify a policy topic).
+    """
     wanted = frozenset(keywords)
     best = None
     for sec in sections:
@@ -85,7 +88,7 @@ def best_sentences(sections: list[Section], keywords: list[str], limit: int):
         scored = [
             (len(wanted & toks) + bonus, i, sent)
             for i, (sent, toks) in enumerate(sec.sentences)
-            if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & STRONG)
+            if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & strong)
         ]
         if scored and (best is None or max(scored)[0] > best[0]):
             top = max(sc for sc, _, _ in scored)
