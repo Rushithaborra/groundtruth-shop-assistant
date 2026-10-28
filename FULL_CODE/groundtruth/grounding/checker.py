@@ -17,6 +17,8 @@ from ..text import format_inr
 CITE = re.compile(r"\[([^\]]+)\]")
 RUPEE = re.compile(r"₹\s?(\d[\d,]*(?:\.\d+)?)")
 NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
+UNITS = re.compile(r"(?<=[.!?])\s+(?!\[)|\n")  # sentences and lines; a citation stays with the sentence before it
+BUDGET_WORD = re.compile(r"(?:under|over|below|above|between|within|upto|up to|than|and)\s*$", re.I)
 
 
 def _numbers(text: str) -> set[str]:
@@ -52,7 +54,7 @@ class Grounding:
         cites = list(dict.fromkeys(CITE.findall(text)))
         sources, problems = self._resolve(cites)
         body = CITE.sub("", text)
-        hallucinated = self._hallucinated_prices(body, sources, query_text)
+        hallucinated = self._hallucinated_prices(text, sources, query_text)
         problems += self._unsupported_numbers(body, sources, query_text)
         problems += self._uncited_titles(body, sources)
         problems += self._uncited_claims(text)
@@ -70,16 +72,29 @@ class Grounding:
                 sources[c] = src
         return sources, problems
 
-    def _hallucinated_prices(self, body: str, sources: dict[str, str], query_text: str) -> list[str]:
-        """Every ₹ amount in the reply that is no cited product's or section's, and not the shopper's own number."""
-        allowed = {float(m.replace(",", "")) for src in sources.values() for m in RUPEE.findall(src)}
-        allowed |= {float(self.index.products[c].price) for c in sources if c in self.index.products}
-        allowed |= {
+    def _hallucinated_prices(self, text: str, sources: dict[str, str], query_text: str) -> list[str]:
+        """Every ₹ amount that is not the price (or policy amount) of the citation it sits next to.
+
+        An amount belongs to the next citation after it in the same sentence or line ("... at ₹299 [P1]"), or the
+        last one before it. The shopper's own numbers are allowed only as a budget ("under ₹500"), never as a price.
+        """
+        own = {
             float(n.replace(",", ""))
             for n in re.findall(r"\d[\d,]*(?:\.\d+)?", query_text)
             if n.replace(",", "").replace(".", "").isdigit()
         }
-        return [m for m in RUPEE.findall(body) if float(m.replace(",", "")) not in allowed]
+        wrong = []
+        for unit in UNITS.split(text):
+            cites = [(m.start(), m.group(1)) for m in CITE.finditer(unit)]
+            for m in RUPEE.finditer(unit):
+                value = float(m.group(1).replace(",", ""))
+                if value in own and BUDGET_WORD.search(unit[max(0, m.start() - 12) : m.start()]):
+                    continue  # the shopper's budget repeated back
+                owner = next((c for at, c in cites if at > m.start()), cites[-1][1] if cites else None)
+                allowed = {float(a.replace(",", "")) for a in RUPEE.findall(sources.get(owner, ""))}
+                if value not in allowed:
+                    wrong.append(m.group(1))
+        return wrong
 
     @staticmethod
     def _unsupported_numbers(body: str, sources: dict[str, str], query_text: str) -> list[str]:
@@ -99,7 +114,7 @@ class Grounding:
     def _uncited_claims(self, text: str) -> list[str]:
         """A problem for each sentence or line that states a fact (price, product, stock, rating) without a citation."""
         problems = []
-        for unit in re.split(r"(?<=[.!?])\s+(?!\[)|\n", text):
+        for unit in UNITS.split(text):
             u = unit.strip(" -")
             if not u:
                 continue
