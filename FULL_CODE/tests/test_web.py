@@ -10,7 +10,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 from groundtruth.paths import ROOT
-from groundtruth import build_assistant
+from groundtruth.builder import build_assistant
 from api.server import make_handler
 from api.state import State
 
@@ -101,7 +101,7 @@ class WebTests(unittest.TestCase):
 
     def test_examples_come_from_the_catalogue_and_do_what_they_say(self):
         from api.views import build_examples
-        from groundtruth import Session
+        from groundtruth.answering import Session
         examples = build_examples(self.assistant)
         self.assertGreaterEqual(len(examples), 5)
         self.assertEqual({e["shows"] for e in examples}, {"answer", "clarify", "refuse"})

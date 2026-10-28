@@ -11,7 +11,10 @@ import random
 import re
 from pathlib import Path
 
-from groundtruth.paths import DATA_DIR as HERE
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
+
+HERE = get_settings().paths.data_dir
 
 
 def load(path: Path) -> list[dict]:
@@ -147,7 +150,7 @@ def make(products: list[dict], seed: int = 3) -> list[dict]:
 
 def write(path: Path, qs: list[dict]) -> None:
     path.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n", encoding="utf-8")
-    print(f"wrote {len(qs)} questions to {path}")
+    write_out(f"wrote {len(qs)} questions to {path}")
 
 
 def main() -> None:

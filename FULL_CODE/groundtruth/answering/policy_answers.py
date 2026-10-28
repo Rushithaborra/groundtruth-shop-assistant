@@ -6,9 +6,9 @@ from ..understanding import Parsed
 from .response import ANSWER, REFUSE, Response
 
 
-def policy_answer(policy: list[Section], semantic, p: Parsed) -> Response:
+def policy_answer(policy: list[Section], semantic, p: Parsed, max_sentences: int) -> Response:
     """Quote the best-matching policy sentences; the embedding fallback (if any) only runs when keywords miss."""
-    found = best_sentences(policy, p.keywords)
+    found = best_sentences(policy, p.keywords, max_sentences)
     if not found and semantic is not None:
         hit = semantic.policy_sentence(p.raw)
         if hit:

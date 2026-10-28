@@ -2,17 +2,19 @@
 
 The real catalogue's exact format is unknown, so parsing is tolerant: prices like "₹1,299" or "Rs. 1299.00", stock
 like "Only 2 left", ratings like "4.2/5", attributes as a dict, a JSON string, or flat columns. A row that can't be
-parsed (no id, title or price) is skipped and reported on stderr instead of stopping the whole load. Values the
+parsed (no id, title or price) is skipped and logged as a warning instead of stopping the whole load. Values the
 catalogue doesn't give are left unknown (None), never filled with a guess.
 """
 from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -181,7 +183,7 @@ def _read_rows(path: Path) -> list:
 
 
 def load_catalogue(path: str | Path, strict: bool = False) -> list[Product]:
-    """Load products; bad rows are skipped and reported on stderr (strict=True raises instead)."""
+    """Load products; bad rows are skipped and logged (strict=True raises instead)."""
     products, seen, skipped = [], set(), []
     for n, row in enumerate(_read_rows(Path(path)), 1):
         try:
@@ -200,6 +202,6 @@ def load_catalogue(path: str | Path, strict: bool = False) -> list[Product]:
         seen.add(product.id)
         products.append(product)
     if skipped:
-        print(f"[catalogue] skipped {len(skipped)} unreadable row(s): " + "; ".join(skipped[:5])
-              + (" ..." if len(skipped) > 5 else ""), file=sys.stderr)
+        logger.warning("skipped %d unreadable catalogue row(s): %s%s", len(skipped), "; ".join(skipped[:5]),
+                       " ..." if len(skipped) > 5 else "")
     return products

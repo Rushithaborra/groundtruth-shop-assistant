@@ -1,8 +1,11 @@
 """Text helpers shared by the index, the query parser and the evaluator."""
 from __future__ import annotations
 
+import json
 import math
 import re
+
+from .config import get_settings
 
 STOPWORDS = set(
     """
@@ -20,31 +23,12 @@ STOPWORDS = set(
     """.split()
 )
 
-# Hand-written normalisations for synonyms and common Hinglish product words. The catalogue-derived
-# vocabulary does the rest; extend this table when the real catalogue uses other words.
-SYNONYMS = {
-    "sneakers": "shoe", "sneaker": "shoe", "joota": "shoe", "joote": "shoe", "jute": "shoe", "juta": "shoe",
-    "tee": "tshirt", "tees": "tshirt", "tshirts": "tshirt",
-    "colour": "color", "colours": "color", "colors": "color",
-    "cost": "price", "costs": "price", "keemat": "price", "kimat": "price",
-    "daam": "price", "din": "day", "prices": "price", "pricing": "price",
-    # delivery and shipping are the same thing to a shopper; one token lets the policy heading bonus apply
-    "sizes": "size", "sizing": "size",
-    "shipping": "ship", "shipped": "ship", "delivery": "ship", "deliveries": "ship", "deliver": "ship",
-    "delivered": "ship", "courier": "ship",
-    "cancelled": "cancel", "canceled": "cancel", "cancellation": "cancel", "cancellations": "cancel",
-    "refunds": "refund", "refunded": "refund", "wapas": "return", "vapas": "return",
-    "jogging": "running", "jog": "running", "jogger": "running",
-    "trainer": "shoe", "trainers": "shoe", "footwear": "shoe",
-    "chappal": "sandal", "chappals": "sandal", "slipper": "sandal", "slippers": "sandal", "floaters": "sandal",
-    "kurti": "kurta", "kurtis": "kurta", "earphone": "earbud", "earphones": "earbud",
-    "ladies": "women", "lady": "women", "womens": "women", "female": "women", "girls": "women",
-    "gents": "men", "mens": "men", "male": "men", "boys": "men",
-    "suti": "cotton", "sooti": "cotton",
-    "run": "running", "runner": "running", "runners": "running",
-    "lal": "red", "neela": "blue", "nila": "blue", "kala": "black", "safed": "white", "hara": "green",
-    "peela": "yellow",
-}
+# Hand-written vocabulary (synonyms, brands the shop may not carry, places abroad, size words, related products),
+# kept in a data file so it can be extended for the real catalogue without code changes.
+_VOCAB = json.loads(get_settings().paths.vocabulary.read_text(encoding="utf-8"))
+
+# Synonyms and common Hinglish product words; the catalogue-derived vocabulary does the rest.
+SYNONYMS: dict[str, str] = _VOCAB["synonyms"]
 
 
 _COD = re.compile(r"\bcod\b")
@@ -73,34 +57,20 @@ def normalise_word(word: str) -> str:
 
 # Well-known brands and products the shop may not carry. Used only for words the catalogue's own vocabulary does
 # not contain, so a real catalogue that sells one of these brands parses it as a normal brand filter instead.
-_EXTERNAL_RAW = frozenset("""
-    nike adidas puma reebok skechers asics bata woodland apple iphone ipad macbook airpods samsung galaxy oneplus
-    xiaomi redmi realme oppo vivo sony boat jbl bose noise fireboltt fastrack titan casio lg whirlpool philips
-    prestige milton tupperware levis zara biba fabindia
-""".split())
-# stored in tokenised form, because query words are stemmed before this check ("adidas" -> "adida")
-_BRAND_CASE = {"iphone": "iPhone", "ipad": "iPad", "macbook": "MacBook", "airpods": "AirPods", "oneplus": "OnePlus",
-               "jbl": "JBL", "lg": "LG", "boat": "boAt", "fireboltt": "Fire-Boltt", "levis": "Levis"}
-EXTERNAL_DISPLAY = {stem(w): _BRAND_CASE.get(w, w.capitalize()) for w in _EXTERNAL_RAW}  # stemmed -> shown name
+# Stored in tokenised form, because query words are stemmed before this check ("adidas" -> "adida").
+EXTERNAL_DISPLAY = {stem(w): _VOCAB["brand_display"].get(w, w.capitalize())
+                    for w in frozenset(_VOCAB["external_brands"])}  # stemmed -> shown name
 EXTERNAL_BRANDS = frozenset(EXTERNAL_DISPLAY)
 
 # Places outside India: a question about delivering there is answered by the "outside India" shipping sentence.
-ABROAD = frozenset("""
-    abroad international internationally overseas foreign bahar videsh dubai uae usa america uk london england
-    canada singapore australia nepal bangladesh srilanka lanka germany europe
-""".split())
-ABROAD = frozenset(normalise_word(w) for w in ABROAD)
+ABROAD = frozenset(normalise_word(w) for w in _VOCAB["abroad"])
 
 # Spoken size words -> catalogue size values (only applied when the value exists in the catalogue).
-SIZE_WORDS = {"small": "S", "medium": "M", "large": "L", "xl": "XL", "xxl": "XXL", "xs": "XS",
-              "king": "king", "queen": "queen", "double": "double", "single": "single"}
+SIZE_WORDS: dict[str, str] = _VOCAB["size_words"]
 
 # Product words the catalogue may not sell, mapped to the nearest thing it does sell. Used only to suggest a cited
 # alternative alongside a refusal, never to answer as if the shopper asked for the alternative.
-RELATED = {"headphone": "earbud", "headset": "earbud", "airpod": "earbud", "watch": "smartwatch",
-           "bag": "backpack", "purse": "wallet", "flask": "bottle", "jacket": "hoodie", "sweatshirt": "hoodie",
-           "trousers": "jeans", "pant": "jeans", "bedcover": "bedsheet", "charger": "power"}
-RELATED = {normalise_word(k): v for k, v in RELATED.items()}
+RELATED = {normalise_word(k): v for k, v in _VOCAB["related"].items()}
 
 
 def tokenize(text: str) -> list[str]:

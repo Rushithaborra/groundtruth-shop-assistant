@@ -2,20 +2,17 @@
 from __future__ import annotations
 
 import argparse
-import sys
 
-from . import Session, build_assistant
-from .paths import DATA_DIR
+from .answering import Session
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+from .builder import build_assistant
+from .arguments import add_data_arguments, add_model_arguments
+from .console import write_out
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--catalogue", default=str(DATA_DIR / "catalogue.jsonl"))
-    ap.add_argument("--policy", default=str(DATA_DIR / "policy.txt"))
-    ap.add_argument("--embed-model", help="path to the provided embedding model (needs semantic_config.json)")
-    ap.add_argument("--llm-model", help="path to the provided instruct model (last-resort query normaliser)")
+    add_data_arguments(ap)
+    add_model_arguments(ap)
     ap.add_argument("--meta", action="store_true", help="show action, latency and token estimates per reply")
 
 
@@ -23,7 +20,7 @@ def run(args: argparse.Namespace) -> None:
     assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model,
                                 measure_tokens=args.meta)
     session = Session()
-    print("Shopping assistant ready. Type a question (or 'quit'). Say 'start over' to clear context.")
+    write_out("Shopping assistant ready. Type a question (or 'quit'). Say 'start over' to clear context.")
     while True:
         try:
             query = input("\nyou> ").strip()
@@ -34,8 +31,8 @@ def run(args: argparse.Namespace) -> None:
         if not query:
             continue
         resp = assistant.ask(query, session)
-        print(f"\nbot> {resp.text}")
+        write_out(f"\nbot> {resp.text}")
         if args.meta:
             llm = f" | llm {resp.llm_input_tokens}+{resp.llm_output_tokens} tok" if resp.path == "llm" else ""
-            print(f"     [{resp.action} | path={resp.path} | {resp.latency_ms:.1f} ms | context~{resp.context_tokens} tok "
-                  f"| output~{resp.output_tokens} tok{llm}]")
+            write_out(f"     [{resp.action} | path={resp.path} | {resp.latency_ms:.1f} ms | context~{resp.context_tokens} "
+                      f"tok | output~{resp.output_tokens} tok{llm}]")

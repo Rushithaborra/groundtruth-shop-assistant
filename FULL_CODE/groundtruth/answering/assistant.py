@@ -13,6 +13,7 @@ from __future__ import annotations
 import time
 
 from ..catalogue import CatalogueIndex, Product, Spec
+from ..config import get_settings
 from ..policy import Section
 from ..text import approx_tokens, format_inr
 from ..understanding import Parsed, understand
@@ -24,14 +25,17 @@ from .response import ANSWER, CLARIFY, REFUSE, Response, Session
 
 
 class ShoppingAssistant:
-    def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int = 3, clarify_limit: int = 5,
-                 measure_tokens: bool = False, semantic=None, normaliser=None):
+    def __init__(self, index: CatalogueIndex, policy: list[Section], list_limit: int | None = None,
+                 clarify_limit: int | None = None, measure_tokens: bool = False, semantic=None, normaliser=None):
+        limits = get_settings().assistant
         self.index, self.policy = index, policy
         self.semantic = semantic      # optional SemanticFallback (embedding model), miss path only
         self.head_nouns = head_nouns(index)
         self.normaliser = normaliser  # optional LLMNormaliser (instruct model), last resort on the miss path
         self.sections = {s.id: s for s in policy}
-        self.list_limit, self.clarify_limit = list_limit, clarify_limit
+        self.list_limit = list_limit if list_limit is not None else limits.list_limit
+        self.clarify_limit = clarify_limit if clarify_limit is not None else limits.clarify_limit
+        self.policy_max_sentences = limits.policy_max_sentences
         self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
 
     # -- public --------------------------------------------------------------------------------
@@ -103,7 +107,7 @@ class ShoppingAssistant:
         return resp
 
     def _policy(self, p: Parsed) -> Response:
-        return policy_answer(self.policy, self.semantic, p)
+        return policy_answer(self.policy, self.semantic, p, self.policy_max_sentences)
 
     def _product_route(self, p: Parsed, session: Session) -> Response:
         if len(p.mentioned) >= 2 and not p.product_id:

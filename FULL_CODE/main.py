@@ -12,14 +12,13 @@ Run `python main.py <command> --help` for a command's options.
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
 import sys
 
-from api import server
-from groundtruth import cli
-from groundtruth.evaluation import scoring
+from groundtruth.config import ConfigError, get_settings
+from groundtruth.console import configure_console
 from groundtruth.paths import ROOT
-from tools import bench, calibrate_semantic
 
 # Generators in the order their inputs need them (the scale and question sets read the catalogues written before).
 GENERATORS = ("synthetic", "hard", "scale", "independent", "heldout", "heldout2")
@@ -38,6 +37,12 @@ def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    # imported here, after the settings have loaded: these modules read settings at import time
+    from api import server
+    from groundtruth import cli
+    from groundtruth.evaluation import scoring
+    from tools import bench, calibrate_semantic
+
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     for name, add_arguments, handler, help_text in (
@@ -54,10 +59,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
+    try:
+        settings = get_settings()
+    except ConfigError as exc:
+        logging.basicConfig(format="%(levelname)s: %(message)s")
+        logging.getLogger("groundtruth").error("invalid configuration: %s", exc)
+        return 2
+    configure_console(settings.logging.level)
     args = build_parser().parse_args(argv)
     args.handler(args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

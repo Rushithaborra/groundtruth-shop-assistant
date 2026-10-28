@@ -11,7 +11,10 @@ import json
 import random
 from pathlib import Path
 
-from groundtruth.paths import DATA_DIR as OUT
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
+
+OUT = get_settings().paths.data_dir
 rng = random.Random(7)
 
 COLORS = ["black", "white", "blue", "red", "grey", "green"]
@@ -236,7 +239,7 @@ def main() -> None:
     qs = make_questions(products)
     (OUT / "test_questions.jsonl").write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n",
                                               encoding="utf-8")
-    print(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
+    write_out(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
 
 
 

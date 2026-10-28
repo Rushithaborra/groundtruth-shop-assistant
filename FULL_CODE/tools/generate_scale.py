@@ -12,10 +12,11 @@ import random
 import shutil
 from pathlib import Path
 
-from groundtruth.paths import DATA_DIR, SCALE_DIR
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
 from tools import generate_synthetic as small
 
-OUT = SCALE_DIR
+OUT = get_settings().paths.scale_dir
 N_PRODUCTS = 5000
 rng = random.Random(11)
 
@@ -82,7 +83,7 @@ def main() -> None:
     products = make_scale_catalogue()
     (OUT / "catalogue.jsonl").write_text("\n".join(json.dumps(p, ensure_ascii=False) for p in products) + "\n",
                                          encoding="utf-8")
-    shutil.copy(DATA_DIR / "policy.txt", OUT / "policy.txt")
+    shutil.copy(get_settings().paths.data_dir / "policy.txt", OUT / "policy.txt")
     # the same question templates as the small set; expectations are recomputed against this catalogue
     # (messy attribute spellings are normalised here the way a careful reader would, so expectations stay fair)
     clean = [dict(p, attributes={k.lower().replace("colour", "color"): (v.strip().lower() if k.lower() in {"colour", "color", "material"} else v)
@@ -90,7 +91,7 @@ def main() -> None:
     qs = small.make_questions(clean)
     (OUT / "test_questions.jsonl").write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in qs) + "\n",
                                               encoding="utf-8")
-    print(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
+    write_out(f"wrote {len(products)} products, {len(qs)} questions to {OUT}")
 
 
 

@@ -1,0 +1,56 @@
+{
+  "paths": {
+    "data_dir": "data",
+    "scale_dir": "data/scale",
+    "catalogue": "data/catalogue.jsonl",
+    "policy": "data/policy.txt",
+    "questions": "data/test_questions.jsonl",
+    "demo_catalogue": "data/scale/catalogue.jsonl",
+    "demo_policy": "data/scale/policy.txt",
+    "bench_questions": "data/scale/test_questions.jsonl",
+    "reports_dir": "output/reports",
+    "cache_dir": ".cache",
+    "semantic_config": "semantic_config.json",
+    "vocabulary": "groundtruth/resources/vocabulary.json"
+  },
+  "assistant": {
+    "list_limit": 3,
+    "clarify_limit": 5,
+    "policy_max_sentences": 2
+  },
+  "search": {
+    "typo_cutoff": 0.85,
+    "typo_cache_size": 4096
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "max_sessions": 500,
+    "max_message_chars": 500,
+    "max_body_bytes": 10000
+  },
+  "sessions": {
+    "max_sessions": 10000,
+    "ttl_seconds": 1800
+  },
+  "models": {
+    "embed_model": null,
+    "llm_model": null,
+    "embed_max_length": 64,
+    "llm_max_new_tokens": 120,
+    "llm_max_values_per_attribute": 40
+  },
+  "calibration": {
+    "margin": 0.02,
+    "alt_gap": 0.08
+  },
+  "evaluation": {
+    "weight_groundedness": 0.35,
+    "weight_helpfulness": 0.35,
+    "weight_refusal": 0.30,
+    "hallucinated_price_penalty": 0.10
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}

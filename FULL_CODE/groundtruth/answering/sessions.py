@@ -5,13 +5,17 @@ import time
 from collections import OrderedDict
 from threading import Lock
 
+from ..config import get_settings
+
 from .assistant import ShoppingAssistant
 from .response import Response, Session
 
 
 class SessionStore:
-    def __init__(self, max_sessions: int = 10_000, ttl_seconds: float = 1800):
-        self.max_sessions, self.ttl = max_sessions, ttl_seconds
+    def __init__(self, max_sessions: int | None = None, ttl_seconds: float | None = None):
+        limits = get_settings().sessions
+        self.max_sessions = max_sessions if max_sessions is not None else limits.max_sessions
+        self.ttl = ttl_seconds if ttl_seconds is not None else limits.ttl_seconds
         self._data: OrderedDict[str, tuple[float, Session, Lock]] = OrderedDict()
         self._lock = Lock()
 

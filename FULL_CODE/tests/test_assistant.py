@@ -7,7 +7,8 @@ import unittest
 
 from groundtruth.paths import ROOT
 from groundtruth.grounding import Grounding
-from groundtruth import ANSWER, CLARIFY, REFUSE, Session, SessionStore, build_assistant
+from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session, SessionStore
+from groundtruth.builder import build_assistant
 from groundtruth.text import format_inr
 
 

@@ -12,16 +12,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
+import logging
 
-from groundtruth import CatalogueIndex, load_catalogue, load_policy
+from groundtruth.catalogue import CatalogueIndex, load_catalogue
+
+from groundtruth.policy import load_policy
 from groundtruth.models.local import LocalEmbedder
 from groundtruth.models.semantic import SemanticFallback, dot
-from groundtruth.paths import DATA_DIR
+from groundtruth.arguments import add_data_arguments
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
 from groundtruth.text import tokenize
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+logger = logging.getLogger(__name__)
 
 # shopper word -> acceptable catalogue type words (tokenised form). Words missing from the catalogue are skipped.
 SHOULD_MAP = {
@@ -42,7 +45,10 @@ POLICY_NEG = ["do you have a store in hyderabad", "can i pay with paytm", "emi o
               "who is the ceo", "loyalty points"]
 
 
-def calibrate(fallback: SemanticFallback, margin: float = 0.02) -> dict:
+def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: float | None = None) -> dict:
+    settings = get_settings().calibration
+    margin = margin if margin is not None else settings.margin
+    alt_gap = alt_gap if alt_gap is not None else settings.alt_gap
     targets = set(fallback.targets)
     rows = []
     for word in MUST_NOT_MAP:
@@ -55,7 +61,7 @@ def calibrate(fallback: SemanticFallback, margin: float = 0.02) -> dict:
             continue
         m = fallback.nearest_type(" ".join(tokenize(word)) or word)
         rows.append(("map", word, m.target, m.score, m.target in ok))
-    alt_t = round(map_t - 0.08, 4)
+    alt_t = round(map_t - alt_gap, 4)
     policy_t = None
     pos, neg = [], []
     if fallback.policy_units:
@@ -79,27 +85,26 @@ def calibrate(fallback: SemanticFallback, margin: float = 0.02) -> dict:
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--embed-model", required=True)
-    ap.add_argument("--catalogue", default=str(DATA_DIR / "catalogue.jsonl"))
-    ap.add_argument("--policy", default=str(DATA_DIR / "policy.txt"))
-    ap.add_argument("--out", default="semantic_config.json")
+    add_data_arguments(ap)
+    ap.add_argument("--out", default=str(get_settings().paths.semantic_config))
 
 
 def run(args: argparse.Namespace) -> None:
     index, policy = CatalogueIndex(load_catalogue(args.catalogue)), load_policy(args.policy)
     fb = SemanticFallback(index, policy, LocalEmbedder(args.embed_model), map_threshold=1.0)
     result = calibrate(fb)
-    print(f"{'kind':7} {'word':18} {'nearest':12} {'score':>6}  ok")
+    write_out(f"{'kind':7} {'word':18} {'nearest':12} {'score':>6}  ok")
     for kind, word, target, score, ok in sorted(result["rows"], key=lambda r: -r[3]):
-        print(f"{kind:7} {word:18} {target:12} {score:6.3f}  {'' if ok is None else ok}")
-    print("\npolicy positives:")
+        write_out(f"{kind:7} {word:18} {target:12} {score:6.3f}  {'' if ok is None else ok}")
+    write_out("\npolicy positives:")
     for q, sec, s, ok in result["policy_pos"]:
-        print(f"  {s:6.3f} {sec:14} {'ok' if ok else 'WRONG SECTION'}  {q}")
-    print("policy negatives (must stay below threshold):")
+        write_out(f"  {s:6.3f} {sec:14} {'ok' if ok else 'WRONG SECTION'}  {q}")
+    write_out("policy negatives (must stay below threshold):")
     for q, s in result["policy_neg"]:
-        print(f"  {s:6.3f} {q}")
+        write_out(f"  {s:6.3f} {q}")
     cfg = result["config"]
-    print("\n" + json.dumps(cfg, indent=2))
+    write_out("\n" + json.dumps(cfg, indent=2))
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2)
-    print(f"\nwrote {args.out}. If should_map_recall is low, the model can't separate synonyms from unsold items at "
-          "this margin: keep the fallback off rather than lowering map_threshold by hand.")
+    logger.info("wrote %s. If should_map_recall is low, the model can't separate synonyms from unsold items at "
+                "this margin: keep the fallback off rather than lowering map_threshold by hand.", args.out)

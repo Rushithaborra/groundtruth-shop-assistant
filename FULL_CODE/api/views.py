@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from groundtruth import Session
+from groundtruth.answering import Session
 from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr, tokenize
 

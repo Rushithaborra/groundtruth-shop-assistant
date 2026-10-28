@@ -15,39 +15,44 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import subprocess
 import sys
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from groundtruth import build_assistant
-from groundtruth.paths import DATA_DIR, ROOT, SCALE_DIR, WEB_DIR
+from groundtruth.builder import build_assistant
+from groundtruth.arguments import add_model_arguments
+from groundtruth.config import get_settings
+from groundtruth.paths import ROOT, WEB_DIR
 
 from .state import State
 from .views import build_examples
 
-MAX_MESSAGE = 500
-DEMO_CATALOGUE, DEMO_POLICY = SCALE_DIR / "catalogue.jsonl", SCALE_DIR / "policy.txt"
+logger = logging.getLogger(__name__)
 
 
 def pick_data(catalogue: str | None, policy: str | None) -> tuple[str, str]:
     """Use what was passed; otherwise the 5,000-product demo catalogue, generating it on first run."""
+    paths = get_settings().paths
     if catalogue:
-        return catalogue, policy or str(DATA_DIR / "policy.txt")
-    if not DEMO_CATALOGUE.exists():
-        print("Generating the 5,000-product demo catalogue (first run only)...")
+        return catalogue, policy or str(paths.policy)
+    if not paths.demo_catalogue.exists():
+        logger.info("Generating the 5,000-product demo catalogue (first run only)...")
         subprocess.run([sys.executable, "-m", "tools.generate_scale"], check=True, cwd=ROOT,
                        stdout=subprocess.DEVNULL)
-    return str(DEMO_CATALOGUE), policy or str(DEMO_POLICY)
+    return str(paths.demo_catalogue), policy or str(paths.demo_policy)
 
 
 def make_handler(state: State, page: bytes, info: dict, insights_page: bytes = b""):
+    limits = get_settings().server
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "GroundTruth/1"
 
-        def log_message(self, fmt, *args):  # quiet by default
-            pass
+        def log_message(self, fmt, *args):  # access log only at debug level
+            logger.debug("%s " + fmt, self.address_string(), *args)
 
         def _send(self, code: int, body: bytes, ctype: str) -> None:
             self.send_response(code)
@@ -78,20 +83,20 @@ def make_handler(state: State, page: bytes, info: dict, insights_page: bytes = b
         def do_POST(self):
             try:
                 length = int(self.headers.get("Content-Length") or 0)
-                if length > 10_000:
+                if length > limits.max_body_bytes:
                     return self._json(413, {"error": "Message too large"})
                 data = json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, json.JSONDecodeError):
                 return self._json(400, {"error": "Request body must be JSON"})
             sid = data.get("session_id")
             if self.path == "/api/chat":
-                message = str(data.get("message", "")).strip()[:MAX_MESSAGE]
+                message = str(data.get("message", "")).strip()[:limits.max_message_chars]
                 if not message:
                     return self._json(400, {"error": "Type a question first"})
                 try:
                     return self._json(200, state.chat(sid, message))
-                except Exception as exc:  # never take the server down for one query
-                    print(f"[web] error on {message!r}: {exc!r}", file=sys.stderr)
+                except Exception:  # never take the server down for one query; the shopper's text isn't logged
+                    logger.exception("assistant error on a %d-character message", len(message))
                     return self._json(500, {"error": "The assistant hit an error on that message"})
             if self.path == "/api/reset":
                 return self._json(200, state.reset(sid))
@@ -103,10 +108,10 @@ def make_handler(state: State, page: bytes, info: dict, insights_page: bytes = b
 def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--catalogue", help="catalogue file (default: the 5,000-product demo, generated on first run)")
     ap.add_argument("--policy", help="policy file (default: the one that goes with the catalogue)")
-    ap.add_argument("--embed-model")
-    ap.add_argument("--llm-model")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8000)
+    server = get_settings().server
+    add_model_arguments(ap)
+    ap.add_argument("--host", default=server.host)
+    ap.add_argument("--port", type=int, default=server.port)
     ap.add_argument("--snapshot", help="date the catalogue prices were taken, e.g. 2026-10-01 "
                                        "(default: the catalogue file's last-modified date)")
 
@@ -123,9 +128,10 @@ def run(args: argparse.Namespace) -> None:
     page = (WEB_DIR / "index.html").read_bytes()
     insights_page = (WEB_DIR / "insights.html").read_bytes()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(State(assistant), page, info, insights_page))
-    print(f"GroundTruth is running at http://{args.host}:{args.port}  ({info['products']} products, prices as of "
-          f"{snapshot}). Retailer view: http://{args.host}:{args.port}/insights  Ctrl+C to stop.")
+    logger.info("GroundTruth is running at http://%s:%d (%d products, prices as of %s). "
+                "Retailer view: http://%s:%d/insights  Ctrl+C to stop.",
+                args.host, args.port, info["products"], snapshot, args.host, args.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopped.")
+        logger.info("Stopped.")

@@ -4,3 +4,4 @@ __pycache__/
 .cache/
 FULL_CODE/output/
 FULL_CODE/data/scale/
+.env

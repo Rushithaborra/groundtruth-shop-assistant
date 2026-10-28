@@ -15,7 +15,10 @@ import json
 from pathlib import Path
 
 from groundtruth.catalogue import load_catalogue  # field-name normalisation only
-from groundtruth.paths import SCALE_DIR as SCALE
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
+
+SCALE = get_settings().paths.scale_dir
 PRODUCTS = load_catalogue(SCALE / "catalogue.jsonl")
 
 
@@ -161,7 +164,7 @@ refuse("i60", ["gift wrapping available?"])
 def main() -> None:
     out = SCALE / "independent_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
-    print(f"wrote {len(Q)} questions to {out}")
+    write_out(f"wrote {len(Q)} questions to {out}")
 
 
 if __name__ == "__main__":

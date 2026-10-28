@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from groundtruth.console import write_out
 from tools.generate_independent import EAR, PRODUCTS, Q, RUN, SCALE, WATCH, clarify, listing, pick, policy, refuse, single
 
 Q.clear()
@@ -59,7 +60,7 @@ refuse("h37", ["can i pay with paytm"])
 def main() -> None:
     out = SCALE / "heldout_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
-    print(f"wrote {len(Q)} questions to {out}")
+    write_out(f"wrote {len(Q)} questions to {out}")
 
 
 if __name__ == "__main__":

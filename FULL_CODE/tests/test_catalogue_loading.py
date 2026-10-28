@@ -2,15 +2,16 @@
 
 Run: python -m unittest discover -s tests
 """
-import contextlib
-import io
 import json
+import logging
 import tempfile
 import unittest
 from pathlib import Path
 
 from groundtruth.paths import ROOT
-from groundtruth import ShoppingAssistant, CatalogueIndex, load_policy
+from groundtruth.answering import ShoppingAssistant
+from groundtruth.catalogue import CatalogueIndex
+from groundtruth.policy import load_policy
 from groundtruth.catalogue.loader import _parse_stock, load_catalogue
 
 
@@ -21,10 +22,26 @@ def write(suffix: str, text: str) -> Path:
     return Path(fh.name)
 
 
+class _Collect(logging.Handler):
+    def __init__(self):
+        super().__init__(logging.WARNING)
+        self.messages = []
+
+    def emit(self, record):
+        self.messages.append(record.getMessage())
+
+
 def load_quiet(path, **kw):
-    err = io.StringIO()
-    with contextlib.redirect_stderr(err):
-        return load_catalogue(path, **kw), err.getvalue()
+    """Load and return (products, warnings logged by the loader), keeping the warnings off the console."""
+    logger = logging.getLogger("groundtruth.catalogue.loader")
+    handler, propagate = _Collect(), logger.propagate
+    logger.addHandler(handler)
+    logger.propagate = False
+    try:
+        return load_catalogue(path, **kw), "\n".join(handler.messages)
+    finally:
+        logger.removeHandler(handler)
+        logger.propagate = propagate
 
 
 class CatalogueLoadingTests(unittest.TestCase):

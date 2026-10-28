@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 from typing import Callable
 
+from ..config import get_settings
 from .semantic import type_words
 
 # Kept in a file so the prompt can be reviewed and changed without touching code; read verbatim.
@@ -28,9 +29,10 @@ Generate = Callable[[str, str], tuple[str, int, int]]  # (system, user) -> (text
 
 
 class LLMNormaliser:
-    def __init__(self, generate: Generate, max_values_per_attribute: int = 40):
+    def __init__(self, generate: Generate, max_values_per_attribute: int | None = None):
         self.generate = generate
-        self.max_values = max_values_per_attribute
+        self.max_values = (max_values_per_attribute if max_values_per_attribute is not None
+                           else get_settings().models.llm_max_values_per_attribute)
         self._schema_cache: dict[int, tuple[str, list[str]]] = {}
 
     def _schema(self, index) -> tuple[str, list[str]]:

@@ -6,7 +6,8 @@ import unittest
 
 from groundtruth.paths import ROOT
 from groundtruth.grounding import Grounding
-from groundtruth import ANSWER, CLARIFY, REFUSE, Session, build_assistant
+from groundtruth.answering import ANSWER, CLARIFY, REFUSE, Session
+from groundtruth.builder import build_assistant
 from groundtruth.text import tokenize
 
 

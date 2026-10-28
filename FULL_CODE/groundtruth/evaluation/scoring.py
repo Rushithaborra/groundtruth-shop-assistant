@@ -20,7 +20,8 @@ Scoring
                  filters (precision), and included the required facts.
   refusal acc.   behaviour (answer / clarify / refuse) matches expectation, over all questions.
   hallucinated prices are counted separately and subtract 0.10 from the final score each, floor 0.
-  final          0.35 * groundedness + 0.35 * helpfulness + 0.30 * refusal accuracy - 0.10 * hallucinated prices
+  final          weighted sum minus the hallucinated-price penalty; weights and penalty are in config.json
+                 (evaluation section; default 0.35 / 0.35 / 0.30 and 0.10)
 """
 from __future__ import annotations
 
@@ -28,18 +29,15 @@ import argparse
 import csv
 import json
 import statistics
-import sys
 from pathlib import Path
 
-from .. import Session, build_assistant
+from ..answering import Session
+
+from ..builder import build_assistant
+from ..arguments import add_data_arguments, add_model_arguments
+from ..config import get_settings
+from ..console import write_out
 from ..grounding import Grounding
-from ..paths import DATA_DIR, OUTPUT_DIR
-
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-
-FINAL_WEIGHTS = (0.35, 0.35, 0.30)
-HALLUCINATED_PRICE_PENALTY = 0.10
 
 
 def load_cases(path: Path) -> list[dict]:
@@ -74,12 +72,11 @@ def helpfulness(resp, exp: dict, cited: list[str]) -> float:
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--catalogue", default=str(DATA_DIR / "catalogue.jsonl"))
-    ap.add_argument("--policy", default=str(DATA_DIR / "policy.txt"))
-    ap.add_argument("--embed-model", help="path to the provided embedding model (needs semantic_config.json)")
-    ap.add_argument("--llm-model", help="path to the provided instruct model (last-resort query normaliser)")
-    ap.add_argument("--questions", default=str(DATA_DIR / "test_questions.jsonl"))
-    ap.add_argument("--out", default=str(OUTPUT_DIR / "reports"))
+    paths = get_settings().paths
+    add_data_arguments(ap)
+    add_model_arguments(ap)
+    ap.add_argument("--questions", default=str(paths.questions))
+    ap.add_argument("--out", default=str(paths.reports_dir))
     ap.add_argument("--price-in", type=float, default=0.0, help="USD per 1M input tokens (0 for the rules-based assistant)")
     ap.add_argument("--price-out", type=float, default=0.0, help="USD per 1M output tokens")
     ap.add_argument("--verbose", action="store_true", help="print every failing case")
@@ -117,8 +114,9 @@ def run(args: argparse.Namespace) -> None:
     helpful = sum(r["helpfulness"] for r in answerable) / max(1, len(answerable))
     refusal_acc = sum(r["behaviour_ok"] for r in rows) / n
     hallucinated = sum(r["hallucinated_prices"] for r in rows)
-    wg, wh, wr = FINAL_WEIGHTS
-    final = max(0.0, wg * groundedness + wh * helpful + wr * refusal_acc - HALLUCINATED_PRICE_PENALTY * hallucinated)
+    w = get_settings().evaluation
+    final = max(0.0, w.weight_groundedness * groundedness + w.weight_helpfulness * helpful
+                + w.weight_refusal * refusal_acc - w.hallucinated_price_penalty * hallucinated)
 
     def rate(expected: str):
         sub = [r for r in rows if r["expected"] == expected]
@@ -156,10 +154,10 @@ def run(args: argparse.Namespace) -> None:
         writer.writerows(rows)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    write_out(json.dumps(summary, indent=2, ensure_ascii=False))
     failing = [r for r in rows if not (r["behaviour_ok"] and r["grounded"] and r["helpfulness"] == 1.0)]
-    print(f"\n{len(failing)} of {n} questions have a failure (see {out_dir / 'query_report.csv'})")
+    write_out(f"\n{len(failing)} of {n} questions have a failure (see {out_dir / 'query_report.csv'})")
     if args.verbose:
         for r in failing:
-            print(f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "
+            write_out(f"\n[{r['id']}] {r['query']}\n  expected={r['expected']} got={r['action']} help={r['helpfulness']:.2f} "
                   f"grounded={r['grounded']} {r['problems']}\n  reply: {r['reply'][:300]}")

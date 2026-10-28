@@ -12,14 +12,18 @@ import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from groundtruth import Session, build_assistant
-from groundtruth.paths import SCALE_DIR
+from groundtruth.answering import Session
+
+from groundtruth.builder import build_assistant
+from groundtruth.config import get_settings
+from groundtruth.console import write_out
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument("--catalogue", default=str(SCALE_DIR / "catalogue.jsonl"))
-    ap.add_argument("--policy", default=str(SCALE_DIR / "policy.txt"))
-    ap.add_argument("--questions", default=str(SCALE_DIR / "test_questions.jsonl"))
+    paths = get_settings().paths
+    ap.add_argument("--catalogue", default=str(paths.demo_catalogue))
+    ap.add_argument("--policy", default=str(paths.demo_policy))
+    ap.add_argument("--questions", default=str(paths.bench_questions))
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--profile", action="store_true")
@@ -29,7 +33,7 @@ def run(args: argparse.Namespace) -> None:
 
     start = time.perf_counter()
     assistant = build_assistant(args.catalogue, args.policy)
-    print(f"build: {time.perf_counter() - start:.2f}s")
+    write_out(f"build: {time.perf_counter() - start:.2f}s")
     convos = [json.loads(line)["turns"] for line in open(args.questions, encoding="utf-8") if line.strip()]
 
     def run_convo(convo: list[str]) -> list[float]:
@@ -42,7 +46,7 @@ def run(args: argparse.Namespace) -> None:
 
     def report(label: str, times: list[float], wall: float) -> None:
         q = statistics.quantiles(times, n=20)
-        print(f"{label}: {len(times) / wall:8.0f} queries/s | mean {statistics.mean(times):6.2f} ms | "
+        write_out(f"{label}: {len(times) / wall:8.0f} queries/s | mean {statistics.mean(times):6.2f} ms | "
               f"p50 {statistics.median(times):6.2f} | p95 {q[-1]:6.2f} | max {max(times):6.2f}")
 
     work = convos * args.rounds

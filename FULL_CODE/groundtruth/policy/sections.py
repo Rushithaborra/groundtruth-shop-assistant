@@ -48,7 +48,7 @@ def load_policy(path: str | Path) -> list[Section]:
 STRONG = frozenset({"refund", "exchange", "cancel", "warranty", "guarantee", "cash", "ship", "return", "dispatch"})
 
 
-def best_sentences(sections: list[Section], keywords: list[str], limit: int = 2):
+def best_sentences(sections: list[Section], keywords: list[str], limit: int):
     """Return (section, [sentences]) for the best-matching section, or None when nothing fits."""
     wanted = frozenset(keywords)
     best = None

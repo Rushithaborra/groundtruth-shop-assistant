@@ -6,14 +6,16 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from ..config import get_settings
 from .semantic import unit
 
 
 class LocalEmbedder:
     """The provided offline embedding model. Tries sentence-transformers, then plain transformers (mean pooling)."""
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, max_length: int | None = None):
         self.name = str(model_path)
+        max_length = max_length if max_length is not None else get_settings().models.embed_max_length
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
             model = SentenceTransformer(model_path, device="cpu")
@@ -28,7 +30,7 @@ class LocalEmbedder:
 
         def encode(texts):
             with torch.no_grad():
-                batch = tok(list(texts), padding=True, truncation=True, max_length=64, return_tensors="pt")
+                batch = tok(list(texts), padding=True, truncation=True, max_length=max_length, return_tensors="pt")
                 out = model(**batch).last_hidden_state
                 mask = batch["attention_mask"].unsqueeze(-1).float()
                 vecs = (out * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
@@ -42,13 +44,13 @@ class LocalEmbedder:
 class LocalGenerator:
     """The provided offline instruct model via transformers, greedy decoding, real token counts."""
 
-    def __init__(self, model_path: str, max_new_tokens: int = 120):
+    def __init__(self, model_path: str, max_new_tokens: int | None = None):
         import torch  # type: ignore
         from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
         self.torch = torch
         self.tok = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
         self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True).eval()
-        self.max_new_tokens = max_new_tokens
+        self.max_new_tokens = max_new_tokens if max_new_tokens is not None else get_settings().models.llm_max_new_tokens
 
     def __call__(self, system: str, user: str) -> tuple[str, int, int]:
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]

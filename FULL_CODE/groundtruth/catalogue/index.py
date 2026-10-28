@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from .loader import Product
+from ..config import get_settings
 from ..text import tokenize
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
@@ -41,7 +42,9 @@ class Spec:
 
 
 class CatalogueIndex:
-    def __init__(self, products: list[Product]):
+    def __init__(self, products: list[Product], typo_cutoff: float | None = None, typo_cache_size: int | None = None):
+        search = get_settings().search
+        self.typo_cutoff = typo_cutoff if typo_cutoff is not None else search.typo_cutoff
         self.products = {p.id: p for p in products}
         self.ids_upper = {pid.upper(): pid for pid in self.products}
         self.title_tokens: dict[str, frozenset[str]] = {}
@@ -90,12 +93,13 @@ class CatalogueIndex:
         for word in self.type_vocab:
             by_len[len(word)].append(word)
         self._vocab_by_len = by_len
-        self.closest = lru_cache(maxsize=4096)(self._closest)
+        cache_size = typo_cache_size if typo_cache_size is not None else search.typo_cache_size
+        self.closest = lru_cache(maxsize=cache_size)(self._closest)
 
     # -- typo tolerance ------------------------------------------------------------------------
     def _closest(self, token: str) -> str | None:
         pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._vocab_by_len.get(n, ())]
-        match = difflib.get_close_matches(token, pool, n=1, cutoff=0.85)
+        match = difflib.get_close_matches(token, pool, n=1, cutoff=self.typo_cutoff)
         return match[0] if match else None
 
     # -- constraint matching -------------------------------------------------------------------

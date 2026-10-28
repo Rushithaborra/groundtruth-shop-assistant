@@ -10,15 +10,14 @@ import time
 from collections import Counter, OrderedDict, deque
 from datetime import datetime
 
-from groundtruth import CLARIFY, REFUSE, Session
+from groundtruth.answering import CLARIFY, REFUSE, Session
+from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
 from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr
 from groundtruth.understanding import understand
 
 from .views import policy_record, product_record, reading, remembered
-
-MAX_SESSIONS = 500
 
 
 class Insights:
@@ -83,6 +82,7 @@ class State:
         self.lock = threading.Lock()
         self.insights = Insights()
         self.kinds = frozenset(type_words(assistant.index))
+        self.max_sessions = get_settings().server.max_sessions
 
     def session(self, sid: str | None) -> tuple[str, dict]:
         with self.lock:
@@ -91,7 +91,7 @@ class State:
                 self.sessions[sid] = {"session": Session(), "lock": threading.Lock(), "gaps": Counter(),
                                       "said": deque(maxlen=30),
                                       "totals": {"queries": 0, "ms": 0.0, "llm_tokens": 0}}
-                while len(self.sessions) > MAX_SESSIONS:
+                while len(self.sessions) > self.max_sessions:
                     self.sessions.popitem(last=False)
             self.sessions.move_to_end(sid)
             return sid, self.sessions[sid]
