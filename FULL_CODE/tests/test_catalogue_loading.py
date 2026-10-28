@@ -69,10 +69,26 @@ class CatalogueLoadingTests(unittest.TestCase):
             "pre-order": None,
             "": None,
             None: None,
-            "ships in 3 days": True,
         }
         for value, expected in cases.items():
             self.assertEqual(_parse_stock(value), expected, repr(value))
+
+    def test_shipping_and_delivery_times_are_not_stock(self):
+        # how long shipping takes says nothing about whether the item is in stock, so the status stays unknown
+        for text in (
+            "ships in 3 days",
+            "Ships in 2-3 weeks",
+            "ships tomorrow",
+            "ships",
+            "dispatched in 24 hours",
+            "available in 5 days",
+            "delivery in 4 days",
+        ):
+            self.assertIsNone(_parse_stock(text), text)
+        # an explicit quantity or state beside a shipping time still counts
+        self.assertIs(_parse_stock("Only 5 left, ships in 3 days"), True)
+        self.assertIs(_parse_stock("In stock, ships in 1 day"), True)
+        self.assertIs(_parse_stock("0 left"), False)
 
     def test_missing_stock_is_unknown_not_in_stock(self):
         products, _ = load_quiet(write(".jsonl", json.dumps({"id": "A1", "title": "Tee", "price": 100})))

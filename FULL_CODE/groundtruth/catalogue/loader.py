@@ -129,23 +129,17 @@ _OUT = (
     "discontinued",
     "currently unavailable",
 )
-_IN = (
-    "in stock",
-    "in_stock",
-    "instock",
-    "low stock",
-    "low_stock",
-    "available",
-    "left",
-    "limited",
-    "few",
-    "hurry",
-    "ships",
+_IN_STATES = ("in stock", "in_stock", "instock", "low stock", "low_stock")  # say outright that it is in stock
+_IN_HINTS = ("available", "left", "limited", "few", "hurry")  # weaker wording that is still about stock
+_QUANTITY = re.compile(r"(\d[\d,]*)\s*(?:units?|pcs|pieces|items?|left|in stock|available)\b|\bonly\s+(\d[\d,]*)")
+# shipping and delivery times say how long it takes, not whether it is in stock: "ships in 3 days", "ships tomorrow"
+_LEAD_TIME = re.compile(
+    r"\b(?:days?|weeks?|hours?|hrs?|months?|today|tomorrow|ships?|shipping|dispatch\w*|deliver\w*)\b"
 )
 
 
 def _parse_stock(value: object) -> bool | None:
-    """True / False when the catalogue says, None when it doesn't (\"pre-order\", blank, unrecognised)."""
+    """True / False when the catalogue says, None when it doesn't (\"pre-order\", \"ships in 3 days\", blank)."""
     if value is None or value == "":
         return None
     if isinstance(value, bool):
@@ -155,14 +149,16 @@ def _parse_stock(value: object) -> bool | None:
     text = " ".join(str(value).strip().lower().replace("-", " ").split())
     if text in {"no", "false", "n", "0"} or any(w in text for w in _OUT):
         return False
-    if text in {"yes", "true", "y"}:
+    if text in {"yes", "true", "y"} or any(w in text for w in _IN_STATES):
         return True
-    m = _NUMBER.search(text)
-    if m and not any(w in text for w in ("day", "week")):  # "Only 2 left", "12 units"; not "ships in 3 days"
-        return float(m.group().replace(",", "")) > 0
-    if any(w in text for w in _IN):
-        return True
-    return None
+    quantity = _QUANTITY.search(text)  # "Only 2 left", "12 units": a count of items, not a time
+    if quantity:
+        return float((quantity.group(1) or quantity.group(2)).replace(",", "")) > 0
+    if _LEAD_TIME.search(text):
+        return None
+    if _NUMBER.fullmatch(text):
+        return float(text.replace(",", "")) > 0
+    return True if any(w in text for w in _IN_HINTS) else None
 
 
 def _parse_number(value: object, kind: str) -> float | None:
