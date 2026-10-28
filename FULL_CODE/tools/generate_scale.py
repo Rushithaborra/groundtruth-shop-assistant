@@ -51,6 +51,7 @@ SYLLABLES = [
 
 
 def brand_pool(n: int) -> list[str]:
+    """A sorted pool of n distinct made-up brand names built from syllables."""
     names = set()
     while len(names) < n:
         names.add("".join(rng.choice(SYLLABLES) for _ in range(rng.choice([2, 3]))).capitalize())
@@ -83,6 +84,8 @@ MODEL_WORDS = small.MODELS + [
 
 
 def make_scale_catalogue() -> list[dict]:
+    """The 5,000-product catalogue: colour in titles, big brand and model pools, and about a
+    tenth of the products with messy attributes."""
     products, used = [], set()
     types = small.TYPES
     while len(products) < N_PRODUCTS:
@@ -127,6 +130,7 @@ def make_scale_catalogue() -> list[dict]:
 
 
 def main() -> None:
+    """Write the 5,000-product catalogue, the policy and the questions recomputed against that catalogue."""
     OUT.mkdir(exist_ok=True)
     products = make_scale_catalogue()
     (OUT / "catalogue.jsonl").write_text(
