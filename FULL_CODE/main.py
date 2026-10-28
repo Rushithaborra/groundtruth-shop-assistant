@@ -5,6 +5,7 @@
     python main.py evaluate   score a question set; reports go to output/
     python main.py submit     write submission/R3_predictions.jsonl for the pack's test questions
     python main.py score      score the dev questions with the pack's official scorer (needs `uv sync`)
+    python main.py report     per-query latency and token-cost report over the pack's questions
     python main.py bench      throughput and latency benchmark
     python main.py calibrate  pick the embedding-fallback thresholds with the provided model
     python main.py generate   write the synthetic catalogues and question sets into data/
@@ -44,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     # imported here, after the settings have loaded: these modules read settings at import time
     from api import server
     from groundtruth import cli
-    from groundtruth.evaluation import official, scoring, submission
+    from groundtruth.evaluation import cost_report, official, scoring, submission
     from tools import bench, calibrate_semantic
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -55,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("evaluate", scoring.add_arguments, scoring.run, "score a question set"),
         ("submit", submission.add_arguments, submission.run, "write predictions in the pack's submission format"),
         ("score", official.add_arguments, official.run, "score dev predictions with the pack's official scorer"),
+        ("report", cost_report.add_arguments, cost_report.run, "per-query latency and token-cost report"),
         ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
         ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
         ("generate", _add_generate_arguments, _generate, "write synthetic data and question sets"),

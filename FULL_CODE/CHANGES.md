@@ -321,6 +321,25 @@ check 0.840).
 The measured LLM cost (about 3,800 prompt tokens and 13 s a query) also gives the "a model answers every query"
 comparison for the cost report in Task 6.
 
+## Task 6: per-query latency and token-cost report, 28 October
+
+`main.py report` answers the pack's 190 questions (40 dev and 150 test, conversations in turn order; test questions
+are only answered and timed) and writes `output/reports/cost_report.csv` (one row per query: path, latency, measured
+model tokens, estimated context and reply tokens, LLM-baseline estimate) and `cost_report.json` (totals,
+percentiles, path share).
+
+| | GroundTruth (measured) | LLM writes every reply (estimate) |
+|---|---|---|
+| Path | rules 100%, embedding 0%, LLM 0% | the provided 0.5B model |
+| Latency | mean 1.29 ms, p50 0.82, p95 3.16, max 11.5 | 13.4 s a query |
+| Model tokens | 0 | 727,692 in, 22,800 out over 190 queries |
+| Total time, 190 queries | 0.25 s | about 2,546 s (42 min) |
+
+The estimate multiplies one measured call (Task 3: 3,820 prompt tokens, 120 output, 13.4 s on this laptop's CPU)
+by the number of queries; its inputs are in `config.json` (cost_report section). The pack gives no token budget.
+Percentiles use the nearest-rank definition; a test caught an off-by-one in the first version (rounding an index).
+139 tests pass on Python 3.9 and 3.12 (5 new).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

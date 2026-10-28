@@ -66,6 +66,11 @@
     "hallucinated_price_penalty": 0.1,
     "scorer_timeout_s": 600
   },
+  "cost_report": {
+    "llm_prompt_tokens": 3820,
+    "llm_output_tokens": 120,
+    "llm_seconds_per_call": 13.4
+  },
   "logging": {
     "level": "INFO"
   }

@@ -128,6 +128,24 @@ policy section. Every reply is re-checked by the grounding checker, and the resu
 shows the remembered filters and budget, how the last message was read, a side-by-side compare, and a retailer view
 (`/insights`) of what was asked for but isn't stocked.
 
+### Latency and token cost per query
+
+`python3 main.py report` answers all 190 pack questions (40 dev, 150 test; conversation turns in order) and writes a
+per-query CSV and a summary to `FULL_CODE/output/reports/`. Measured on a MacBook (Apple silicon, CPU):
+
+| | GroundTruth (measured) | An LLM writes every reply (**estimate**) |
+|---|---|---|
+| Answered by | rules, 100% of queries | the provided Qwen2.5-0.5B model |
+| Latency per query | mean 1.3 ms, p50 0.8 ms, p95 3.2 ms, max 11.5 ms | about 13.4 s |
+| Model tokens per query | **0** | about 3,830 in + 120 out |
+| All 190 queries | 0.25 s, 0 tokens | about 42 minutes, about 750,000 tokens |
+
+The estimate comes from one measured call of the provided model with the prompt it needs to stay grounded (the
+catalogue's allowed product types and attribute values), multiplied by the number of queries; it was not run for
+every query. The pack states no token or cost budget; GroundTruth's cost is CPU time only. The per-query CSV also
+gives an estimate of the context each reply cites (mean 139 tokens) and of the reply itself (mean 62 tokens), about
+four characters per token.
+
 ## AI usage
 
 **In the app.** The main path makes no model calls. Two optional fallbacks use the small models provided with the
@@ -187,5 +205,5 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
 * **Known behaviour gaps:** "which sizes" as a follow-up after a listing; "tshirt or shirt which is better" refuses
   instead of clarifying; "do you deliver on sunday" gives delivery days without saying the policy doesn't mention
   Sundays; a describing word plus an unknown noun leans towards refusing (safer, but it may refuse unusual synonyms).
-* Measured on a laptop with the 5,000-product synthetic catalogue: about 0.44 ms mean per query and about 2,300
-  queries/s per process (`main.py bench`). Python threads share one interpreter lock, so scale with processes.
+* Latencies are from one laptop. Python threads share one interpreter lock, so serving many users means more
+  processes, not more threads (`main.py bench`: about 2,300 queries/s per process on the synthetic catalogue).

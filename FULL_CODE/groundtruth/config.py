@@ -112,6 +112,15 @@ class EvaluationSettings:
 
 
 @dataclass(frozen=True)
+class CostReportSettings:
+    """One measured call of the provided instruct model, used to estimate "an LLM writes every reply"."""
+
+    llm_prompt_tokens: int
+    llm_output_tokens: int
+    llm_seconds_per_call: float
+
+
+@dataclass(frozen=True)
 class LoggingSettings:
     level: str
 
@@ -126,6 +135,7 @@ class Settings:
     models: ModelSettings
     calibration: CalibrationSettings
     evaluation: EvaluationSettings
+    cost_report: CostReportSettings
     logging: LoggingSettings
 
 
@@ -198,6 +208,7 @@ def parse_settings(raw: dict) -> Settings:
     m = _section(raw, "models", tuple(ModelSettings.__dataclass_fields__))
     c = _section(raw, "calibration", tuple(CalibrationSettings.__dataclass_fields__))
     e = _section(raw, "evaluation", tuple(EvaluationSettings.__dataclass_fields__))
+    cr = _section(raw, "cost_report", tuple(CostReportSettings.__dataclass_fields__))
     lg = _section(raw, "logging", tuple(LoggingSettings.__dataclass_fields__))
     evaluation = EvaluationSettings(
         weight_groundedness=_float("evaluation.weight_groundedness", e["weight_groundedness"], 0, 1),
@@ -253,6 +264,11 @@ def parse_settings(raw: dict) -> Settings:
             alt_gap=_float("calibration.alt_gap", c["alt_gap"], 0, 1),
         ),
         evaluation=evaluation,
+        cost_report=CostReportSettings(
+            llm_prompt_tokens=_int("cost_report.llm_prompt_tokens", cr["llm_prompt_tokens"], 0, 1_000_000),
+            llm_output_tokens=_int("cost_report.llm_output_tokens", cr["llm_output_tokens"], 0, 100_000),
+            llm_seconds_per_call=_float("cost_report.llm_seconds_per_call", cr["llm_seconds_per_call"], 0, 3600),
+        ),
         logging=LoggingSettings(level=_text("logging.level", lg["level"], LOG_LEVELS)),
     )
 
