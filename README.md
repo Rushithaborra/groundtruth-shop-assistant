@@ -58,19 +58,20 @@ The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column sp
 rows are skipped and logged. Policy text is split into sections on blank lines; a short first line becomes the
 section heading and the id used in citations.
 
-**The provided models** (optional) go in `FULL_CODE/models/` (git-ignored). Download them while online with the
-pack's own script (MiniLM embedding + Qwen2.5-0.5B instruct, about 0.6 GB), install the libraries that run them,
-calibrate the embedding fallback, then pass the model folders:
+**The provided models are off by default**, because measured on the dev tune half they didn't help (see
+Limitations and `FULL_CODE/CHANGES.md`, Task 3). To try them, download them while online with the pack's own script
+into `FULL_CODE/models/` (git-ignored), install the libraries by hand (they are not in the lockfile:
+`pip-audit` reports advisories for them, one with no fix yet), calibrate, then pass the model folders:
 
 ```bash
-python3 -I data/pack/download_models.py --set small --dest models
-uv sync --group models          # sentence-transformers + PyTorch, llama-cpp-python (compiles once)
-uv run python main.py calibrate --embed-model models/all-MiniLM-L6-v2 --catalogue data/pack/data/catalogue.jsonl --policy data/pack/data/policy.md
-uv run python main.py chat --embed-model models/all-MiniLM-L6-v2 --llm-model models/Qwen2.5-0.5B-Instruct-GGUF
+python3 -I data/pack/download_models.py --set small --dest models   # MiniLM + Qwen2.5-0.5B, about 0.6 GB
+uv pip install sentence-transformers torch llama-cpp-python          # not locked; see above
+.venv/bin/python main.py calibrate --embed-model models/all-MiniLM-L6-v2 --catalogue data/pack/data/catalogue.jsonl --policy data/pack/data/policy.md --out semantic_config.json
+.venv/bin/python main.py chat --embed-model models/all-MiniLM-L6-v2 --llm-model models/Qwen2.5-0.5B-Instruct-GGUF
 ```
 
-Every model call has a timeout and one retry with back-off (`config.json`, models section); if a model is slow,
-fails or isn't installed, the reply falls back to the rule-based answer.
+Every model call has a timeout and one retry with back-off for temporary errors (`config.json`, models section);
+if a model is slow, busy, fails, or isn't installed, the reply falls back to the rule-based answer.
 
 ## How to run the tests
 
@@ -139,8 +140,13 @@ problem pack, and only when the rule-based parser leaves product words it can't 
    budget). Every field is validated against the catalogue's own vocabulary, and a budget is accepted only if it is one
    of the shopper's own numbers. The model's text never reaches the shopper.
 
-**Status:** both fallbacks have so far been tested only with fake models in the unit tests. Their effect with the
-real provided models has not been measured yet.
+**Status: measured with the real models and switched off.** On the 20 dev questions used for tuning, scored by
+the official scorer: rules only 1.000; with the embedding fallback 0.920 (it mapped words to wrong policy sentences
+and stopped refusing two unsold items), at 7 ms instead of 0.9 ms a query. The 0.5B instruct model needs the
+catalogue's allowed types and attribute values in its prompt (about 3,800 tokens) and took 13.4 s per call on a
+laptop CPU, with its JSON cut off at the token limit. Neither helped, so the shipped assistant makes no model calls
+(0 tokens per query). The code stays, with timeouts, retries and fall-back to rules, for a larger model or a
+different catalogue.
 
 **AI coding assistants.** Claude (chat) and Claude Code were used to write, refactor and review code, tests and
 documentation. The team reviewed every change and can explain the code.
@@ -174,7 +180,8 @@ PyTorch (BSD-3-Clause), installed only when the models are used.
   The organisers' 150 test questions are only used to write the submission. Weakest type: attribute questions.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
-* **Not yet run with the provided models**, so the real token and latency cost of the fallbacks is unmeasured.
+* **No model in the shipped path.** The provided models were measured and didn't help on dev (see AI usage), so
+  words the rules can't place are refused rather than guessed. That is safe but can refuse unusual synonyms.
 * **`main.py evaluate`** scores the synthetic sets with our own assumed weights (`config.json`, evaluation
   section); the official score comes from `main.py score`.
 * **Known behaviour gaps:** "which sizes" as a follow-up after a listing; "tshirt or shirt which is better" refuses

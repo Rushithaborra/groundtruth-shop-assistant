@@ -282,6 +282,45 @@ expects one product with its price instead of a list, as the pack's superlative 
 Dev is now fully used: the tune half by tuning, the check half by one measurement. The next generalisation number
 has to come from new questions (Task 4).
 
+## Task 3: the provided models, measured, 28 October
+
+Downloaded with the pack's own script (`--set small`): MiniLM-L6-v2 embedding (safetensors, 97 MB) and
+Qwen2.5-0.5B-Instruct (GGUF q4_k_m, 480 MB), Apache-2.0, into the git-ignored `models/`.
+
+**Code** (commit `0d14a92` and this one): the GGUF model loads through llama.cpp (greedy, JSON mode, real token
+counts); the embedding loads from local files with no remote code. Every model call goes through `call_model`:
+timeout, retry with exponential back-off for temporary errors only (a prompt longer than the context fails at once),
+fail-fast while an earlier timed-out call is still running (otherwise every later call queued behind it and timed
+out too, which the first measurement showed), and a fall-back to the rule-based answer. Settings are in
+`config.json`; `llm_context_tokens` is 8192 because the grounded prompt needs about 3,800 tokens.
+
+**Calibration** on the pack catalogue (`main.py calibrate`): only one of the tool's example synonyms exists in this
+catalogue (sweatshirt → hoodie 0.705), while unsold words came close (jacket → hoodie 0.616, mobile → "gsm" 0.606),
+and the product-type list includes non-types ("gsm", "mah", "sport"). For policy retrieval, 4 of 6 example
+questions pointed to the right sub-section, but only 2 cleared the calibrated threshold (0.486).
+
+**Measured on the tune half** (official scorer, 20 questions; the check half was not used for this decision):
+
+| Set-up | Score | Mean / p95 latency | Model calls, tokens |
+|---|---|---|---|
+| **Rules only (shipped)** | **1.000** | 0.9 / 2.4 ms | 0 |
+| + embedding fallback | 0.920 | 7.2 / 24 ms | 0 LLM tokens |
+| + embedding + LLM | 0.920 | (LLM calls timed out) | |
+
+A direct timing of one LLM call on this laptop: 13.4 s with the grounded prompt (3,820 tokens in, 120 out), and
+the JSON was cut off at the token limit while copying the material list; without the catalogue schema it took
+1.4 s but returned nothing usable (`product_type: null`).
+
+**Decision:** neither fallback helps, so both stay off; the shipped assistant makes no model calls. The model
+libraries (torch, transformers, sentence-transformers, llama-cpp-python) were removed from the lockfile:
+`pip-audit` reported advisories for them, one (diskcache, needed by llama-cpp-python) with no fixed version. The
+README explains how to install them by hand to try the models. `pip-audit` on the lockfile: no known
+vulnerabilities. 134 tests pass on Python 3.9 and 3.12 (7 for model calls). Dev scores unchanged (tune 1.000,
+check 0.840).
+
+The measured LLM cost (about 3,800 prompt tokens and 13 s a query) also gives the "a model answers every query"
+comparison for the cost report in Task 6.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
