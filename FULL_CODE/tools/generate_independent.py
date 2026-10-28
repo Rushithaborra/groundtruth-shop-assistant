@@ -23,10 +23,12 @@ PRODUCTS = load_catalogue(SCALE / "catalogue.jsonl")
 
 
 def ptype(p) -> str:
+    """The product type at the end of a title: 'Brand Model 3 Running Shoes (Blue)' gives 'Running Shoes'."""
     return p.title.split("(")[0].strip().split(" ", 3)[-1]  # "Brand Model N Running Shoes (Blue)" -> "Running Shoes"
 
 
 def attr(p, key) -> list[str]:
+    """A product's values for an attribute, stripped and lower-cased."""
     return [v.strip().lower() for v in p.attr_values(key)]
 
 
@@ -41,6 +43,7 @@ def pick(
     category=None,
     brand=None,
 ):
+    """Catalogue products matching every given constraint; expected answers are worked out this way."""
     out = []
     for p in PRODUCTS:
         if types and ptype(p) not in types:
@@ -66,6 +69,7 @@ def pick(
 
 
 def ids(ps):
+    """The ids of these products."""
     return [p.id for p in ps]
 
 
@@ -73,6 +77,7 @@ Q: list[dict] = []
 
 
 def listing(qid, turns, ps, accept=("answer",)):
+    """Add a browsing question: expected to cite only products that fit, or to be refused when none do."""
     behaviour = list(accept) if ps else ["refuse"]
     exp = {"behaviour": behaviour if len(behaviour) > 1 else behaviour[0]}
     if ps:
@@ -81,6 +86,7 @@ def listing(qid, turns, ps, accept=("answer",)):
 
 
 def single(qid, turns, p, must=()):
+    """Add a question about one product: expected to answer with that product and the given text."""
     Q.append(
         {
             "id": qid,
@@ -92,14 +98,17 @@ def single(qid, turns, p, must=()):
 
 
 def clarify(qid, turns):
+    """Add a question that fits several products: expected to ask which one."""
     Q.append({"id": qid, "turns": turns, "category": "ambiguous", "expected": {"behaviour": "clarify"}})
 
 
 def refuse(qid, turns):
+    """Add a question about something the shop doesn't sell: expected to be refused."""
     Q.append({"id": qid, "turns": turns, "category": "out_of_catalogue", "expected": {"behaviour": "refuse"}})
 
 
 def policy(qid, turns, sections, must=()):
+    """Add a policy question: expected to answer from the given policy sections and include the given text."""
     Q.append(
         {
             "id": qid,
@@ -199,6 +208,7 @@ refuse("i60", ["gift wrapping available?"])
 
 
 def main() -> None:
+    """Write the independent questions as JSON lines."""
     out = SCALE / "independent_questions.jsonl"
     out.write_text("\n".join(json.dumps(q, ensure_ascii=False) for q in Q) + "\n", encoding="utf-8")
     write_out(f"wrote {len(Q)} questions to {out}")
