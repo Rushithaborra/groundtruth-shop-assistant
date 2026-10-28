@@ -38,6 +38,13 @@ class PathSettings:
     demo_catalogue: Path
     demo_policy: Path
     bench_questions: Path
+    pack_catalogue: Path
+    pack_policy: Path
+    dev_questions: Path
+    dev_truth: Path
+    test_questions: Path
+    official_scorer: Path
+    submission: Path
     reports_dir: Path
     cache_dir: Path
     semantic_config: Path

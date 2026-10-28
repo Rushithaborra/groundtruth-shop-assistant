@@ -28,7 +28,14 @@ class Product:
     in_stock: bool | None  # None: the catalogue doesn't say
     rating: float | None = None
     rating_count: int | None = None
-    attributes: dict = field(default_factory=dict)
+    attributes: dict = field(default_factory=dict)  # keys folded onto one spelling ("colour" -> "color")
+    mrp: float | None = None
+    stock_status: str | None = None  # the catalogue's own stock value, e.g. "low_stock"
+    source_keys: dict = field(default_factory=dict)  # folded attribute key -> the catalogue's own key name
+
+    def source_key(self, key: str) -> str:
+        """The catalogue's own name for an attribute key, so stated facts use the exact field name."""
+        return self.source_keys.get(key, key)
 
     def attr_values(self, key: str) -> list[str]:
         value = self.attributes.get(key)
@@ -76,19 +83,24 @@ KEY_ALIASES = {
 }
 
 
-def _clean_attributes(attrs: dict) -> dict:
-    """Lower-case keys, fold spelling variants onto one key, strip whitespace in values."""
+def _clean_attributes(attrs: dict) -> tuple[dict, dict]:
+    """Lower-case keys, fold spelling variants onto one key, strip whitespace in values.
+
+    Returns (attributes, folded key -> original key).
+    """
     clean: dict = {}
-    for key, value in attrs.items():
-        key = KEY_ALIASES.get(str(key).strip().lower(), str(key).strip().lower())
+    source: dict = {}
+    for original, value in attrs.items():
+        key = KEY_ALIASES.get(str(original).strip().lower(), str(original).strip().lower())
         if isinstance(value, str):
             value = value.strip()
         elif isinstance(value, (list, tuple)):
             value = [v.strip() if isinstance(v, str) else v for v in value]
-        if value in ("", None, []):
+        if value in ("", None, []) or key in clean:
             continue
-        clean.setdefault(key, value)
-    return clean
+        clean[key] = value
+        source[key] = str(original).strip()
+    return clean, source
 
 
 _NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
@@ -104,7 +116,19 @@ _OUT = (
     "discontinued",
     "currently unavailable",
 )
-_IN = ("in stock", "in_stock", "instock", "available", "left", "limited", "few", "hurry", "ships")
+_IN = (
+    "in stock",
+    "in_stock",
+    "instock",
+    "low stock",
+    "low_stock",
+    "available",
+    "left",
+    "limited",
+    "few",
+    "hurry",
+    "ships",
+)
 
 
 def _parse_stock(value) -> bool | None:
@@ -147,6 +171,7 @@ TITLE_KEYS = ("title", "name", "product_name", "product_title")
 DESC_KEYS = ("description", "desc", "details", "product_description")
 CATEGORY_KEYS = ("category", "categories", "product_category", "department")
 PRICE_KEYS = ("price", "selling_price", "sale_price", "price_inr", "mrp")  # selling price before MRP
+MRP_KEYS = ("mrp_inr", "mrp")
 STOCK_KEYS = ("in_stock", "stock_status", "stock", "availability", "available", "inventory", "quantity", "qty")
 RATING_KEYS = ("rating", "ratings", "avg_rating", "average_rating", "stars")
 COUNT_KEYS = ("rating_count", "num_ratings", "ratings_count", "review_count", "reviews", "num_reviews")
@@ -159,6 +184,7 @@ CORE = {
         DESC_KEYS,
         CATEGORY_KEYS,
         PRICE_KEYS,
+        MRP_KEYS,
         STOCK_KEYS,
         RATING_KEYS,
         COUNT_KEYS,
@@ -183,16 +209,21 @@ def normalise_product(raw: dict) -> Product:
     for key, value in raw.items():  # flat attribute columns ("color", "brand", ...) beside the core fields
         if key not in CORE and key not in attributes and isinstance(value, (str, int, float, list)) and value != "":
             attributes[key] = value
+    attributes, source_keys = _clean_attributes(attributes)
+    stock = _first(raw, *STOCK_KEYS)
     return Product(
         id=str(pid).strip(),
         title=" ".join(str(title).split()),
         description=str(_first(raw, *DESC_KEYS, default="")),
         category=str(_first(raw, *CATEGORY_KEYS, default="")),
         price=price,
-        in_stock=_parse_stock(_first(raw, *STOCK_KEYS)),
+        in_stock=_parse_stock(stock),
         rating=rating,
         rating_count=int(count) if count is not None else None,
-        attributes=_clean_attributes(attributes),
+        attributes=attributes,
+        mrp=_parse_number(_first(raw, *MRP_KEYS), "MRP"),
+        stock_status=str(stock).strip() if isinstance(stock, str) and stock.strip() else None,
+        source_keys=source_keys,
     )
 
 

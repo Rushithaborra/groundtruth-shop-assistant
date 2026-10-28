@@ -8,6 +8,13 @@
     "demo_catalogue": "data/scale/catalogue.jsonl",
     "demo_policy": "data/scale/policy.txt",
     "bench_questions": "data/scale/test_questions.jsonl",
+    "pack_catalogue": "data/pack/data/catalogue.jsonl",
+    "pack_policy": "data/pack/data/policy.md",
+    "dev_questions": "data/pack/data/questions_dev.csv",
+    "dev_truth": "data/pack/data/questions_dev_truth.jsonl",
+    "test_questions": "data/pack/data/questions_test.csv",
+    "official_scorer": "data/pack/evaluate.py",
+    "submission": "../submission/R3_predictions.jsonl",
     "reports_dir": "output/reports",
     "cache_dir": ".cache",
     "semantic_config": "semantic_config.json",
@@ -47,8 +54,8 @@
   "evaluation": {
     "weight_groundedness": 0.35,
     "weight_helpfulness": 0.35,
-    "weight_refusal": 0.30,
-    "hallucinated_price_penalty": 0.10
+    "weight_refusal": 0.3,
+    "hallucinated_price_penalty": 0.1
   },
   "logging": {
     "level": "INFO"

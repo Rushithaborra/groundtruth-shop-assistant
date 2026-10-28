@@ -1,4 +1,9 @@
-"""Policy document: split plain text into cited sections and answer questions with extracted sentences."""
+"""Policy document: split it into cited sections and answer questions with extracted sentences.
+
+Two layouts are read. Markdown with numbered sub-sections (`### 1.2 Free returns`) gives one section per
+sub-section, cited by its number ("1.2"). Plain text is split on blank lines; a short first line becomes the
+heading, and its slug is the citation id ("returns").
+"""
 
 from __future__ import annotations
 
@@ -27,8 +32,30 @@ def _slug(heading: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
 
 
+_SUBSECTION = re.compile(r"^###\s+(\d+\.\d+)\s+(.+?)\s*$", re.MULTILINE)
+_MARKUP = re.compile(r"\*\*|__|`")
+
+
 def load_policy(path: str | Path) -> list[Section]:
     text = Path(path).read_text(encoding="utf-8")
+    if _SUBSECTION.search(text):
+        return _numbered_sections(text)
+    return _plain_sections(text)
+
+
+def _numbered_sections(text: str) -> list[Section]:
+    """One section per `### N.M Title` sub-section; Markdown emphasis is removed from the quoted text."""
+    matches = list(_SUBSECTION.finditer(text))
+    sections = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        lines = [ln.strip() for ln in text[m.end() : end].splitlines()]
+        body = " ".join(ln for ln in lines if ln and not ln.startswith("#"))
+        sections.append(Section(m.group(1), _MARKUP.sub("", m.group(2)), _MARKUP.sub("", body)))
+    return sections
+
+
+def _plain_sections(text: str) -> list[Section]:
     sections, seen = [], {}
     for block in re.split(r"\n\s*\n", text.strip()):
         lines = [ln.strip() for ln in block.strip().splitlines() if ln.strip()]
