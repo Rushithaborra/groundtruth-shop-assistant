@@ -12,7 +12,7 @@ from .response import Response, Session
 
 
 class SessionStore:
-    def __init__(self, max_sessions: int | None = None, ttl_seconds: float | None = None):
+    def __init__(self, max_sessions: int | None = None, ttl_seconds: float | None = None) -> None:
         limits = get_settings().sessions
         self.max_sessions = max_sessions if max_sessions is not None else limits.max_sessions
         self.ttl = ttl_seconds if ttl_seconds is not None else limits.ttl_seconds
