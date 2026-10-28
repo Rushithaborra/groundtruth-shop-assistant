@@ -106,13 +106,14 @@ def make_handler(
                 self._json(404, {"error": "Not found"})
 
         def do_POST(self):
+            declared, body = self._read_body()  # always consume the body, even when about to refuse (see _read_body)
             path = self._route()
             if path not in ("/api/chat", "/api/reset"):
                 return self._json(404, {"error": "Not found"})
             if not same_origin(self.headers.get("Origin"), self.headers.get("Host")):
                 return self._json(403, {"error": "Requests from other sites are not accepted"})
             try:
-                data = self._read_json()
+                data = read_json_body(self.headers.get("Content-Type"), declared, body, limits.max_body_bytes)
                 if path == "/api/reset":
                     return self._json(200, state.reset(reset_request(data)))
                 request = chat_request(data, limits.max_message_chars)
@@ -130,16 +131,19 @@ def make_handler(
                 logger.exception("assistant error on a %d-character message", len(request.message))
                 return self._json(500, {"error": "The assistant hit an error on that message"})
 
-        def _read_json(self) -> dict:
+        def _read_body(self) -> tuple[str | None, bytes]:
+            """Read the request body (never more than the cap). It is read before every reply, including early
+            refusals: closing a socket that still holds unread request data makes Windows reset the connection, and
+            the client then loses the reply (ConnectionAbortedError) instead of seeing the 403/404/405."""
             declared = self.headers.get("Content-Length")
             try:
-                to_read = min(max(int(declared or 0), 0), limits.max_body_bytes + 1)  # never read more than the cap
+                to_read = min(max(int(declared or 0), 0), limits.max_body_bytes + 1)
             except ValueError:
                 to_read = 0
-            body = self.rfile.read(to_read) if to_read else b""
-            return read_json_body(self.headers.get("Content-Type"), declared, body, limits.max_body_bytes)
+            return declared, (self.rfile.read(to_read) if to_read else b"")
 
         def _not_allowed(self):
+            self._read_body()
             self._json(405, {"error": "Method not allowed"}, {"Allow": "GET, POST"})
 
         do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _not_allowed

@@ -126,6 +126,18 @@ class ServerSecurityTests(unittest.TestCase):
         self.assertEqual(self.request("/api/chat", method="DELETE")[0], 405)
         self.assertEqual(self.request("/api/chat", {"message": "hi"}, method="OPTIONS")[0], 405)
 
+    def test_refusals_with_a_request_body_never_reset_the_connection(self):
+        # A refusal sent before the body was read made Windows reset the connection on ~1-3% of requests, so the
+        # client saw ConnectionAbortedError instead of the status. Repeat enough times to catch that reliably.
+        refused = (
+            ("/api/chat", "POST", {"Origin": "https://evil.example"}, 403),
+            ("/api/nope", "POST", {}, 404),
+            ("/api/chat", "OPTIONS", {}, 405),
+        )
+        for path, method, headers, expected in refused:
+            for _ in range(100):
+                self.assertEqual(self.request(path, {"message": "hi"}, method=method, headers=headers)[0], expected)
+
     def test_a_session_is_rate_limited_with_retry_after(self):
         code, _, body = self.request("/api/chat", {"message": "hi"})
         sid = json.loads(body)["session_id"]
