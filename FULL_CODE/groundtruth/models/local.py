@@ -1,65 +1,101 @@
-"""Loaders for the provided offline models: the embedding model and the small instruct model.
+"""Loaders for the provided offline models: the MiniLM embedding model and the Qwen2.5 GGUF instruct model.
 
-Imported only when a model path is configured, so the rule-based assistant needs no ML libraries.
+Imported only when a model path is configured, so the rule-based assistant needs no ML libraries. Both load from
+local files only: the embedding weights are safetensors and no repository code is run (trust_remote_code stays off);
+the instruct model is a GGUF file read by llama.cpp. Every call goes through `call_model` (timeout, retry, log).
 """
+
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Sequence
 
 from ..config import get_settings
+from .calls import call_model
 from .semantic import unit
 
 
+class ModelLoadError(RuntimeError):
+    """A model or the library that runs it is missing."""
+
+
+def _missing_library(name: str) -> ModelLoadError:
+    return ModelLoadError(f"{name} is not installed; run `uv sync --group models` to use the provided models")
+
+
 class LocalEmbedder:
-    """The provided offline embedding model. Tries sentence-transformers, then plain transformers (mean pooling)."""
+    """The provided sentence-embedding model, on CPU, with unit-length vectors."""
 
-    def __init__(self, model_path: str, max_length: int | None = None):
+    def __init__(self, model_path: str | Path):
         self.name = str(model_path)
-        max_length = max_length if max_length is not None else get_settings().models.embed_max_length
         try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-            model = SentenceTransformer(model_path, device="cpu")
-            self._encode = lambda texts: model.encode(list(texts), normalize_embeddings=True).tolist()
-            return
-        except ImportError:
-            pass
-        import torch  # type: ignore
-        from transformers import AutoModel, AutoTokenizer  # type: ignore
-        tok = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        model = AutoModel.from_pretrained(model_path, local_files_only=True).eval()
-
-        def encode(texts):
-            with torch.no_grad():
-                batch = tok(list(texts), padding=True, truncation=True, max_length=max_length, return_tensors="pt")
-                out = model(**batch).last_hidden_state
-                mask = batch["attention_mask"].unsqueeze(-1).float()
-                vecs = (out * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
-            return [unit(v) for v in vecs.tolist()]
-        self._encode = encode
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise _missing_library("sentence-transformers") from exc
+        settings = get_settings().models
+        self._model = SentenceTransformer(str(model_path), device="cpu", local_files_only=True)
+        self._model.max_seq_length = settings.embed_max_length
+        self._timeout_s, self._retries, self._backoff_s = (
+            settings.embed_timeout_s,
+            settings.model_retries,
+            settings.model_backoff_s,
+        )
 
     def encode(self, texts: Sequence[str]) -> list[list[float]]:
-        return [unit(v) for v in self._encode(texts)]
+        batch = list(texts)
+        vectors = call_model(
+            lambda: self._model.encode(batch, normalize_embeddings=True).tolist(),
+            what=f"embedding {len(batch)} text(s)",
+            timeout_s=self._timeout_s * max(1, len(batch) // 64 + 1),  # start-up encodes a few hundred texts at once
+            retries=self._retries,
+            backoff_s=self._backoff_s,
+        )
+        return [unit(v) for v in vectors]
+
+
+def _gguf_file(model_path: str | Path) -> Path:
+    path = Path(model_path)
+    if path.is_dir():
+        files = sorted(path.glob("*.gguf"))
+        if not files:
+            raise ModelLoadError(f"no .gguf model file in {path}")
+        return files[0]
+    if not path.is_file():
+        raise ModelLoadError(f"instruct model not found: {path}")
+    return path
 
 
 class LocalGenerator:
-    """The provided offline instruct model via transformers, greedy decoding, real token counts."""
+    """The provided instruct model (GGUF, run by llama.cpp on CPU): greedy JSON output and real token counts."""
 
-    def __init__(self, model_path: str, max_new_tokens: int | None = None):
-        import torch  # type: ignore
-        from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
-        self.torch = torch
-        self.tok = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True).eval()
-        self.max_new_tokens = max_new_tokens if max_new_tokens is not None else get_settings().models.llm_max_new_tokens
+    def __init__(self, model_path: str | Path):
+        try:
+            from llama_cpp import Llama
+        except ImportError as exc:
+            raise _missing_library("llama-cpp-python") from exc
+        settings = get_settings().models
+        self.name = str(model_path)
+        self._llm = Llama(
+            model_path=str(_gguf_file(model_path)), n_ctx=settings.llm_context_tokens, seed=0, verbose=False
+        )
+        self._settings = settings
 
     def __call__(self, system: str, user: str) -> tuple[str, int, int]:
-        msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        if getattr(self.tok, "chat_template", None):
-            ids = self.tok.apply_chat_template(msgs, add_generation_prompt=True, return_tensors="pt")
-        else:
-            ids = self.tok(f"{system}\n\n{user}", return_tensors="pt").input_ids
-        with self.torch.no_grad():
-            out = self.model.generate(ids, max_new_tokens=self.max_new_tokens, do_sample=False,
-                                      pad_token_id=self.tok.eos_token_id)
-        new = out[0][ids.shape[1]:]
-        return self.tok.decode(new, skip_special_tokens=True), int(ids.shape[1]), int(len(new))
+        """(reply text, input tokens, output tokens) for one system + user message pair."""
+        s = self._settings
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        out = call_model(
+            lambda: self._llm.create_chat_completion(
+                messages=messages,
+                temperature=s.llm_temperature,
+                max_tokens=s.llm_max_new_tokens,
+                response_format={"type": "json_object"},
+            ),
+            what="instruct model",
+            timeout_s=s.llm_timeout_s,
+            retries=s.model_retries,
+            backoff_s=s.model_backoff_s,
+        )
+        usage = out.get("usage") or {}
+        text = out["choices"][0]["message"].get("content") or ""
+        return text, int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))

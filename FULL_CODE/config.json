@@ -46,8 +46,14 @@
     "embed_model": null,
     "llm_model": null,
     "embed_max_length": 64,
+    "embed_timeout_s": 5,
+    "llm_context_tokens": 2048,
+    "llm_temperature": 0.0,
     "llm_max_new_tokens": 120,
-    "llm_max_values_per_attribute": 40
+    "llm_max_values_per_attribute": 40,
+    "llm_timeout_s": 15,
+    "model_retries": 1,
+    "model_backoff_s": 0.5
   },
   "calibration": {
     "margin": 0.02,

@@ -58,13 +58,19 @@ The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column sp
 rows are skipped and logged. Policy text is split into sections on blank lines; a short first line becomes the
 section heading and the id used in citations.
 
-**The provided models** (optional) go in `FULL_CODE/models/` (git-ignored). Calibrate the embedding fallback first,
-then pass the model folders:
+**The provided models** (optional) go in `FULL_CODE/models/` (git-ignored). Download them while online with the
+pack's own script (MiniLM embedding + Qwen2.5-0.5B instruct, about 0.6 GB), install the libraries that run them,
+calibrate the embedding fallback, then pass the model folders:
 
 ```bash
-python3 main.py calibrate --embed-model models/<embedding-model>
-python3 main.py chat --embed-model models/<embedding-model> --llm-model models/<instruct-model>
+python3 -I data/pack/download_models.py --set small --dest models
+uv sync --group models          # sentence-transformers + PyTorch, llama-cpp-python (compiles once)
+uv run python main.py calibrate --embed-model models/all-MiniLM-L6-v2 --catalogue data/pack/data/catalogue.jsonl --policy data/pack/data/policy.md
+uv run python main.py chat --embed-model models/all-MiniLM-L6-v2 --llm-model models/Qwen2.5-0.5B-Instruct-GGUF
 ```
+
+Every model call has a timeout and one retry with back-off (`config.json`, models section); if a model is slow,
+fails or isn't installed, the reply falls back to the rule-based answer.
 
 ## How to run the tests
 

@@ -17,6 +17,12 @@ dev = [
     "pytest==9.1.1",
     "ruff==0.14.0",
 ]
+# Optional: only to run the provided models (uv sync --group models). The assistant runs without them.
+models = [
+    "llama-cpp-python==0.3.16",
+    "sentence-transformers==5.1.1",
+    "torch==2.8.0",
+]
 
 [tool.uv]
 package = false

@@ -12,6 +12,7 @@ import unittest
 from groundtruth.answering import ANSWER, REFUSE, ShoppingAssistant
 from groundtruth.catalogue import CatalogueIndex, load_catalogue
 from groundtruth.grounding import Grounding
+from groundtruth.models.calls import ModelCallError
 from groundtruth.models.normaliser import LLMNormaliser
 from groundtruth.models.semantic import SemanticFallback, type_words
 from groundtruth.paths import ROOT
@@ -132,8 +133,8 @@ class FallbackTests(unittest.TestCase):
 
         def generate(system, user):
             calls.append(user)
-            if raises:
-                raise RuntimeError("model crashed")
+            if raises:  # what the real generator raises once call_model gives up (timeout or repeated errors)
+                raise ModelCallError("instruct model failed after 2 attempts")
             return (payload if isinstance(payload, str) else json.dumps(payload)), 321, 45
 
         return LLMNormaliser(generate), calls

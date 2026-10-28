@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from ..config import get_settings
+from .calls import ModelCallError
 from .semantic import type_words
 
 # Kept in a file so the prompt can be reviewed and changed without touching code; read verbatim.
@@ -64,7 +65,7 @@ class LLMNormaliser:
         schema, types = self._schema(index)
         try:
             text, n_in, n_out = self.generate(SYSTEM, f"{schema}\n\nSHOPPER: {parsed.raw}\nJSON:")
-        except Exception:  # a failing model must not take the assistant down: fall back to the rules' answer
+        except ModelCallError:  # slow or failing model (already logged): fall back to the rules' answer
             return (0, 0)
         data = self.parse(text) or {}
         flagged = {str(w).lower() for w in data.get("out_of_catalogue") or [] if isinstance(w, str)}

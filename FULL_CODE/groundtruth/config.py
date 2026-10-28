@@ -86,8 +86,14 @@ class ModelSettings:
     embed_model: str | None
     llm_model: str | None
     embed_max_length: int
+    embed_timeout_s: float
+    llm_context_tokens: int
+    llm_temperature: float
     llm_max_new_tokens: int
     llm_max_values_per_attribute: int
+    llm_timeout_s: float
+    model_retries: int
+    model_backoff_s: float
 
 
 @dataclass(frozen=True)
@@ -231,10 +237,16 @@ def parse_settings(raw: dict) -> Settings:
             embed_model=_optional_text("models.embed_model", m["embed_model"]),
             llm_model=_optional_text("models.llm_model", m["llm_model"]),
             embed_max_length=_int("models.embed_max_length", m["embed_max_length"], 8, 8192),
+            embed_timeout_s=_float("models.embed_timeout_s", m["embed_timeout_s"], 0.1, 600),
+            llm_context_tokens=_int("models.llm_context_tokens", m["llm_context_tokens"], 256, 32768),
+            llm_temperature=_float("models.llm_temperature", m["llm_temperature"], 0, 2),
             llm_max_new_tokens=_int("models.llm_max_new_tokens", m["llm_max_new_tokens"], 1, 4096),
             llm_max_values_per_attribute=_int(
                 "models.llm_max_values_per_attribute", m["llm_max_values_per_attribute"], 1, 1000
             ),
+            llm_timeout_s=_float("models.llm_timeout_s", m["llm_timeout_s"], 0.1, 600),
+            model_retries=_int("models.model_retries", m["model_retries"], 0, 5),
+            model_backoff_s=_float("models.model_backoff_s", m["model_backoff_s"], 0, 60),
         ),
         calibration=CalibrationSettings(
             margin=_float("calibration.margin", c["margin"], 0, 1),
