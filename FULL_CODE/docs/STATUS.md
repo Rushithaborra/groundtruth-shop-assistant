@@ -30,7 +30,7 @@ These scores are on small samples and on sets we wrote; the hidden test score ma
 | 5. Known behaviour gaps | done, one part waits | "review the describing-word refusal rule" needs Task 4's questions |
 | 6. Latency and token-cost report | done | `report` |
 | 7. Web demo and API security | done, one part waits | phone width not checked in a real browser |
-| 8. Hardening | done, gaps below | see G4–G6 |
+| 8. Hardening | done | G4–G6 closed on 28 October (`CHANGES.md`, "Code quality: ...") |
 | 9. README and submission zip | done, gaps below | see G2 |
 | Extra: stress set, demo script | done | `stress`, `FULL_CODE/docs/demo_script.md` |
 
@@ -43,9 +43,9 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G1 | Two commits not pushed | the zip must come from a clone of what's on GitHub | `git status`: ahead 2 | Rushitha | **P1, now** |
 | G2 | README facts out of date: test count says 179 (it is 182); the pre-built-code table stops at `8d8e35d` (20 later commits, including Sushanth's 4, are missing); third-party list omits numpy and pandas (BSD-3, dev only) | rule 12, fair play (declare pre-Day-1 code) | `grep` on README; `git log 8d8e35d..HEAD` | Claude Code | **P1** |
 | G3 | 25 `# fmt: skip` and 1 `# noqa: E731`; the `noqa` hides a lambda in `api/state.py` that computes percentiles differently from the cost report | rule 1: fix warnings, don't switch them off; no duplicated logic | `grep` | Claude Code | **P1** |
-| G4 | 9 product functions over 40 lines (`make_handler` 97, `parse_settings` 82, `CatalogueIndex.__init__` 63, `summarise` 62, `product_answer` 51, `build_assistant` 51, `build_examples` 48, `check` 46, `no_match` 45) | rule 1: short, single-purpose functions | AST count | **Sushanth** (with Claude Code if needed) | P2 |
-| G5 | 37 parameters in product code without type hints (mostly `api/state.py`, `api/views.py`, `models/`) | rule 1: type hints | AST count | **Sushanth** | P2 |
-| G6 | 48 functions in `tools/` (data generators) without docstrings | rule 12: docstrings on key functions (these are dev tools, so lower) | AST count | Sushanth | P3 |
+| G4 | **Done 28 Oct.** Was 9 product functions over 40 lines (`make_handler` 97, `parse_settings` 82, `CatalogueIndex.__init__` 63, `summarise` 62, `product_answer` 51, `build_assistant` 51, `build_examples` 48, `check` 46, `no_match` 45); now none is over 40 (longest 33) | rule 1: short, single-purpose functions | AST count; 182 tests; 328 reply and score entries identical before and after | Sushanth with Claude Code | done |
+| G5 | **Done 28 Oct.** Was 37 parameters and 15 return types without type hints in product code; now 0 and 0 | rule 1: type hints | AST count; 182 tests; ruff clean | Sushanth with Claude Code | done |
+| G6 | **Done 28 Oct.** Was 48 functions in `tools/` without docstrings; now 0. Only docstrings changed: the code is identical once they are ignored | rule 12: docstrings on key functions | AST count and AST comparison with the committed files | Sushanth with Claude Code | done |
 | G7 | Web demo not checked at phone width in a real browser | brief task 7 | only the CSS was reviewed | **Sushanth** | **P1** |
 | G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? Is `.gitattributes` allowed at the top level? | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
 | G9 | Round-1 deck shows old synthetic numbers (0.987, 88 tests, 0.8 ms); slide 1 has "Rushita Bora" and "Retail • Biotechnology" | honest reporting | deck text | Rushitha decides; Claude Code can make an updated copy | P1 if a deck is needed |
@@ -84,10 +84,11 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 * Phone check (G7): open the demo on a phone (same Wi-Fi, `--host 0.0.0.0`, then the laptop's IP:8000); try the
   chat, a product card flip and compare; screenshot anything that overflows.
 * Collect the Task 4 questions from friends who haven't seen the code (G10).
-* Type hints (G5) and splitting long functions (G4), one file per commit. After each change run
-  `uv run pytest -q`, `uv run ruff check . && uv run ruff format --check .`, and confirm nothing changed with
+* Type hints (G5), splitting long functions (G4) and `tools/` docstrings (G6): done on 28 October, one commit per
+  file. Still to do before pushing: with the pack in `FULL_CODE/data/pack/`, run
   `uv run python main.py score --part all` (must stay 0.9325) and `uv run python main.py stress --part tune`
-  (must stay 0.9996).
+  (must stay 0.9996). They could not be run when the changes were made, because the pack was not on that machine;
+  the synthetic sets, 182 tests and ruff were.
 
 ## 6. Learning the code (for both of us)
 

@@ -476,6 +476,38 @@ found three problems, all fixed:
 No scored prediction changed: dev (tune 1.000, check 0.865, all 0.9325), stress (tune 0.9996, holdout 0.961),
 synthetic sets 1.0; 7 test replies changed wording only. 181 tests pass (3 new, each failing on `552edb4`).
 
+## Code quality: type hints, shorter functions, docstrings, 28 October
+
+Closes G4, G5 and G6 in `docs/STATUS.md`. No behaviour change was intended, and none was found.
+
+| Measure (product code, AST count) | Before | After |
+|---|---|---|
+| Parameters without a type hint | 37 | 0 |
+| Functions without a return type | 15 | 0 |
+| Functions over 40 lines | 9 (longest 97) | 0 (longest 33) |
+| Functions in `tools/` without a docstring | 48 | 0 |
+
+* **Type hints** (20 files). Where a type is needed only for annotations (the optional model modules), it is imported
+  under `TYPE_CHECKING`, so those modules are still loaded only when a model is used.
+* **Long functions.** `make_handler` is now a module-level `Handler` class that `make_handler` binds to the shared
+  state; `parse_settings` has one validator per config section; `CatalogueIndex.__init__` is four steps (tables,
+  per-product indexing, vocabulary, typo lookup); `summarise` uses small helpers and keeps the summary's key order;
+  `build_assistant` builds each optional fallback in its own function; `product_answer`, `build_examples`,
+  `Grounding.check` and `no_match` are split into single-purpose helpers.
+* **Docstrings** (11 files in `tools/`). Only docstrings changed: the parsed code of each file is identical to the
+  committed version once docstrings are ignored.
+
+How "no behaviour change" was checked: every synthetic question set (325 questions on the small and 5,000-product
+catalogues) was answered before and after, and the replies, grounding checks, demo examples, settings and score
+summary compared. All 328 entries were identical after each file was changed. 182 tests pass on three consecutive
+runs, ruff and the formatter are clean, and throughput is unchanged (about 1,300 queries/s on one thread, mean
+0.76 to 0.77 ms before and 0.75 to 0.78 ms after).
+
+**Not checked.** The pack-based scores (`main.py score --part all`, must stay 0.9325; `main.py stress --part tune`,
+must stay 0.9996) were not run, because the pack was not on the machine used. The tests were run on Python 3.13
+only; every new type annotation is a string under `from __future__ import annotations`, so Python 3.9 should be
+unaffected, but it was not run there.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
