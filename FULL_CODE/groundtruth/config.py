@@ -215,19 +215,79 @@ def _apply_env(raw: dict) -> None:
             raise ConfigError(f"{var} has an invalid value {value!r}") from exc
 
 
-def parse_settings(raw: dict) -> Settings:
-    """Validate a config dictionary (as read from config.json) into typed settings."""
-    p = _section(raw, "paths", tuple(PathSettings.__dataclass_fields__))
-    sub = _section(raw, "submission", tuple(SubmissionSettings.__dataclass_fields__))
-    a = _section(raw, "assistant", tuple(AssistantSettings.__dataclass_fields__))
-    s = _section(raw, "search", tuple(SearchSettings.__dataclass_fields__))
-    w = _section(raw, "server", tuple(ServerSettings.__dataclass_fields__))
-    ss = _section(raw, "sessions", tuple(SessionSettings.__dataclass_fields__))
-    m = _section(raw, "models", tuple(ModelSettings.__dataclass_fields__))
-    c = _section(raw, "calibration", tuple(CalibrationSettings.__dataclass_fields__))
-    e = _section(raw, "evaluation", tuple(EvaluationSettings.__dataclass_fields__))
-    cr = _section(raw, "cost_report", tuple(CostReportSettings.__dataclass_fields__))
-    lg = _section(raw, "logging", tuple(LoggingSettings.__dataclass_fields__))
+def _paths(p: dict) -> PathSettings:
+    return PathSettings(**{key: _path(f"paths.{key}", value) for key, value in p.items()})
+
+
+def _submission(sub: dict) -> SubmissionSettings:
+    return SubmissionSettings(
+        team_id=_identifier("submission.team_id", sub["team_id"]),
+        problem_id=_identifier("submission.problem_id", sub["problem_id"]),
+    )
+
+
+def _assistant(a: dict) -> AssistantSettings:
+    return AssistantSettings(
+        list_limit=_int("assistant.list_limit", a["list_limit"], 1, 20),
+        clarify_limit=_int("assistant.clarify_limit", a["clarify_limit"], 1, 20),
+        policy_max_sentences=_int("assistant.policy_max_sentences", a["policy_max_sentences"], 1, 10),
+    )
+
+
+def _search(s: dict) -> SearchSettings:
+    return SearchSettings(
+        typo_cutoff=_float("search.typo_cutoff", s["typo_cutoff"], 0.5, 1.0),
+        typo_cache_size=_int("search.typo_cache_size", s["typo_cache_size"], 0, 1_000_000),
+    )
+
+
+def _server(w: dict) -> ServerSettings:
+    return ServerSettings(
+        host=_text("server.host", w["host"]),
+        port=_int("server.port", w["port"], 1, 65535),
+        max_sessions=_int("server.max_sessions", w["max_sessions"], 1, 1_000_000),
+        max_message_chars=_int("server.max_message_chars", w["max_message_chars"], 1, 10_000),
+        max_body_bytes=_int("server.max_body_bytes", w["max_body_bytes"], 100, 1_000_000),
+        rate_limit_per_minute=_int("server.rate_limit_per_minute", w["rate_limit_per_minute"], 1, 10_000),
+        rate_limit_per_address_per_minute=_int(
+            "server.rate_limit_per_address_per_minute", w["rate_limit_per_address_per_minute"], 1, 100_000
+        ),
+    )
+
+
+def _sessions(ss: dict) -> SessionSettings:
+    return SessionSettings(
+        max_sessions=_int("sessions.max_sessions", ss["max_sessions"], 1, 10_000_000),
+        ttl_seconds=_float("sessions.ttl_seconds", ss["ttl_seconds"], 0, 7 * 24 * 3600),
+    )
+
+
+def _models(m: dict) -> ModelSettings:
+    return ModelSettings(
+        embed_model=_optional_text("models.embed_model", m["embed_model"]),
+        llm_model=_optional_text("models.llm_model", m["llm_model"]),
+        embed_max_length=_int("models.embed_max_length", m["embed_max_length"], 8, 8192),
+        embed_timeout_s=_float("models.embed_timeout_s", m["embed_timeout_s"], 0.1, 600),
+        llm_context_tokens=_int("models.llm_context_tokens", m["llm_context_tokens"], 256, 32768),
+        llm_temperature=_float("models.llm_temperature", m["llm_temperature"], 0, 2),
+        llm_max_new_tokens=_int("models.llm_max_new_tokens", m["llm_max_new_tokens"], 1, 4096),
+        llm_max_values_per_attribute=_int(
+            "models.llm_max_values_per_attribute", m["llm_max_values_per_attribute"], 1, 1000
+        ),
+        llm_timeout_s=_float("models.llm_timeout_s", m["llm_timeout_s"], 0.1, 600),
+        model_retries=_int("models.model_retries", m["model_retries"], 0, 5),
+        model_backoff_s=_float("models.model_backoff_s", m["model_backoff_s"], 0, 60),
+    )
+
+
+def _calibration(c: dict) -> CalibrationSettings:
+    return CalibrationSettings(
+        margin=_float("calibration.margin", c["margin"], 0, 1),
+        alt_gap=_float("calibration.alt_gap", c["alt_gap"], 0, 1),
+    )
+
+
+def _evaluation(e: dict) -> EvaluationSettings:
     evaluation = EvaluationSettings(
         weight_groundedness=_float("evaluation.weight_groundedness", e["weight_groundedness"], 0, 1),
         weight_helpfulness=_float("evaluation.weight_helpfulness", e["weight_helpfulness"], 0, 1),
@@ -240,62 +300,52 @@ def parse_settings(raw: dict) -> Settings:
     total = evaluation.weight_groundedness + evaluation.weight_helpfulness + evaluation.weight_refusal
     if abs(total - 1.0) > 1e-9:
         raise ConfigError(f"evaluation weights must add up to 1, got {total}")
+    return evaluation
+
+
+def _cost_report(cr: dict) -> CostReportSettings:
+    return CostReportSettings(
+        llm_prompt_tokens=_int("cost_report.llm_prompt_tokens", cr["llm_prompt_tokens"], 0, 1_000_000),
+        llm_output_tokens=_int("cost_report.llm_output_tokens", cr["llm_output_tokens"], 0, 100_000),
+        llm_seconds_per_call=_float("cost_report.llm_seconds_per_call", cr["llm_seconds_per_call"], 0, 3600),
+    )
+
+
+def _logging(lg: dict) -> LoggingSettings:
+    return LoggingSettings(level=_text("logging.level", lg["level"], LOG_LEVELS))
+
+
+def parse_settings(raw: dict) -> Settings:
+    """Validate a config dictionary (as read from config.json) into typed settings."""
+    sections = {
+        name: _section(raw, name, tuple(kind.__dataclass_fields__))
+        for name, kind in (
+            ("paths", PathSettings),
+            ("submission", SubmissionSettings),
+            ("assistant", AssistantSettings),
+            ("search", SearchSettings),
+            ("server", ServerSettings),
+            ("sessions", SessionSettings),
+            ("models", ModelSettings),
+            ("calibration", CalibrationSettings),
+            ("evaluation", EvaluationSettings),
+            ("cost_report", CostReportSettings),
+            ("logging", LoggingSettings),
+        )
+    }
+    evaluation = _evaluation(sections["evaluation"])  # checked first, as before: its weights must add up to 1
     return Settings(
-        paths=PathSettings(**{key: _path(f"paths.{key}", value) for key, value in p.items()}),
-        submission=SubmissionSettings(
-            team_id=_identifier("submission.team_id", sub["team_id"]),
-            problem_id=_identifier("submission.problem_id", sub["problem_id"]),
-        ),
-        assistant=AssistantSettings(
-            list_limit=_int("assistant.list_limit", a["list_limit"], 1, 20),
-            clarify_limit=_int("assistant.clarify_limit", a["clarify_limit"], 1, 20),
-            policy_max_sentences=_int("assistant.policy_max_sentences", a["policy_max_sentences"], 1, 10),
-        ),
-        search=SearchSettings(
-            typo_cutoff=_float("search.typo_cutoff", s["typo_cutoff"], 0.5, 1.0),
-            typo_cache_size=_int("search.typo_cache_size", s["typo_cache_size"], 0, 1_000_000),
-        ),
-        server=ServerSettings(
-            host=_text("server.host", w["host"]),
-            port=_int("server.port", w["port"], 1, 65535),
-            max_sessions=_int("server.max_sessions", w["max_sessions"], 1, 1_000_000),
-            max_message_chars=_int("server.max_message_chars", w["max_message_chars"], 1, 10_000),
-            max_body_bytes=_int("server.max_body_bytes", w["max_body_bytes"], 100, 1_000_000),
-            rate_limit_per_minute=_int("server.rate_limit_per_minute", w["rate_limit_per_minute"], 1, 10_000),
-            rate_limit_per_address_per_minute=_int(
-                "server.rate_limit_per_address_per_minute", w["rate_limit_per_address_per_minute"], 1, 100_000
-            ),
-        ),
-        sessions=SessionSettings(
-            max_sessions=_int("sessions.max_sessions", ss["max_sessions"], 1, 10_000_000),
-            ttl_seconds=_float("sessions.ttl_seconds", ss["ttl_seconds"], 0, 7 * 24 * 3600),
-        ),
-        models=ModelSettings(
-            embed_model=_optional_text("models.embed_model", m["embed_model"]),
-            llm_model=_optional_text("models.llm_model", m["llm_model"]),
-            embed_max_length=_int("models.embed_max_length", m["embed_max_length"], 8, 8192),
-            embed_timeout_s=_float("models.embed_timeout_s", m["embed_timeout_s"], 0.1, 600),
-            llm_context_tokens=_int("models.llm_context_tokens", m["llm_context_tokens"], 256, 32768),
-            llm_temperature=_float("models.llm_temperature", m["llm_temperature"], 0, 2),
-            llm_max_new_tokens=_int("models.llm_max_new_tokens", m["llm_max_new_tokens"], 1, 4096),
-            llm_max_values_per_attribute=_int(
-                "models.llm_max_values_per_attribute", m["llm_max_values_per_attribute"], 1, 1000
-            ),
-            llm_timeout_s=_float("models.llm_timeout_s", m["llm_timeout_s"], 0.1, 600),
-            model_retries=_int("models.model_retries", m["model_retries"], 0, 5),
-            model_backoff_s=_float("models.model_backoff_s", m["model_backoff_s"], 0, 60),
-        ),
-        calibration=CalibrationSettings(
-            margin=_float("calibration.margin", c["margin"], 0, 1),
-            alt_gap=_float("calibration.alt_gap", c["alt_gap"], 0, 1),
-        ),
+        paths=_paths(sections["paths"]),
+        submission=_submission(sections["submission"]),
+        assistant=_assistant(sections["assistant"]),
+        search=_search(sections["search"]),
+        server=_server(sections["server"]),
+        sessions=_sessions(sections["sessions"]),
+        models=_models(sections["models"]),
+        calibration=_calibration(sections["calibration"]),
         evaluation=evaluation,
-        cost_report=CostReportSettings(
-            llm_prompt_tokens=_int("cost_report.llm_prompt_tokens", cr["llm_prompt_tokens"], 0, 1_000_000),
-            llm_output_tokens=_int("cost_report.llm_output_tokens", cr["llm_output_tokens"], 0, 100_000),
-            llm_seconds_per_call=_float("cost_report.llm_seconds_per_call", cr["llm_seconds_per_call"], 0, 3600),
-        ),
-        logging=LoggingSettings(level=_text("logging.level", lg["level"], LOG_LEVELS)),
+        cost_report=_cost_report(sections["cost_report"]),
+        logging=_logging(sections["logging"]),
     )
 
 
