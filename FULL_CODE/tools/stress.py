@@ -72,6 +72,7 @@ def _name(p: dict, style: int, rng: random.Random) -> str:
 
 
 def _part_of(key: str) -> str:
+    """Assign a question to the tune or holdout part by hashing its key, so the split is stable."""
     return "tune" if int(hashlib.sha256(key.encode()).hexdigest(), 16) % 2 == 0 else "holdout"
 
 
@@ -84,6 +85,7 @@ def build(catalogue: list[dict], n_products: int = 120, seed: int = SEED) -> lis
     rows: list[dict] = []
 
     def add(text: str, action: str, qtype: str, part: str, products=(), facts=(), candidates=()) -> None:
+        """Add one stress question with its expected action, type, part and the products and facts it needs."""
         rows.append({
             "question_id": f"S-{len(rows):04d}", "conversation_id": f"SC-{len(rows):04d}", "turn": 1,
             "question_text": text, "expected_action": action, "question_type": qtype, "part": part,
@@ -138,11 +140,13 @@ def _vague_groups(catalogue: list[dict], rng: random.Random, n: int = 16) -> lis
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The stress command's options: which part to score, and per-question details."""
     ap.add_argument("--part", choices=("tune", "holdout", "all"), default="tune")
     ap.add_argument("--details", action="store_true", help="also write per-question results (score_details.jsonl)")
 
 
 def run(args: argparse.Namespace) -> None:
+    """Build the stress questions from the pack's catalogue, answer them and score them with the official scorer."""
     _require_scorer_dependencies()
     paths = get_settings().paths
     catalogue = [json.loads(line) for line in paths.pack_catalogue.read_text(encoding="utf-8").splitlines() if line]
