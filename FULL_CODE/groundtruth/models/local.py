@@ -29,7 +29,7 @@ def _missing_library(name: str) -> ModelLoadError:
 class LocalEmbedder:
     """The provided sentence-embedding model, on CPU, with unit-length vectors."""
 
-    def __init__(self, model_path: str | Path):
+    def __init__(self, model_path: str | Path) -> None:
         self.name = str(model_path)
         try:
             from sentence_transformers import SentenceTransformer
@@ -72,7 +72,7 @@ def _gguf_file(model_path: str | Path) -> Path:
 class LocalGenerator:
     """The provided instruct model (GGUF, run by llama.cpp on CPU): greedy JSON output and real token counts."""
 
-    def __init__(self, model_path: str | Path):
+    def __init__(self, model_path: str | Path) -> None:
         try:
             from llama_cpp import Llama
         except ImportError as exc:
