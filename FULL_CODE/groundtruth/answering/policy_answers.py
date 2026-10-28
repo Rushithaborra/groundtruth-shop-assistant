@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..policy import STRONG, Section, best_sentences
 from ..understanding import Parsed
 from .response import ANSWER, REFUSE, Claims, Response
 
+if TYPE_CHECKING:
+    from ..models.semantic import SemanticFallback
+
 
 def policy_answer(
-    policy: list[Section], semantic, p: Parsed, max_sentences: int, strong: frozenset = STRONG
+    policy: list[Section],
+    semantic: SemanticFallback | None,
+    p: Parsed,
+    max_sentences: int,
+    strong: frozenset[str] = STRONG,
 ) -> Response:
     """Quote the best-matching policy sentences; the embedding fallback (if any) only runs when keywords miss."""
     found = best_sentences(policy, p.keywords, max_sentences, strong)
