@@ -1,174 +1,167 @@
-# Groundtruth Shop Assistant
+# TEAM-000802 · R3: GroundTruth, the shopping assistant that doesn't lie
 
-A conversational shopping assistant over a fixed product catalogue that **cites every claim and refuses when the
-catalogue can't support an answer**. Pure Python standard library, fully offline, zero LLM calls.
+## What it does
 
-## Quick start
+**Team:** Crew (TEAM-000802) · **Problem statement:** R3, The Conversational Shopping Assistant That Doesn't Lie
+(TalentAP Mega Hackathon 2026, Retail track).
 
-```bash
-python data/generate_synthetic.py     # writes data/catalogue.jsonl, policy.txt, test_questions.jsonl (stand-ins)
-python chat.py --meta                 # interactive CLI; --meta shows action, latency, token estimates
-python evaluate.py --verbose          # scores + reports/summary.json + reports/query_report.csv
-python -m unittest discover -s tests
+GroundTruth is a product-discovery assistant over a fixed catalogue. Shoppers ask short, ungrammatical, code-mixed
+questions ("cotton kurta 1500 ke andar", "price of the blue running shoe", "do you sell iPhones?") and get one of three
+replies:
 
-python data/generate_hard.py          # adversarial questions (typos, negation, comparisons, multi-turn, ...)
-python evaluate.py --questions data/hard_questions.jsonl --verbose
-python data/generate_scale.py         # 5,000 messy products in data/scale/ (git-ignored)
-python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/test_questions.jsonl
-
-python data/generate_independent.py   # 60 shopper-style questions written independently of the code (data/scale/)
-python data/generate_heldout.py       # 37 questions; was held out, now a regression set (see CHANGES.md)
-python data/generate_heldout2.py      # 45 questions; scored once before tuning: 0.987 (see CHANGES.md)
-python evaluate.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --questions data/scale/heldout_questions.jsonl --verbose
-
-# with the provided offline models (see "Fallbacks" below)
-python calibrate_semantic.py --embed-model PATH/TO/EMBEDDING_MODEL --catalogue PATH --policy PATH
-python chat.py --meta --embed-model PATH/TO/EMBEDDING_MODEL --llm-model PATH/TO/INSTRUCT_MODEL
-```
-
-Swap in the real data with `--catalogue`, `--policy` and `--questions` on `chat.py` / `evaluate.py`.
-`.jsonl`, `.json` and `.csv` catalogues are accepted (`id|product_id|sku`, `title|name`, `price`, `in_stock|stock_status`,
-`rating`, `attributes` as a dict or JSON string). Policy text is split into sections on blank lines; a short first line
-becomes the heading and the section id used in citations (`[policy:returns]`).
-
-## How it works
-
-Every reply sentence is assembled from catalogue fields or extracted verbatim from the policy text, then tagged with a
-citation (`[P0012]`, `[policy:shipping]`). There is no free-form generation, so a price that isn't in the catalogue
-cannot be produced.
-
-| Situation | Behaviour |
+| Situation | Reply |
 |---|---|
-| Question about one product that is unambiguous | Answer from catalogue fields |
-| "the blue running shoe" when several match | **Clarify**: list candidates with their distinguishing attributes, no prices |
-| Product/word not in the catalogue ("iPhones") | **Refuse** |
-| Constraints nothing satisfies ("cotton shirts under ₹100") | **Refuse**, and name the closest cited alternative |
-| Returns / shipping / warranty | Quote the matching policy sentences, cite the section |
-| Policy question the document doesn't cover | **Refuse** |
-| Follow-ups ("under ₹2,000, and I already said cotton", "what's the price?") | Session keeps type, filters, budget, last product |
+| The catalogue supports one answer | **Answer** built only from catalogue fields or policy sentences, each cited (`[P0012]`, `[policy:returns]`) |
+| Several products fit "the" product | **Clarify**: lists the candidates and what tells them apart, without guessing a price |
+| The catalogue can't support it | **Refuse** ("I don't have that"), naming the closest cited alternative when there is one |
 
-Pipeline: `understand.py` (budget, size, attribute filters, intent, typo/Hinglish handling) -> [miss path only:
-`semantic.py` embedding fallback -> `llm_normaliser.py` instruct-model normaliser] -> `index.py` (hard-constraint
-filtering and ranking) -> `assistant.py` (answer / clarify / refuse). The attribute vocabulary (colours, brands, materials, ...)
-is derived from the catalogue itself, so new catalogues need little configuration. Hinglish words and synonyms live in
-`shopassistant/text.py` (`SYNONYMS`, `STOPWORDS`); extend them for the real queries.
+There is no free-form text generation, so a price, product or policy that isn't in the source data cannot appear in a
+reply. An independent grounding checker re-derives what every citation allows and flags anything unsupported.
 
-## Web UI
+## How to run
+
+Everything runs offline on Python 3.9 or newer. The assistant itself uses only the standard library.
 
 ```bash
-python3 web.py                       # 5,000-product demo catalogue (generated on first run); open http://127.0.0.1:8000
-python3 web.py --catalogue data/scale/catalogue.jsonl --policy data/scale/policy.txt --snapshot 2026-10-01
-# retailer view: http://127.0.0.1:8000/insights
+cd FULL_CODE
+python3 main.py generate          # synthetic catalogues and question sets (data/, data/scale/)
+python3 main.py chat --meta       # command-line chat; --meta shows action, latency and tokens per reply
+python3 main.py serve             # web demo at http://127.0.0.1:8000, retailer view at /insights
+python3 main.py evaluate          # scores + output/reports/summary.json and query_report.csv
+python3 main.py bench             # throughput and latency
 ```
 
-![A Hinglish budget question answered with cited product cards](docs/ui-chat.png)
+**Settings** are in `FULL_CODE/config.json` (paths, reply limits, thresholds, model paths, server limits, evaluation
+weights). A few can be overridden with environment variables; see `FULL_CODE/.env.example`. No API keys or secrets
+are needed.
 
-![Tapping Details flips a product card to show its full catalogue record](docs/ui-receipt.png)
+**The problem pack's data** goes in `FULL_CODE/data/pack/` (git-ignored). Point the assistant at it with flags or
+environment variables:
 
-![Comparing three cited products side by side](docs/ui-compare.png)
+```bash
+python3 main.py evaluate --catalogue data/pack/catalogue.jsonl --policy data/pack/policy.txt --questions data/pack/questions.jsonl
+# or: export GROUNDTRUTH_CATALOGUE=data/pack/catalogue.jsonl GROUNDTRUTH_POLICY=data/pack/policy.txt
+```
 
-![Retailer view: what shoppers asked for and how it was handled](docs/ui-insights.png)
+The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column spellings (`id|product_id|sku`,
+`title|name`, prices like "₹1,299", stock like "Only 2 left", attributes as a dict, JSON string or flat columns). Bad
+rows are skipped and logged. Policy text is split into sections on blank lines; a short first line becomes the
+section heading and the id used in citations.
 
-Standard library only and fully offline: no CDN scripts, no web fonts, no new dependencies. What it shows:
+**The provided models** (optional) go in `FULL_CODE/models/` (git-ignored). Calibrate the embedding fallback first,
+then pass the model folders:
 
-* **Product cards.** Each cited product appears as a card built only from its catalogue record: price, rating,
-  stock, key attributes. In a clarifying reply, "This one" on a card picks it. The exact reply text the evaluation
-  scores is under every reply ("Answer as text").
-* **Receipts.** Every citation is a chip. Tap it and the answer card flips over to show the exact catalogue record,
-  or the policy section with the sentence the answer used highlighted.
-* **A check on every reply.** Each reply is re-run through the same independent grounding checker `evaluate.py`
-  uses, and the result is shown next to it ("3 sources checked", or the problem if a check ever fails).
-* **Remembered from this chat.** The filters and budget carried between turns, with a "Start over" control.
-* **How I read your last message.** The product, filters, budget and unrecognised words picked out of the query.
-* **This answer.** Which path answered it (rules, embedding or language model), time taken, and model tokens.
-* **Asked for, not stocked.** Refused requests collected per chat, as a demand signal for the retailer.
-* **Compare.** "Add to compare" on up to three product records, then one tap asks the assistant to compare them.
-  The reply is the normal cited answer, plus a side-by-side table built from the cited records (differences shaded).
-* **Example questions built from the loaded catalogue**, labelled by what they show (trap, Hinglish budget, not
-  sold, policy, closest match, too cheap). Each is run at start-up and kept only if it does what its label says,
-  so the examples also work on the real catalogue.
-* **Prices as of a date.** The catalogue snapshot date is shown in the header and next to every price. Pass
-  `--snapshot 2026-10-01`; otherwise the catalogue file's last-modified date is used and labelled as such.
-* **Retailer view** at `/insights`: how questions were handled (answered, clarified, refused), replies that failed
-  the grounding check (should stay 0), median and slow-tail latency, share needing a model, the most-requested items
-  that aren't stocked (downloadable CSV), and the products that most often needed a clarifying question. Counts and
-  short product labels only, in memory; full messages and session ids are never stored.
-* A roadmap of features that are not built, labelled as such.
+```bash
+python3 main.py calibrate --embed-model models/<embedding-model>
+python3 main.py chat --embed-model models/<embedding-model> --llm-model models/<instruct-model>
+```
 
-Light and dark mode, keyboard accessible, works on mobile, respects reduced motion. `tests/test_web.py` covers the
-server.
+## How to run the tests
 
-## Fallbacks (provided models, miss path only)
+```bash
+cd FULL_CODE
+uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
+uv run pytest        # 96 tests
+uv run ruff check . && uv run ruff format --check .
+uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
+```
 
-The rule-based path answers most queries in under a millisecond with no model call. Only when it leaves product
-words unrecognised do the optional fallbacks run, in this order:
+The development tools (pytest, ruff, pip-audit) are locked for Python 3.10+ because their security fixes are not
+released for 3.9; `.python-version` pins the dev environment to 3.12. The app itself needs no packages and still
+runs on Python 3.9. To check that, run the same tests with the standard library only:
+`python3 -m unittest discover -s tests`.
 
-1. **Embedding fallback** (`shopassistant/semantic.py`, `--embed-model`). Maps an unknown shopper word to the nearest
-   catalogue product-type word ("jogging" -> "running"), never to a brand, model, colour or material. Above
-   `map_threshold` it searches for that type and says so in the reply (`(I read "jogging" as "running".)`); between
-   `alt_threshold` and `map_threshold` it refuses but lists cited alternatives; below, it refuses. It also retrieves
-   policy sentences for policy questions phrased without policy keywords. Brands the shop doesn't carry are never
-   mapped.
-2. **LLM normaliser** (`shopassistant/llm_normaliser.py`, `--llm-model`). Asks the instruct model for JSON (type,
-   filters, budget). Every field is checked against the catalogue's vocabulary, and a budget is accepted only if it is
-   one of the shopper's own numbers. The model's text never reaches the shopper. Garbage output or a model error falls
-   back to the rule-based answer.
+## Architecture
 
-**Thresholds must be calibrated**: `python calibrate_semantic.py --embed-model PATH` sets `map_threshold` just above
-the best score of any listed word the shop doesn't sell (iphone, saree, laptop, ...), prints the evidence table and
-writes `semantic_config.json`. Without that file the embedding fallback stays off. If `should_map_recall` is low, keep
-it off rather than lowering the threshold by hand.
+```
+shopper text ─► understanding/ ──► [miss path only: models/ embedding fallback ─► LLM normaliser] ─┐
+                (budget, size, filters,                                                          │
+                 intent, Hinglish, typos)                                                         ▼
+                                     catalogue/ index (hard constraints, ranking) ◄── answering/ (answer / clarify / refuse)
+                                     policy/ sections (sentence retrieval)       ◄──     │
+                                                                                          ▼
+                                                     grounding/ checker ──► reply with citations, latency, tokens
+```
 
-`evaluate.py` reports `path_share` (rules / semantic / llm) and the instruct model's real token counts
-(`llm_tokens_real`), separately from the estimated context tokens.
+All code is in `FULL_CODE/`, and `main.py` is the one entry point.
 
-## Evaluation sets
+| Folder | Responsibility |
+|---|---|
+| `groundtruth/understanding/` | Parse a message: budgets (`money`), sizes, word-boundary repair (`tokens`), word lists (`lexicon`), `parser` |
+| `groundtruth/catalogue/` | Tolerant catalogue `loader`, and the `index` (inverted postings, constraint filtering, ranking, typo matching) |
+| `groundtruth/policy/` | Policy sections and sentence retrieval |
+| `groundtruth/answering/` | `assistant` routing; reply builders for products, listings, refusals and policy; per-user `sessions` |
+| `groundtruth/grounding/` | The independent checker shared by the evaluator and the web demo's live check |
+| `groundtruth/models/` | Optional fallbacks using the provided models; the LLM prompt is in `models/prompts/` |
+| `groundtruth/evaluation/` | Scoring and the latency / token report |
+| `groundtruth/config.py` | Loads and validates `config.json` and the environment overrides |
+| `api/` | Web server: routes (`server`), sessions and retailer insights (`state`), cards and examples (`views`) |
+| `web/` | Static UI (no external scripts or fonts) |
+| `tools/` | Data and question-set generators, benchmark, embedding calibration |
+| `tests/` | Unit and behaviour tests |
 
-| Set | Written | What its score means |
+The core (`groundtruth/`) does not depend on the web layer and is tested on its own.
+
+### Web demo
+
+![A Hinglish budget question answered with cited product cards](FULL_CODE/docs/ui-chat.png)
+
+Product cards are built only from the cited catalogue records. Tapping a citation flips the card to the exact record or
+policy section. Every reply is re-checked by the grounding checker, and the result is shown next to it. The page also
+shows the remembered filters and budget, how the last message was read, a side-by-side compare, and a retailer view
+(`/insights`) of what was asked for but isn't stocked.
+
+## AI usage
+
+**In the app.** The main path makes no model calls. Two optional fallbacks use the small models provided with the
+problem pack, and only when the rule-based parser leaves product words it can't place:
+
+1. **Embedding model** (`groundtruth/models/semantic.py`): maps an unknown shopper word to the nearest catalogue
+   product-type word ("jogging" -> "running"), never to a brand, colour or material, and retrieves policy sentences for
+   policy questions phrased without policy words. It stays off until `main.py calibrate` has set its thresholds.
+2. **Instruct model** (`groundtruth/models/normaliser.py`): turns a messy query into JSON (product type, filters,
+   budget). Every field is validated against the catalogue's own vocabulary, and a budget is accepted only if it is one
+   of the shopper's own numbers. The model's text never reaches the shopper.
+
+**Status:** both fallbacks have so far been tested only with fake models in the unit tests. Their effect with the
+real provided models has not been measured yet.
+
+**AI coding assistants.** Claude (chat) and Claude Code were used to write, refactor and review code, tests and
+documentation. The team reviewed every change and can explain the code.
+
+## Pre-built and third-party code
+
+**Written for this hackathon before Day 1 (30 October 2026).** All the code in this repository was written for this
+hackathon. These commits came before Day 1:
+
+| Date | Commit | What |
 |---|---|---|
-| `data/test_questions.jsonl`, `data/hard_questions.jsonl`, `data/scale/test_questions.jsonl` | with the code | regression check only |
-| `data/scale/independent_questions.jsonl` (`generate_independent.py`) | before the vocabulary fixes, from a shopper's view | was 0.827 before fixes; fixes were tuned on it, so now also a regression check |
-| `data/scale/heldout_questions.jsonl` (`generate_heldout.py`) | after round-1 fixes | scored 0.769 before and 0.942 after round 1; tuned on in round 3, now regression only |
-| `data/scale/heldout2_questions.jsonl` (`generate_heldout2.py`) | after round-3 fixes | scored once at 0.987 (the latest clean estimate), then its 2 failures were fixed |
+| 2026-10-15 | `ed014d7` | Grounded assistant, evaluator and synthetic data |
+| 2026-10-15 | `49effd0` | Negation, comparisons, split words, multi-intent; hard and scale test sets |
+| 2026-10-15 | `b9bc130` | Inverted-index search, cached typo matching, session store, benchmark |
+| 2026-10-16 | `8898bec` | Fewer false refusals, tolerant catalogue loading, model fallbacks, held-out evaluation |
+| 2026-10-18 | `b28bb0f` | Compare, retailer view, snapshot dates |
+| 2026-10-18 | `1321d50` | Retail UI; shopper-phrasing fixes; held-out set 2 |
+| 2026-10-27 to 28 | `d098c6e` … `8d8e35d` | Restructure to the guidelines layout, config file, logging (no behaviour change) |
 
-Expected answers in the last two are derived by plain filtering of the catalogue, never by calling the assistant.
+**Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
+development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT), pytest
+(MIT) and pip-audit (Apache-2.0). The optional
+model fallbacks load the provided models with Hugging Face transformers or sentence-transformers (Apache-2.0) and
+PyTorch (BSD-3-Clause), installed only when the models are used.
 
-## Scoring (`evaluate.py`)
+## Limitations
 
-The grounding checker re-derives what each citation licenses from the raw catalogue; it does not trust the assistant's
-own bookkeeping.
-
-* **Groundedness**: share of replies with no unsupported claim: citations resolve, every ₹ amount belongs to a cited
-  product, cited policy section or the user's own query, other numbers appear in the cited sources, every product named
-  is cited, every factual sentence carries a citation.
-* **Helpfulness** (answerable questions): right product/policy cited, results satisfy the filters, required facts present.
-* **Refusal accuracy**: answer / clarify / refuse matches the expected behaviour (confusion matrix in `summary.json`).
-* **Hallucinated prices** each subtract 0.10 from the final score. `final = 0.35*grounded + 0.35*helpful + 0.30*refusal - 0.10*hallucinated`.
-  These weights are my assumption; change them at the top of `evaluate.py` to match the official rubric.
-* **Latency and token report**: per query in `reports/query_report.csv`, aggregates in `summary.json`. Token counts are
-  estimates (about 4 characters per token) of what an LLM would be given (query plus cited sources) and produce; this
-  assistant makes no LLM calls, so real cost is zero. Use `--price-in/--price-out` to price it as if it were.
-
-## Serving many users
-
-* `ShoppingAssistant` and `CatalogueIndex` are read-only after start-up (about 35 MB for 5,000 products), so one instance
-  is safe to share across threads. Per-user state lives only in a `Session` (a few hundred bytes).
-* `SessionStore` keeps sessions per user id: bounded (LRU), expiring (TTL), thread-safe, and serialises requests from the
-  same user while different users run in parallel. Use `store.ask(assistant, user_id, query)`.
-* Queries are answered from inverted indexes (no catalogue scan) with cached typo matching: about 0.5 ms per query,
-  roughly 2,000 queries/s per process on 5,000 products (`python bench.py`; was about 290/s before optimisation).
-* Python threads share one GIL, so more threads do not add throughput. Scale with worker processes (for example
-  `uvicorn app:app --workers N`, one index copy each) rather than threads.
-* Build with `measure_tokens=False` (the default) when serving; the token estimates exist for `evaluate.py` reports.
-
-## Caveats
-
-* Known gap: "do you ship to Dubai?" returns the shipping section but not necessarily the sentence about shipping outside
-  India, because nothing links place names to "outside". Real policy wording will need a few such synonyms.
-
-* The bundled 100-product catalogue and 63 questions are synthetic and were written together with the assistant, so
-  the perfect score on them is a regression check, not evidence of accuracy. Expect real misses on the 5,000-product catalogue
-  and the 150 hidden questions, mostly around vocabulary (synonyms, spellings, Hinglish), ambiguity thresholds, and policy wording.
-* The fallbacks below were tested only with fake models (`tests/test_fallbacks.py`); their real effect on the score is
-  unmeasured until they are run with the provided models.
-* `evaluate.py` `load_cases` guesses the test-file field names; adjust once the real format is known.
+* **Synthetic data so far.** The catalogue, the questions and the fixes were all written by the same people, so the
+  scores below are optimistic. Every set scores 1.0 because the sets were tuned on; the last clean (untuned)
+  generalisation estimate was **0.987** on held-out set 2, before its two failures were fixed. Expect lower scores on
+  the organisers' catalogue and 150 hidden questions, mostly from vocabulary (synonyms, Hinglish spellings),
+  ambiguity thresholds and policy wording.
+* **Not yet run on the problem pack** (its catalogue, policy and question format) and **not yet run with the provided
+  models**, so the real token and latency cost of the fallbacks is unmeasured.
+* **The scoring weights are our assumption** (`config.json`, evaluation section) until the official rubric is known.
+* **Known behaviour gaps:** "which sizes" as a follow-up after a listing; "tshirt or shirt which is better" refuses
+  instead of clarifying; "do you deliver on sunday" gives delivery days without saying the policy doesn't mention
+  Sundays; a describing word plus an unknown noun leans towards refusing (safer, but it may refuse unusual synonyms).
+* Measured on a laptop with the 5,000-product synthetic catalogue: about 0.44 ms mean per query and about 2,300
+  queries/s per process (`main.py bench`). Python threads share one interpreter lock, so scale with processes.

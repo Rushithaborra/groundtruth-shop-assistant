@@ -137,10 +137,62 @@ The last clean generalisation estimate is therefore **0.987** (groundedness 1.0,
 0.956, zero hallucinated prices), on synthetic data, with questions written by one person. Write a new held-out set,
 ideally by someone who hasn't seen the code, before trusting a higher number.
 
+## Task 1: restructure to the guidelines layout (no behaviour change), 27–28 October
+
+All code moved into `FULL_CODE/` with `main.py` as the one entry point, split into single-purpose packages, with
+settings in `config.json`, logging instead of `print`, a lockfile, ruff, LF line endings and an MIT licence.
+
+**Proof of no behaviour change.** After every stage, all six question sets were evaluated and compared line by line
+with the previous commit (every report column except latency, plus the summary). Replies and scores were identical at
+each stage. The comparison scripts lived in a temporary folder and are not part of the repository.
+
+| Commit | Change | Check |
+|---|---|---|
+| `d098c6e`, `c930fce` | Move into `FULL_CODE/`, `main.py`, shared grounding checker, `api/` split | identical to `1321d50` (with `PYTHONHASHSEED=0`) |
+| `c8bd0a8` | Compared products listed in the order the shopper named them | **behaviour fix**, see below |
+| `d384b1d` | Hard-question generator independent of the hash seed | **data fix**, see below |
+| `d9180bc` | `understanding/`, `answering/`, `catalogue/`, `policy/`, `models/` packages | identical to `d384b1d` |
+| `8d8e35d` | `config.json` + validation, vocabulary file, logging, `builder.py` | identical to `d9180bc` |
+| this commit | `pyproject.toml`, `uv.lock`, ruff lint + format, stopwords into the vocabulary file, `.gitattributes`, `LICENSE`, README | identical to `8d8e35d` (on Python 3.9 and 3.12) |
+
+`d098c6e` was pushed without some of its files (a paste split the `git add` command), so it and `c8bd0a8` don't run
+on their own; `c930fce` completes them. History was left as pushed.
+
+**Two determinism bugs found and fixed** (both were already in `1321d50`). Python randomises string hashing per
+process, and two places iterated a `set`:
+
+* `index.mentioned()`: a compare reply's product order varied between runs (h021). It now follows the order the
+  shopper named the products. A new test fails on the old code.
+* `generate_hard.py`: question h029's brand varied between runs. It now picks from the sorted brands, and
+  `data/hard_questions.jsonl` was regenerated (h029: Aerotrek -> Velora).
+
+Afterwards, all six sets give identical replies under hash seeds 0–3.
+
+| Measure | Before (`1321d50`) | After |
+|---|---|---|
+| Tests | 88 passing | 96 passing (determinism test, 7 config tests) |
+| Scores, all six sets | 1.0 (groundedness 1.0, 0 hallucinated prices) | unchanged |
+| Ruff lint issues (`E,F,W,I,B,UP,SIM`, line length 120) | 76 (measured at `8d8e35d`, after the split) | 0, no rules disabled |
+| Files ruff would reformat | 51 of 55 | 0 |
+| Lockfile / `pip-audit` | none / not run | `uv.lock`; no known vulnerabilities |
+| `print` calls | 28 | 0 (logging for events, `write_out` for command output) |
+| Files with CRLF line endings | 13 | 0 (`.gitattributes`: `eol=lf`) |
+| Largest module | `assistant.py`, 455 lines | `answering/assistant.py`, 261 lines after formatting |
+| Mean latency, 5,000 products (`main.py bench`) | ~0.42 ms | ~0.44 ms (same machine, run-to-run noise) |
+
+**Python versions.** With the dev tools on Python 3.9, `pip-audit` found 11 known vulnerabilities in pytest and in
+pip-audit's own dependencies (requests, urllib3, filelock, msgpack). Their fixes are released only for Python 3.10+.
+So the lockfile now targets 3.10+ (`[tool.uv] environments`) and the dev environment runs on 3.12, where
+`pip-audit` finds none. The app has no dependencies and is still tested on Python 3.9: the same 96 tests pass with
+`python3 -m unittest`, and all six sets give identical replies.
+
+No evaluation set was tuned on in Task 1, so contamination is unchanged: the last clean generalisation estimate is
+still **0.987** (held-out set 2).
+
 ## Before submitting
 
-1. Run `calibrate_semantic.py` with the provided embedding model and read its table. Add words from the real
-   catalogue to its lists.
-2. Run `evaluate.py` with `--embed-model` and `--llm-model` on a fresh held-out set and compare against the
+1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
+   from the real catalogue to its lists in `tools/calibrate_semantic.py`.
+2. Run `python main.py evaluate` with `--embed-model` and `--llm-model` on a fresh held-out set and compare against the
    rules-only score. Keep a fallback only if it helps.
-3. Adapt `evaluate.py`'s `load_cases` to the real test-file format.
+3. Adapt `load_cases` in `groundtruth/evaluation/scoring.py` to the real test-file format.
