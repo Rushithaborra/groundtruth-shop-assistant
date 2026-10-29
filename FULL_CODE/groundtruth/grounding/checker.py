@@ -24,6 +24,7 @@ BUDGET_WORD = re.compile(r"(?:under|over|below|above|between|within|upto|up to|t
 
 
 def _numbers(text: str) -> set[str]:
+    """Every number in the text, without thousands separators."""
     return {n.rstrip(",").replace(",", "") for n in NUMBER.findall(text)}
 
 

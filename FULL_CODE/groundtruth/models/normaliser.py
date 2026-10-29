@@ -41,6 +41,7 @@ class LLMNormaliser:
         self._schema_cache: dict[int, tuple[str, list[str]]] = {}
 
     def _schema(self, index: CatalogueIndex) -> tuple[str, list[str]]:
+        """The catalogue's allowed types and attribute values for the prompt, built once per catalogue."""
         if id(index) not in self._schema_cache:
             types = type_words(index)
             attrs = {k: sorted(v.values())[: self.max_values] for k, v in index.attr_values.items()}
@@ -50,6 +51,7 @@ class LLMNormaliser:
 
     @staticmethod
     def _query_amounts(raw: str) -> set[float]:
+        """Every amount the shopper typed ("2k" -> 2000), the only budgets the model may return."""
         return {float(n.replace(",", "")) * (1000 if unit else 1) for n, unit in _AMOUNT.findall(raw)}
 
     @staticmethod

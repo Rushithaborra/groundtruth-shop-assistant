@@ -122,6 +122,7 @@ def write_report(rows: list[dict], summary: dict, out_dir: Path) -> tuple[Path, 
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The report command's options: data files, which question split, and models."""
     paths = get_settings().paths
     ap.add_argument("--catalogue", default=str(paths.pack_catalogue), help="the pack's catalogue")
     ap.add_argument("--policy", default=str(paths.pack_policy), help="the pack's policy")
@@ -130,6 +131,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    """Answer the pack's questions, then write the per-query latency and token report and its summary."""
     paths = get_settings().paths
     files = {"dev": paths.dev_questions, "test": paths.test_questions}
     chosen = files if args.split == "all" else {args.split: files[args.split]}

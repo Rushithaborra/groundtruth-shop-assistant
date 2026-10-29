@@ -76,6 +76,7 @@ def helpfulness(resp: Response, exp: dict, cited: list[str]) -> float:
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The evaluate command's options: data, models, question set, output folder, token prices."""
     paths = get_settings().paths
     add_data_arguments(ap)
     add_model_arguments(ap)
@@ -89,6 +90,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    """Score a question set with the local evaluator and write its reports."""
     assistant = build_assistant(
         args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=True
     )
@@ -163,6 +165,7 @@ def _scores(rows: list[dict]) -> dict:
 
 
 def _latency_stats(latencies: list[float]) -> dict:
+    """Mean, median, 95th percentile and maximum latency, in milliseconds."""
     return {
         "mean": round(statistics.mean(latencies), 3),
         "p50": round(statistics.median(latencies), 3),
@@ -172,6 +175,7 @@ def _latency_stats(latencies: list[float]) -> dict:
 
 
 def _token_stats(context: list[int], output: list[int]) -> dict:
+    """Estimated context and reply tokens (about four characters per token)."""
     return {
         "context_mean": round(statistics.mean(context), 1),
         "output_mean": round(statistics.mean(output), 1),

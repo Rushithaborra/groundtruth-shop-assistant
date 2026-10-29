@@ -87,6 +87,7 @@ class SemanticFallback:
         self._memo: dict[str, Match | None] = {}
 
     def _cached(self, texts: list[str], cache_dir: str | Path | None) -> list[list[float]]:
+        """Embeddings for these texts, read from or written to the cache folder when one is given."""
         if not cache_dir:
             return self.embedder.encode(texts)
         key = hashlib.sha1(json.dumps([self.embedder.name, texts]).encode()).hexdigest()[:16]

@@ -11,12 +11,14 @@ from .console import write_out
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The chat command's options: data files, models, and --meta for per-reply details."""
     add_data_arguments(ap)
     add_model_arguments(ap)
     ap.add_argument("--meta", action="store_true", help="show action, latency and token estimates per reply")
 
 
 def run(args: argparse.Namespace) -> None:
+    """An interactive command-line chat with one session, until 'quit' or end of input."""
     assistant = build_assistant(
         args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=args.meta
     )

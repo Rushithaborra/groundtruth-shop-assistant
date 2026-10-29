@@ -30,6 +30,7 @@ class Section:
 
 
 def _slug(heading: str) -> str:
+    """A heading as an id ("Return window" -> "return-window")."""
     return re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
 
 
@@ -61,6 +62,7 @@ def _numbered_sections(text: str) -> list[Section]:
 
 
 def _plain_sections(text: str) -> list[Section]:
+    """Sections from a policy without numbered headings: one per paragraph."""
     sections, seen = [], {}
     for block in re.split(r"\n\s*\n", text.strip()):
         lines = [ln.strip() for ln in block.strip().splitlines() if ln.strip()]

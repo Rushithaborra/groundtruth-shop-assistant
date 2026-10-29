@@ -20,6 +20,7 @@ class SessionStore:
         self._lock = Lock()
 
     def _get(self, user_id: str) -> tuple[Session, Lock]:
+        """This visitor's session and lock, made fresh if expired; evicts the oldest beyond the limits."""
         now = time.monotonic()
         with self._lock:
             entry = self._data.pop(user_id, None)

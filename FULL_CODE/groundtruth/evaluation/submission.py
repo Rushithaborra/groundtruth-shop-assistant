@@ -105,6 +105,7 @@ def write_predictions(rows: list[dict], path: str | Path) -> Path:
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The submit command's options: which split, data files, output file and models."""
     paths = get_settings().paths
     ap.add_argument(
         "--split",
@@ -119,6 +120,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    """Answer every question in turn order, validate the lines against the pack's format, and write them."""
     paths = get_settings().paths
     questions_path = paths.test_questions if args.split == "test" else paths.dev_questions
     out = Path(args.out) if args.out else (paths.submission if args.split == "test" else paths.dev_predictions)

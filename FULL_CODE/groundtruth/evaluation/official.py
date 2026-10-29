@@ -33,6 +33,7 @@ class ScorerError(GroundTruthError, RuntimeError):
 
 
 def _require_scorer_dependencies() -> None:
+    """Stop with a clear message if pandas or numpy (needed by the scorer) is missing."""
     missing = [name for name in ("pandas", "numpy") if importlib.util.find_spec(name) is None]
     if missing:
         raise ScorerError(
@@ -86,6 +87,7 @@ def score_file(predictions: Path, report: Path, details: bool = False, truth: Pa
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The score command's options: data files, baseline, per-question details, dev half, models."""
     paths = get_settings().paths
     ap.add_argument("--catalogue", default=str(paths.pack_catalogue), help="the pack's catalogue")
     ap.add_argument("--policy", default=str(paths.pack_policy), help="the pack's policy")
@@ -101,6 +103,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
+    """Answer the dev questions, then score them (and optionally the baseline) with the organisers' scorer."""
     _require_scorer_dependencies()
     paths, timeout_s = get_settings().paths, get_settings().evaluation.scorer_timeout_s
     reports = paths.reports_dir

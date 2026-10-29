@@ -23,6 +23,7 @@ _BARE = re.compile(rf"(?:₹|rs\.?|inr)\s*{_NUM}")
 
 
 def _amount(num: str, unit: str | None) -> float:
+    """A typed amount as rupees ("1,500" -> 1500, "2" with k -> 2000)."""
     return float(num.replace(",", "").rstrip(".")) * (1000 if unit else 1)
 
 

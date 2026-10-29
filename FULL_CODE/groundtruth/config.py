@@ -157,18 +157,21 @@ class Settings:
 
 
 def _int(name: str, value: Any, low: int, high: int) -> int:
+    """A whole number within a range, or a ConfigError naming the setting."""
     if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
         raise ConfigError(f"{name} must be a whole number from {low} to {high}, got {value!r}")
     return value
 
 
 def _float(name: str, value: Any, low: float, high: float) -> float:
+    """A number within a range, or a ConfigError naming the setting."""
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
         raise ConfigError(f"{name} must be a number from {low} to {high}, got {value!r}")
     return float(value)
 
 
 def _text(name: str, value: Any, allowed: tuple[str, ...] = ()) -> str:
+    """A non-empty string (optionally one of a fixed set), or a ConfigError naming the setting."""
     if not isinstance(value, str) or not value.strip() or (allowed and value not in allowed):
         hint = f" (one of {', '.join(allowed)})" if allowed else ""
         raise ConfigError(f"{name} must be a non-empty string{hint}, got {value!r}")
@@ -176,6 +179,7 @@ def _text(name: str, value: Any, allowed: tuple[str, ...] = ()) -> str:
 
 
 def _flag(name: str, value: Any) -> bool:
+    """A true/false setting, or a ConfigError naming the setting."""
     if not isinstance(value, bool):
         raise ConfigError(f"{name} must be true or false, got {value!r}")
     return value
@@ -189,15 +193,18 @@ def _identifier(name: str, value: Any) -> str:
 
 
 def _optional_text(name: str, value: Any) -> str | None:
+    """A string setting that may be null."""
     return None if value is None else _text(name, value)
 
 
 def _path(name: str, value: Any) -> Path:
+    """A path setting, resolved against FULL_CODE/ when relative."""
     path = Path(_text(name, value))
     return path if path.is_absolute() else ROOT / path
 
 
 def _section(raw: dict, name: str, fields: tuple[str, ...]) -> dict:
+    """One config section, which must have exactly the expected fields."""
     section = raw.get(name)
     if not isinstance(section, dict):
         raise ConfigError(f"config section '{name}' is missing or not an object")
@@ -229,10 +236,12 @@ def _apply_env(raw: dict) -> None:
 
 
 def _paths(p: dict) -> PathSettings:
+    """Every data and output path, resolved."""
     return PathSettings(**{key: _path(f"paths.{key}", value) for key, value in p.items()})
 
 
 def _submission(sub: dict) -> SubmissionSettings:
+    """The team and problem ids used in the zip's name."""
     return SubmissionSettings(
         team_id=_identifier("submission.team_id", sub["team_id"]),
         problem_id=_identifier("submission.problem_id", sub["problem_id"]),
@@ -240,6 +249,7 @@ def _submission(sub: dict) -> SubmissionSettings:
 
 
 def _catalogue(c: dict) -> CatalogueSettings:
+    """Strict loading of the pack's catalogue and its expected product count."""
     expected = c["pack_expected_products"]
     return CatalogueSettings(
         pack_strict=_flag("catalogue.pack_strict", c["pack_strict"]),
@@ -250,6 +260,7 @@ def _catalogue(c: dict) -> CatalogueSettings:
 
 
 def _assistant(a: dict) -> AssistantSettings:
+    """How many products a listing or clarification shows, and policy sentences per answer."""
     return AssistantSettings(
         list_limit=_int("assistant.list_limit", a["list_limit"], 1, 20),
         clarify_limit=_int("assistant.clarify_limit", a["clarify_limit"], 1, 20),
@@ -258,6 +269,7 @@ def _assistant(a: dict) -> AssistantSettings:
 
 
 def _search(s: dict) -> SearchSettings:
+    """The typo matcher's similarity cutoff and cache size."""
     return SearchSettings(
         typo_cutoff=_float("search.typo_cutoff", s["typo_cutoff"], 0.5, 1.0),
         typo_cache_size=_int("search.typo_cache_size", s["typo_cache_size"], 0, 1_000_000),
@@ -265,6 +277,7 @@ def _search(s: dict) -> SearchSettings:
 
 
 def _server(w: dict) -> ServerSettings:
+    """Web server address and its limits: sessions, message and body size, rate limits."""
     return ServerSettings(
         host=_text("server.host", w["host"]),
         port=_int("server.port", w["port"], 1, 65535),
@@ -279,6 +292,7 @@ def _server(w: dict) -> ServerSettings:
 
 
 def _sessions(ss: dict) -> SessionSettings:
+    """How many chat sessions are kept, and for how long."""
     return SessionSettings(
         max_sessions=_int("sessions.max_sessions", ss["max_sessions"], 1, 10_000_000),
         ttl_seconds=_float("sessions.ttl_seconds", ss["ttl_seconds"], 0, 7 * 24 * 3600),
@@ -286,6 +300,7 @@ def _sessions(ss: dict) -> SessionSettings:
 
 
 def _models(m: dict) -> ModelSettings:
+    """Optional model paths, timeouts, retries and generation limits."""
     return ModelSettings(
         embed_model=_optional_text("models.embed_model", m["embed_model"]),
         llm_model=_optional_text("models.llm_model", m["llm_model"]),
@@ -304,6 +319,7 @@ def _models(m: dict) -> ModelSettings:
 
 
 def _calibration(c: dict) -> CalibrationSettings:
+    """Thresholds for calibrating the embedding fallback."""
     return CalibrationSettings(
         margin=_float("calibration.margin", c["margin"], 0, 1),
         alt_gap=_float("calibration.alt_gap", c["alt_gap"], 0, 1),
@@ -311,6 +327,7 @@ def _calibration(c: dict) -> CalibrationSettings:
 
 
 def _evaluation(e: dict) -> EvaluationSettings:
+    """The local evaluator's weights (which must add up to 1), price penalty and scorer timeout."""
     evaluation = EvaluationSettings(
         weight_groundedness=_float("evaluation.weight_groundedness", e["weight_groundedness"], 0, 1),
         weight_helpfulness=_float("evaluation.weight_helpfulness", e["weight_helpfulness"], 0, 1),
@@ -327,6 +344,7 @@ def _evaluation(e: dict) -> EvaluationSettings:
 
 
 def _cost_report(cr: dict) -> CostReportSettings:
+    """The measured LLM call used for the every-query cost estimate."""
     return CostReportSettings(
         llm_prompt_tokens=_int("cost_report.llm_prompt_tokens", cr["llm_prompt_tokens"], 0, 1_000_000),
         llm_output_tokens=_int("cost_report.llm_output_tokens", cr["llm_output_tokens"], 0, 100_000),
@@ -335,6 +353,7 @@ def _cost_report(cr: dict) -> CostReportSettings:
 
 
 def _logging(lg: dict) -> LoggingSettings:
+    """The log level."""
     return LoggingSettings(level=_text("logging.level", lg["level"], LOG_LEVELS))
 
 

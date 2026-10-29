@@ -21,6 +21,7 @@ class ModelLoadError(GroundTruthError, RuntimeError):
 
 
 def _missing_library(name: str) -> ModelLoadError:
+    """The error for an optional model library that isn't installed."""
     return ModelLoadError(
         f"{name} is not installed; the model libraries are optional and installed by hand (see README, 'How to run')"
     )
@@ -58,6 +59,7 @@ class LocalEmbedder:
 
 
 def _gguf_file(model_path: str | Path) -> Path:
+    """The .gguf model file, given the file or the folder holding it."""
     path = Path(model_path)
     if path.is_dir():
         files = sorted(path.glob("*.gguf"))

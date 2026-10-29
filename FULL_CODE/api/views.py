@@ -30,6 +30,7 @@ class _Examples:
         self.found: list[dict] = []
 
     def keep(self, label: str, question: str, want: str) -> bool:
+        """Keep an example question if it is new and the assistant really answers it with the expected action."""
         if any(e["q"] == question for e in self.found):
             return False
         if self.assistant.ask(question, Session()).action == want:
@@ -52,6 +53,7 @@ class _Examples:
                 break
 
     def _budget_question(self, noun: str, pids: list[str]) -> bool:
+        """Add a Hinglish budget example ("cotton kurta 1500 ke andar") for a common material."""
         products = self.index.products
         materials = Counter(v for pid in pids for v in products[pid].attr_values("material"))
         for material, n in materials.most_common(2):

@@ -51,6 +51,7 @@ class Product:
 
 
 def _first(raw: dict, *keys: str, default: Any = None) -> Any:
+    """The first non-empty value among several possible column names."""
     for key in keys:
         if key in raw and raw[key] not in (None, ""):
             return raw[key]
@@ -67,6 +68,7 @@ def _json_object(text: str) -> dict | None:
 
 
 def _parse_attributes(value: object) -> dict:
+    """Attributes from a dict, a JSON string, or "key: value; key: value" text."""
     if isinstance(value, dict):
         return value
     if not value:
@@ -238,6 +240,7 @@ def normalise_product(raw: dict) -> Product:
 
 
 def _read_rows(path: Path) -> list:
+    """Raw rows from a .jsonl, .json or .csv catalogue; an unreadable row becomes its error."""
     if path.suffix == ".jsonl":
         rows = []
         for n, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):

@@ -91,6 +91,7 @@ class ShoppingAssistant:
         return bool(set(p.unknown) - set(p.external)) and not p.product_id and not p.mentioned
 
     def _source_text(self, citation: str) -> str:
+        """The text a citation stands for, used to estimate how much context a reply cites."""
         if citation.startswith("policy:"):
             sec = self.sections.get(citation[7:])
             return f"{sec.heading}. {sec.body}" if sec else ""
@@ -102,6 +103,7 @@ class ShoppingAssistant:
 
     # -- routing -------------------------------------------------------------------------------
     def _route(self, p: Parsed, session: Session) -> Response:
+        """Pick the kind of reply: reset, thanks, account (refused), greeting, policy, or a product answer."""
         if "reset" in p.intents:
             session.clear()
             return Response("Okay, starting fresh. What are you looking for?", CLARIFY)
@@ -137,6 +139,7 @@ class ShoppingAssistant:
         return resp
 
     def _policy(self, p: Parsed) -> Response:
+        """Quote the policy, or say it is silent when the question names a time it never mentions."""
         silent = [w for w in dict.fromkeys(p.keywords) if w in POLICY_TIME_WORDS and w not in self.policy_vocab]
         if silent:  # "do you deliver on sunday": the policy never mentions Sundays
             return policy_silent(self.policy, p, silent, self.policy_max_sentences)

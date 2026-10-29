@@ -52,6 +52,7 @@ def read_json_body(content_type: str | None, content_length: str | None, body: b
 
 
 def _only_keys(data: dict, allowed: set[str]) -> None:
+    """Reject a request carrying fields the API doesn't know (400)."""
     unknown = sorted(set(data) - allowed)
     if unknown:
         raise RequestError(400, f"Unknown field(s): {', '.join(unknown)}")

@@ -92,6 +92,7 @@ def alternatives(
 
 
 def _brand_names(p: Parsed) -> str:
+    """The brands the shop doesn't carry, as named in a reply."""
     return " ".join(EXTERNAL_DISPLAY.get(w, w.capitalize()) for w in dict.fromkeys(p.external))
 
 
