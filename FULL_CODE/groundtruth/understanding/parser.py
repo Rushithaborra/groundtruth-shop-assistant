@@ -21,8 +21,10 @@ from .lexicon import (
     GREET_W,
     HELP_PHRASES,
     HELP_W,
+    HOW_TO,
     IGNORE,
     NEG_W,
+    OR_W,
     POLICY_W,
     PREFERENCE_W,
     PRICE_W,
@@ -31,6 +33,7 @@ from .lexicon import (
     RESET_PHRASES,
     STOCK_W,
     SUPERLATIVE_W,
+    THANKS_INTENSIFIERS,
     THANKS_W,
     WH_W,
 )
@@ -39,6 +42,9 @@ from .money import extract_money
 from .parsed import Parsed
 from .sizes import extract_size
 from .tokens import join_split_names, repair_tokens
+
+# A word in at least this many products is a common word ("gym", "office"), not the name of a product line
+COMMON_WORD_PRODUCTS = 20
 
 
 def understand(query: str, index: CatalogueIndex) -> Parsed:
@@ -69,15 +75,20 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
     asks = bool(token_set & (WH_W | QUESTION_W)) or "?" in query or bool(parsed.product_id)
     parsed.is_question = asks
     consumed = _match_attribute_names(parsed, tokens, index, asks)
+    attribute_names = list(consumed)  # words used as an attribute's name ("shoe compartment")
     _apply_attribute_filters(parsed, tokens, index, consumed)
+    _fit_to_kind(parsed, tokens, consumed, attribute_names, index)
     _detect_fact_intents(parsed, tokens, index, asks)
     _detect_sort(parsed, token_set)
     _classify_tokens(parsed, tokens, consumed, index)
+    _soften_other_kinds_words(parsed, index)
     if token_set & CHOICE_W and token_set & (PREFERENCE_W | WH_W | BEST_W) and not parsed.spec.sort:
         parsed.choice = _choice(tokens, index)  # "tshirt or shirt which is better"; "which is cheaper" is answerable
     if token_set & ABROAD:  # "delivery to dubai" is the "outside India" shipping question
         parsed.keywords += ["outside", "india"]
     _detect_conversation_intents(parsed, token_set, account, helpq)
+    if parsed.intents & {"policy", "policy_q"} and HOW_TO.search(low):
+        parsed.keywords.append("how")  # "how can I return": the "How to start a return" section
     return parsed
 
 
@@ -109,10 +120,14 @@ def _normalise(query: str, index: CatalogueIndex) -> tuple[str, bool, bool]:
     account = any(ph in low for ph in ACCOUNT_PHRASES)
     helpq = any(ph in low for ph in HELP_PHRASES)
     if "backpack" in index.type_vocab:  # unless the catalogue itself sells "school bags"
-        low = BACKPACK_PHRASE.sub(
-            lambda m: m.group(0) if m.group(1) in index.type_vocab else f"{m.group(1)} backpack", low
-        )
+        low = BACKPACK_PHRASE.sub(lambda m: _backpack_phrase(m, index), low)
     return low, account, helpq
+
+
+def _backpack_phrase(m: re.Match[str], index: CatalogueIndex) -> str:
+    """ "college bag" or "bags for college" is a backpack, unless the catalogue sells that kind by that name."""
+    word = m.group(1) or m.group(2)
+    return m.group(0) if word in index.type_vocab else f"{word} backpack"
 
 
 def _extract_ids(low: str, index: CatalogueIndex) -> tuple[list[str], str]:
@@ -160,6 +175,8 @@ def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: Catalogue
                     parsed.spec.exclude.setdefault(key, []).append(val)
                 elif key not in parsed.spec.filters:
                     parsed.spec.filters[key] = val
+                elif OR_W & present and val != parsed.spec.filters[key]:  # "grey or black": either will do
+                    parsed.spec.alternatives.setdefault(key, []).append(val)
                 for j in range(i, i + n):
                     consumed[j] = True
                 break
@@ -186,6 +203,63 @@ def _prefer_kind(parsed: Parsed, index: CatalogueIndex) -> None:
             return
 
 
+def _fit_to_kind(
+    parsed: Parsed, tokens: list[str], consumed: list[bool], attribute_names: list[bool], index: CatalogueIndex
+) -> None:
+    """Read the message against the kind of product it names.
+
+    The most specific kind fully named wins ("shoes for daily walking" is Walking Shoes, not the Sneakers that "shoes"
+    alone reads as), and a value goes to the attribute that kind has ("oily" is skin_type for sunscreen, not the
+    hair_type of shampoos); a value no attribute of that kind holds becomes a soft description word.
+    """
+    words = {t for t, name in zip(tokens, attribute_names) if not name}  # not "shoe" in "shoe compartment"
+    kinds = index.attr_values.get(KIND_KEY, {})
+    named = [(len(toks), kind) for toks, kind in kinds.items() if set(toks) <= words]
+    current = parsed.spec.filters.get(KIND_KEY)
+    if named:
+        size, best = max(named, key=lambda c: (c[0], c[1]))
+        if current is None or size > len(tokenize(current)):
+            parsed.spec.filters[KIND_KEY] = best
+            for i, t in enumerate(tokens):
+                if t in tokenize(best):
+                    consumed[i] = True
+    keys = index.kind_keys(parsed.spec.filters.get(KIND_KEY))
+    if not keys:
+        return
+    for key, val in list(parsed.spec.filters.items()):
+        if key in keys:
+            continue
+        toks = tuple(tokenize(val))
+        other = next(
+            (k for k in sorted(keys) if toks in index.attr_values.get(k, {}) and k not in parsed.spec.filters), None
+        )
+        del parsed.spec.filters[key]
+        if other:
+            parsed.spec.filters[other] = index.attr_values[other][toks]
+        else:
+            parsed.spec.desc_tokens.extend(t for t in toks if t not in parsed.spec.desc_tokens)
+
+
+def _soften_other_kinds_words(parsed: Parsed, index: CatalogueIndex) -> None:
+    """Common product words that no product of the named kind has ("office" for formal shoes, "gym" for a water
+    bottle) are soft description words, dropped with a note when nothing matches, not hard requirements that
+    refuse. A name stays hard: a line name ("LumaPro", in a handful of products) names a product."""
+    kind = parsed.spec.filters.get(KIND_KEY)
+    words = index.kind_words(kind)
+    if not words:
+        return
+    head = tokenize(kind)[-1]
+    # a kind sharing this kind's noun ("school" + "shoes" = Kids School Shoes) means the word changes the kind
+    related = {t for toks in index.attr_values.get(KIND_KEY, {}) if toks[-1] == head for t in toks}
+    foreign = [
+        t
+        for t in parsed.spec.type_tokens
+        if t not in words and t not in related and index.product_count(t) >= COMMON_WORD_PRODUCTS
+    ]
+    parsed.spec.type_tokens = [t for t in parsed.spec.type_tokens if t not in foreign]
+    parsed.spec.desc_tokens.extend(t for t in foreign if t not in parsed.spec.desc_tokens)
+
+
 def _detect_fact_intents(parsed: Parsed, tokens: list[str], index: CatalogueIndex, asks: bool) -> None:
     """Price, stock, rating, and attribute questions ("what colour", "kitni moti", "material of P0042")."""
     token_set = set(tokens)
@@ -199,6 +273,8 @@ def _detect_fact_intents(parsed: Parsed, tokens: list[str], index: CatalogueInde
     in_names = _words_in_product_names(tokens, index)
     for ktok, keys in index.attr_key_groups.items():
         if ktok not in asked_words or ktok in PRICE_W or ktok in in_names or ktok in index.kind_nouns or not asks:
+            continue
+        if index.attr_keys.get(ktok) in parsed.spec.filters:  # "blue colour me hai?": colour is given, not asked
             continue
         for key in keys:  # "water" asks about water_resistant and water_resistance_rating
             if key not in parsed.spec.filters and key not in parsed.spec.exclude and key not in parsed.detail_keys:
@@ -281,7 +357,7 @@ def _detect_conversation_intents(parsed: Parsed, token_set: set[str], account: b
     if (helpq or token_set & HELP_W) and not (parsed.has_constraint or parsed.intents - {"search"}):
         parsed.intents.add("greet")
     content = token_set - STOPWORDS - THANKS_W - GREET_W
-    if token_set & THANKS_W and not content and not parsed.has_constraint:
+    if token_set & (THANKS_W - THANKS_INTENSIFIERS) and not content and not parsed.has_constraint:
         parsed.intents.add("thanks")
     if (account or (token_set & ACCOUNT_W and not parsed.has_product_ref)) and not (token_set & POLICY_W):
         parsed.intents.add("account")

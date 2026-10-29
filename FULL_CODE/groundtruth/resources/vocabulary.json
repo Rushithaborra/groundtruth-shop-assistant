@@ -322,8 +322,6 @@
     "footwear": "shoe",
     "chappal": "sandal",
     "chappals": "sandal",
-    "slipper": "sandal",
-    "slippers": "sandal",
     "floaters": "sandal",
     "kurti": "kurta",
     "kurtis": "kurta",
@@ -688,5 +686,22 @@
     "kal",
     "ravivar",
     "itwar"
+  ],
+  "unsold_products": [
+    "laptop",
+    "laptops",
+    "phone",
+    "phones",
+    "mobile",
+    "mobiles",
+    "rice",
+    "fridge",
+    "refrigerator",
+    "vegetable",
+    "vegetables",
+    "paracetamol",
+    "medicine",
+    "medicines",
+    "machine"
   ]
 }

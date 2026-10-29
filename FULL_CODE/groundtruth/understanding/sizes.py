@@ -15,7 +15,8 @@ _SIZE_WORD = re.compile(r"\b(" + "|".join(sorted(SIZE_WORDS, key=len, reverse=Tr
 
 def _size_value(word: str, index: CatalogueIndex) -> str | None:
     """Map a size word to a size the catalogue actually has (\"medium\" -> \"M\", \"9\" -> \"9\")."""
-    for cand in (word, SIZE_WORDS.get(word, "")):
+    uk = f"UK {word}" if word.isdigit() else ""  # "size 9" when shoes come in "UK 9"
+    for cand in (word, SIZE_WORDS.get(word, ""), uk):
         if cand and cand.lower() in index.size_values:
             return cand
     return None
@@ -40,7 +41,8 @@ def extract_size(low: str, index: CatalogueIndex) -> tuple[str | None, str, bool
     for pattern in (_SIZE, _SIZE_AFTER):
         for m in pattern.finditer(low):
             word = m.group(1)
-            if _names_other_attribute(word, index):
+            explicit_number = pattern is _SIZE and word.isdigit()  # "size 9" is a size, whatever else 9 is
+            if not explicit_number and _names_other_attribute(word, index):
                 continue  # "king size bedsheet": king is a bed_size, read by the attribute filters instead
             value = _size_value(word, index)
             if value is None and pattern is _SIZE and (word.isdigit() or word.upper() in _SIZE_LETTERS):

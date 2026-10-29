@@ -157,8 +157,10 @@ class VocabularyFixTests(unittest.TestCase):
         r = self.ask(f"does {kettle.title} have bluetooth")
         self.assertEqual(r.action, REFUSE)
 
-    def test_stock_question_about_the_product_clarifies(self):
-        self.assertEqual(self.ask("is the white backpack in stock").action, CLARIFY)
+    def test_stock_question_about_the_product_clarifies_only_when_the_answers_differ(self):
+        # the pack's rule 6.2: ask which one when the matches differ in what was asked, otherwise just answer
+        self.assertEqual(self.ask("is the blue kurta in stock").action, CLARIFY)  # one in stock, one not
+        self.assertEqual(self.ask("is the white backpack in stock").action, ANSWER)  # all three are in stock
 
     def test_function_words_are_not_stemmed(self):
         self.assertIn("does", tokenize("how long does it take"))

@@ -99,7 +99,9 @@ BEST_W = {
     "manchidi",
 }
 # Indian shoppers' names for a backpack ("school bag"); a plain "bag" still searches the bags category
-BACKPACK_PHRASE = re.compile(r"\b(school|college|laptop|office|travel|tuition)\s*bags?\b")
+BACKPACK_PHRASE = re.compile(
+    r"\b(?:(school|college|laptop|office|travel|tuition)\s*bags?|bags?\s+for\s+(college|office|travel|tuition))\b"
+)
 GREET_W = {"hi", "hello", "hey", "hii", "namaste", "helo"}
 THANKS_W = {
     "thanks",
@@ -123,6 +125,30 @@ THANKS_W = {
     "very",
     "so",
 }
+# Words that only strengthen a thank-you ("thanks so much"); alone ("how much is it?") they thank no one
+THANKS_INTENSIFIERS = {"much", "lot", "alot", "very", "so"}
+# Asking to see what there is ("bedsheets em unnayi?", "do you have", "show me"), not asking a fact about it
+BROWSE_W = {
+    "unnaya",
+    "unnayi",
+    "unda",
+    "undha",
+    "have",
+    "show",
+    "dikhao",
+    "chupinchu",
+    "suggest",
+    "need",
+    "want",
+    "chahiye",
+    "kavali",
+    "available",
+    "option",
+    "options",
+    "any",
+}
+# "how can I return", "return kaise karu", "ela cheyali": asks for the steps, which a "How to ..." section gives
+HOW_TO = re.compile(r"\bhow\s+(?:can|do|to|should|will)\b|\bkaise\b|\bela\b")
 HELP_PHRASES = ("what can you do", "how does this work", "help me", "what do you do", "what can i ask", "how to use")
 HELP_W = {"help", "madad"}
 # Things outside the catalogue and policy: orders, accounts, payments, offers. Answered with one clear refusal.
@@ -183,6 +209,8 @@ EXPLICIT_PRICE_W = {"price", "rate"}
 SUPERLATIVE_W = {"sabse", "cheapest", "lowest", "costliest", "priciest", "highest", "most", "least"}
 # "tshirt or shirt, which is better": a choice between two kinds of product, not a product called "better"
 CHOICE_W = {"or", "ya", "vs", "versus"}
+# "grey or black", "lal ya kala", Telugu "leda": either value will do
+OR_W = {"or", "ya", "leda"}
 PREFERENCE_W = {"better", "behtar", "worse", "prefer", "suggest", "recommend"}
 RESET_PHRASES = ("start over", "new search", "reset", "forget it", "clear all", "never mind", "nevermind")
 

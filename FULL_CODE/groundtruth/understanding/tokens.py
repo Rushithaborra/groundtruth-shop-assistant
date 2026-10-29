@@ -20,7 +20,8 @@ def repair_tokens(tokens: list[str], index: CatalogueIndex) -> list[str]:
             continue
         if tok not in vocab and len(tok) >= 6 and not tok.isdigit():
             for k in range(3, len(tok) - 2):
-                if tok[:k] in vocab and tok[k:] in vocab:
+                # both parts known, one of them a real word of 5+ letters: "powerbank", "lunchbox"; not "package"
+                if tok[:k] in vocab and tok[k:] in vocab and max(k, len(tok) - k) >= 5:
                     out += [tok[:k], tok[k:]]
                     break
             else:

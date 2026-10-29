@@ -72,6 +72,10 @@ ATTRIBUTE_WORDS = {normalise_word(k): normalise_word(v) for k, v in _VOCAB["attr
 # Delivery days and times ("sunday", "same day", "express"): if the policy never mentions one, it is silent on it.
 POLICY_TIME_WORDS = frozenset(normalise_word(w) for w in _VOCAB["policy_time_words"])
 
+# Products a shopper may ask for that this kind of shop doesn't sell, though their names appear in what it does
+# ("laptop" in Laptop Sleeves, "rice" in a rice-water face wash): named alone, they are refused, not listed.
+UNSOLD_PRODUCTS = frozenset(normalise_word(w) for w in _VOCAB["unsold_products"])
+
 
 def tokenize(text: str) -> list[str]:
     """Normalised word tokens of a text."""

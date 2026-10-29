@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from ..config import get_settings
-from ..text import normalise_word, tokenize
+from ..text import STOPWORDS, normalise_word, tokenize
 from .loader import Product
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
@@ -37,6 +37,7 @@ class Spec:
     size_soft: bool = False  # size came from a bare word ("large"), not "size X"; dropped for unsized products
     measures: list[tuple[str, float]] = field(default_factory=list)  # ("w", 65.0) from "65W": unit suffix, value
     in_stock_only: bool = False  # "cheapest one that's in stock"
+    alternatives: dict[str, list[str]] = field(default_factory=dict)  # "grey or black": other values a filter accepts
 
     def copy(self) -> Spec:
         """An independent copy that can be changed without touching this one."""
@@ -52,6 +53,7 @@ class Spec:
             self.size_soft,
             self.measures[:],
             self.in_stock_only,
+            {k: v[:] for k, v in self.alternatives.items()},
         )
 
     def is_empty(self) -> bool:
@@ -148,6 +150,39 @@ class CatalogueIndex:
         # Bottles): naming one names the product, so it doesn't by itself ask about an attribute that shares the
         # word (saree_length_m, cable_type)
         self.kind_nouns = frozenset(toks[-1] for toks in self.attr_values.get(KIND_KEY, {}))
+        self._build_kind_tables()
+
+    def _build_kind_tables(self) -> None:
+        """For each kind of product: the attributes its products have and the words in their titles and values.
+        A word is then read against the kind the shopper named: "oily" is skin_type for sunscreen, hair_type for
+        shampoo."""
+        # keyed by the kind's words, as a query reads it: "Kurtas" and "Kurtis" are both ("kurta",) and share a table
+        keys: defaultdict[tuple, set[str]] = defaultdict(set)
+        words: defaultdict[tuple, set[str]] = defaultdict(set)
+        for pid, p in self.products.items():
+            name = p.attributes.get(KIND_KEY)
+            if not isinstance(name, str):
+                continue
+            kind = tuple(tokenize(name))
+            keys[kind].update(p.attributes)
+            words[kind].update(self.title_tokens[pid])
+            for key in p.attributes:
+                for value in p.attr_values(key):
+                    words[kind].update(tokenize(value))
+        self._kind_keys = {k: frozenset(v) for k, v in keys.items()}
+        self._kind_words = {k: frozenset(v) for k, v in words.items()}
+
+    def product_count(self, token: str) -> int:
+        """How many products have this word in their title, category or attribute values."""
+        return len(self._text_postings.get(token, ()))
+
+    def kind_keys(self, kind: str | None) -> frozenset[str]:
+        """The attributes products of this kind have (empty for an unknown kind)."""
+        return self._kind_keys.get(tuple(tokenize(kind or "")), frozenset())
+
+    def kind_words(self, kind: str | None) -> frozenset[str]:
+        """The words in the titles and attribute values of products of this kind (empty for an unknown kind)."""
+        return self._kind_words.get(tuple(tokenize(kind or "")), frozenset())
 
     def _build_typo_lookup(self, cache_size: int) -> None:
         """Group the product-type words by length (typo matching only compares similar lengths) and cache matches."""
@@ -159,7 +194,8 @@ class CatalogueIndex:
 
     def _index_key_name(self, key: str) -> None:
         """Make an attribute's name askable: by any of its words, and by its full name when that has several."""
-        words = [t for t in tokenize(key) if not t.isdigit() and t not in UNIT_WORDS]
+        # not by a function word: "price of" doesn't ask about pack_of
+        words = [t for t in tokenize(key) if not t.isdigit() and t not in UNIT_WORDS and t not in STOPWORDS]
         for t in words:
             self.attr_keys.setdefault(t, key)
             group = self.attr_key_groups.setdefault(t, [])
@@ -185,11 +221,12 @@ class CatalogueIndex:
         """Narrow the catalogue with postings before the per-product checks."""
         sets = [self._text_postings.get(t, set()) for t in spec.type_tokens]
         for k, v in spec.filters.items():
-            hit = self._attr_postings.get((k, v.lower()), set()) | self._attr_token_postings.get(
-                (k, tuple(tokenize(v))), set()
-            )
-            if k == GENDER_KEY and v.lower() in ("men", "women"):  # unisex items suit everyone
-                hit = hit | self._attr_postings.get((k, "unisex"), set())
+            hit: set[str] = set()
+            for value in (v, *spec.alternatives.get(k, ())):
+                hit |= self._attr_postings.get((k, value.lower()), set())
+                hit |= self._attr_token_postings.get((k, tuple(tokenize(value))), set())
+                if k == GENDER_KEY and value.lower() in ("men", "women"):  # unisex items suit everyone
+                    hit |= self._attr_postings.get((k, "unisex"), set())
             sets.append(hit)
         if not sets:
             return set(self.products)

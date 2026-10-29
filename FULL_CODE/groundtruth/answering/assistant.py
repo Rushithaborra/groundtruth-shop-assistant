@@ -18,8 +18,10 @@ from typing import TYPE_CHECKING
 from ..catalogue import CatalogueIndex, Product, Spec
 from ..config import get_settings
 from ..policy import STRONG, Section
-from ..text import POLICY_TIME_WORDS, approx_tokens, format_inr, tokenize
+from ..text import POLICY_TIME_WORDS, UNSOLD_PRODUCTS, approx_tokens, field_label, format_inr, tokenize
 from ..understanding import Parsed, understand
+from ..understanding.lexicon import BROWSE_W
+from ..understanding.parser import COMMON_WORD_PRODUCTS
 from . import listings, product_answers, refusals
 from .formatting import SORT_LABELS, head_nouns
 from .policy_answers import cited_section, policy_answer, policy_silent
@@ -128,7 +130,10 @@ class ShoppingAssistant:
                 return refusals.external_policy(p, self._policy(p))
             return self._policy(p)
         resp = self._product_route(p, session)
-        if "policy_q" in p.intents and resp.action != CLARIFY:  # "price of X and what is the return policy"
+        # "price of X and what is the return policy" answers both; "kurta ka size chota, exchange ho jayega?" asks
+        # the policy, and "which kurta?" would not answer it
+        policy_first = resp.action == CLARIFY and not p.intents & {"price", "stock", "rating"}
+        if "policy_q" in p.intents and (resp.action != CLARIFY or policy_first):
             pol = self._policy(p)
             if pol.action == ANSWER:
                 if resp.action != ANSWER:
@@ -157,12 +162,59 @@ class ShoppingAssistant:
         if forced is not None:
             session.last_product = forced.id
             return product_answers.product_answer(self.index, forced, p)
+        if forced is None and p.intents & {"price", "stock"} and session.shown and spec.is_empty():
+            shown = [self.index.products[pid] for pid in session.shown]  # "how much is it?" after a listing
+            return self._one_of(p, shown, session)
+        if self._asks_what_the_catalogue_lacks(p):
+            return Response("The catalogue doesn't record that, so I can't say.", REFUSE)
         _treat_description_words_as_unknown(p, spec, session)
-        if self._names_nothing_sold(p):
+        if self._names_nothing_sold(p) and not (p.refined and p.has_constraint):  # "budget 800 lopu undali"
             return self._unplaced_words(p)
         if _asks_for_nothing(spec):  # "not nike" alone says what isn't wanted
             return Response(ASK_WHAT, CLARIFY)
         return self._search(p, spec, session)
+
+    def _one_of(self, p: Parsed, hits: list[Product], session: Session) -> Response:
+        """The shopper means one of these products (rule 6.2): answer when they all give the same answer to what
+        was asked, refuse when none of them lists it, and ask which one only when the answers differ."""
+        keys = [k for k in p.detail_keys if any(h.attr_values(k) for h in hits)]
+        if p.detail_keys and not keys:  # "iron ka weight kitna hai": no iron lists a weight
+            names = " or ".join(dict.fromkeys(field_label(k) for k in p.detail_keys))
+            return Response(f"The catalogue does not list {names} for these products.", REFUSE)
+        asked = [lambda h, k=k: tuple(h.attr_values(k)) for k in keys]
+        if "price" in p.intents:
+            asked.append(lambda h: h.price)
+        if "stock" in p.intents:
+            asked.append(lambda h: (h.in_stock, h.stock_status))  # the flag every catalogue fills, and the pack's value
+        if "rating" in p.intents:
+            asked.append(lambda h: h.rating)
+        if asked and all(len({get(h) for h in hits}) == 1 for get in asked):
+            session.last_product, session.shown = None, [h.id for h in hits[: self.list_limit]]
+            if keys:
+                return product_answers.shown_details(hits[: self.list_limit], keys)
+            return listings.listing(hits, p, p.spec, False, self.list_limit)
+        session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
+        return listings.clarify(self.index, hits, self.clarify_limit)
+
+    def _names_a_kind(self, p: Parsed) -> bool:
+        """The message names a kind of product sold, by its category or by the noun that names it."""
+        return any(k in p.spec.filters for k in KIND_FILTERS) or any(t in self.head_nouns for t in p.spec.type_tokens)
+
+    def _asks_what_the_catalogue_lacks(self, p: Parsed) -> bool:
+        """A question about a kind of product that asks nothing the catalogue records ("is the lip balm good for
+        daily use?", "sunscreen ka expiry date kya hai?"): refused (rule 6.3), not answered with a list."""
+        if not p.is_question or p.intents & (FACTS | {"policy", "policy_q"}) or p.product_id or p.mentioned:
+            return False
+        if p.all_tokens & BROWSE_W or not self._names_a_kind(p):
+            return False
+        names_one = "brand" in p.spec.filters or any(
+            self.index.product_count(t) < COMMON_WORD_PRODUCTS for t in p.spec.type_tokens
+        )
+        if names_one:  # a named product ("Zentrix LarkFit earbuds ...") is answered about that product instead
+            return False
+        if any(k not in KIND_FILTERS + IDENTIFYING for k in p.spec.filters):  # "suit dry skin?": skin_type is
+            return False  # recorded; a brand or colour only says which product ("beige kurta made in india?")
+        return bool(set(p.unknown) - set(p.external) or p.spec.desc_tokens)
 
     def _compare_unsold_or_choice(self, p: Parsed, session: Session) -> Response | None:
         """Messages answered before any search: two named products, a brand the shop lacks, "A or B"."""
@@ -171,6 +223,9 @@ class ShoppingAssistant:
             return product_answers.compare(self.index, p.mentioned, p)
         if p.external and not (p.product_id or p.mentioned):
             return refusals.external(self.index, p, self.list_limit)
+        unsold = sorted(p.all_tokens & UNSOLD_PRODUCTS)
+        if unsold and not self._names_a_kind(p):  # "can I get a laptop here?": not the laptop sleeves
+            return Response(f"I don't have {' or '.join(unsold)} in the catalogue.", REFUSE)
         if p.choice:
             return listings.choice(self.index, p, self.list_limit)
         return None
@@ -183,7 +238,7 @@ class ShoppingAssistant:
         identified the product type counts as naming it.
         """
         known = len(p.spec.type_tokens) + len(p.spec.desc_tokens) + len(p.spec.filters)
-        names_product = any(t in self.head_nouns for t in p.spec.type_tokens) or bool(p.mapped)
+        names_product = self._names_a_kind(p) or bool(p.mapped)  # "powerbank ... rn": named as a category
         return bool(p.unknown) and not names_product and len(p.unknown) >= max(known, 1)
 
     def _unplaced_words(self, p: Parsed) -> Response:
@@ -215,8 +270,7 @@ class ShoppingAssistant:
         session.spec = spec
         pick = self._pick_one(p, spec, hits)
         if pick is _AMBIGUOUS:
-            session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
-            return listings.clarify(self.index, hits, self.clarify_limit)
+            return self._one_of(p, hits, session)
         if pick is not None:
             session.last_product = pick.id
             return product_answers.product_answer(self.index, pick, p, lead=SORT_LABELS.get(spec.sort))
@@ -233,6 +287,8 @@ class ShoppingAssistant:
     def _pick_one(self, p: Parsed, spec: Spec, hits: list[Product]) -> Product | object | None:
         """The one product the message is about; _AMBIGUOUS when several fit and differ; None for a listing."""
         specific = p.intents & {"price", "rating", "detail"}
+        if p.refined and (p.spec.size or p.spec.filters) and not specific:
+            return None  # "size 9 available aa?" after a listing: a narrower listing, not one product
         # "is the grey backpack in stock", "Sanchayo NimbusMax container set stock me hai?": about these products
         about_these = {"the", "this", "that"} & p.all_tokens or (p.is_question and len(hits) <= self.clarify_limit)
         if "stock" in p.intents and about_these:
@@ -269,6 +325,8 @@ class ShoppingAssistant:
             return None, s.copy()
         merged = session.spec.copy()  # a refinement of the previous search
         merged.filters.update(s.filters)
+        for key in s.filters:  # a new value for a filter replaces the old one and its "or" alternatives
+            merged.alternatives[key] = list(s.alternatives.get(key, []))
         for key, values in s.exclude.items():
             merged.exclude[key] = list(dict.fromkeys(merged.exclude.get(key, []) + values))
         merged.desc_tokens = list(dict.fromkeys(merged.desc_tokens + s.desc_tokens))
@@ -314,6 +372,7 @@ def _names_products(p: Parsed) -> bool:
 ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
 _AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
 KIND_FILTERS = ("category", "sub_category")  # filters that name the kind of product itself
+IDENTIFYING = ("brand", "color", "colour", "gender")  # filters that say which product, not what is asked about it
 
 
 def _treat_description_words_as_unknown(p: Parsed, spec: Spec, session: Session) -> None:
