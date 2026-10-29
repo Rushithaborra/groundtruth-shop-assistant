@@ -556,8 +556,10 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     const t = [];
     r.looking_for.forEach((x) => t.push(`<span class="tagx">${esc(x)}</span>`));
     r.features.forEach((x) => t.push(`<span class="tagx">${esc(x)}</span>`));
-    Object.entries(r.filters).forEach(([k, v]) => t.push(`<span class="tagx">${esc(k)}: ${esc(v)}</span>`));
-    Object.entries(r.excluding || {}).forEach(([k, vs]) => vs.forEach((v) => t.push(`<span class="tagx minus">${esc(k)}: ${esc(v)}</span>`)));
+    // "sub_category: Kurtas" reads as "Kurtas"; other field names lose their underscores ("bed size: king")
+    const tag = (k, v) => (k === "category" || k === "sub_category" ? esc(v) : `${esc(k.replace(/_/g, " "))}: ${esc(v)}`);
+    Object.entries(r.filters).forEach(([k, v]) => t.push(`<span class="tagx">${tag(k, v)}</span>`));
+    Object.entries(r.excluding || {}).forEach(([k, vs]) => vs.forEach((v) => t.push(`<span class="tagx minus">${tag(k, v)}</span>`)));
     if (r.budget_min != null && r.budget_max != null) t.push(`<span class="tagx">${rupees(r.budget_min)}–${rupees(r.budget_max)}</span>`);
     else if (r.budget_max != null) t.push(`<span class="tagx">Under ${rupees(r.budget_max)}</span>`);
     else if (r.budget_min != null) t.push(`<span class="tagx">Over ${rupees(r.budget_min)}</span>`);

@@ -101,7 +101,7 @@ class WebTests(unittest.TestCase):
         self.assertIn("policy:returns", d["sources"])
         _, d = self.post("/api/chat", {"session_id": d["session_id"], "message": "do you sell iPhones?"})
         self.assertEqual(d["action"], "refuse")
-        self.assertIn("iphone", [w for w, _ in d["gaps"]])
+        self.assertIn("iPhone", [w for w, _ in d["gaps"]])
 
     def test_examples_come_from_the_catalogue_and_do_what_they_say(self):
         from api.views import build_examples
@@ -156,6 +156,12 @@ class WebTests(unittest.TestCase):
         self.assertIn("xyzzyqq", dict(d["not_understood"]))
         rows = self.get("/api/insights.csv").splitlines()
         self.assertTrue(any(r.startswith("xyzzyqq,") and r.endswith(",not_understood") for r in rows), rows)
+
+    def test_a_brand_the_shop_does_not_carry_is_a_verified_miss(self):
+        self.post("/api/chat", {"message": "iphone 15 price"})
+        d = json.loads(self.get("/api/insights"))
+        self.assertIn("iPhone", dict(d["not_stocked"]))  # understood, so it is demand, not an unplaced word
+        self.assertNotIn("iphone", dict(d["not_understood"]))
 
     def test_a_request_that_was_understood_but_nothing_fits_is_a_verified_miss(self):
         self.post("/api/chat", {"message": "kurta under 100"})

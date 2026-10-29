@@ -16,7 +16,7 @@ from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
 from groundtruth.metrics import percentile
 from groundtruth.models.semantic import type_words
-from groundtruth.text import format_inr
+from groundtruth.text import EXTERNAL_DISPLAY, format_inr
 from groundtruth.understanding import Parsed, understand
 
 from .views import policy_record, product_record, reading, remembered
@@ -174,12 +174,15 @@ class State:
         # not a question about a listed product's details ("paani me chalega?")
         not_a_product_request = parsed.intents & {"account", "policy"} or resp.claims.sections or parsed.detail_keys
         if resp.action == REFUSE and not not_a_product_request:
-            asked = parsed.unknown or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
+            # a brand we know the shop doesn't carry ("iphone") was understood: it is demand, not an unplaced word
+            unplaced_words = [w for w in parsed.unknown if w not in parsed.external]
+            brands = [EXTERNAL_DISPLAY.get(w, w) for w in dict.fromkeys(parsed.external)]
+            asked = unplaced_words or brands or [self._wanted(parsed, entry["session"]) or message.strip().lower()]
             for w in asked:
                 entry["gaps"][w] += 1  # this visitor's own refused requests, whatever the reason
             # Words the assistant couldn't place don't show the shop lacks the item (a typo or Hinglish synonym may be
             # stocked), so the retailer view counts them apart from requests it fully understood and couldn't fill.
-            gap_labels, unplaced = ([], list(asked)) if parsed.unknown else (asked, [])
+            gap_labels, unplaced = ([], list(asked)) if unplaced_words else (asked, [])
         unclear = (self._wanted(parsed, entry["session"]) or None) if resp.action == CLARIFY else None
         tokens = resp.llm_input_tokens + resp.llm_output_tokens
         self.insights.record(resp.action, resp.path, resp.latency_ms, gap_labels, unclear, check_ok, tokens, unplaced)
