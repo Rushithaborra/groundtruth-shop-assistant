@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     from api import server
     from groundtruth import cli
     from groundtruth.evaluation import cost_report, official, scoring, submission
-    from tools import bench, calibrate_semantic, make_submission_zip, stress
+    from tools import bench, calibrate_semantic, make_submission_zip, shoppers, stress
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("report", cost_report.add_arguments, cost_report.run, "per-query latency and token-cost report"),
         ("package", make_submission_zip.add_arguments, make_submission_zip.run, "build the checked submission zip"),
         ("stress", stress.add_arguments, stress.run, "score a catalogue-built stress set with the official scorer"),
+        ("shoppers", shoppers.add_arguments, shoppers.run, "score a shopper-language set with the official scorer"),
         ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
         ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
         ("generate", _add_generate_arguments, _generate, "write synthetic data and question sets"),
