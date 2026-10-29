@@ -1,6 +1,6 @@
 # Project status, gaps and who does what
 
-Team Crew (TEAM-000802) · R3 · checked on 29 October 2026 at commit `1d7b46b`. Every line below comes from a command
+Team Crew (TEAM-000802) · R3 · checked on 29 October 2026, after rebasing onto Sushanth's `d000e83`. Every line below comes from a command
 that was run; "not done" means not done.
 
 ## 1. Where we stand
@@ -12,9 +12,10 @@ that was run; "not done" means not done.
 | Stress set from the catalogue, held-back half (81, written by us) | 0.961 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 182 pass on Python 3.9 and 3.12 |
+| Tests | 207 pass on Python 3.9 and 3.12 |
 | Lint, format, `pip-audit` | clean |
-| Latency / model tokens | about 1 ms a query / 0 |
+| Latency / model tokens | mean 0.7 ms a query / 0 |
+| Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |
 | Submission zip (`python3 main.py package`) | checklist passes |
 
 These scores are on small samples and on sets we wrote; the hidden test score may be lower.
@@ -55,6 +56,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
 | G14 | Known behaviour limits: unusual synonyms are refused; "policy is silent" covers delivery days/times only; refusals for unlisted facts score 0.75 on the stress holdout (not inspected) | | CHANGES.md | Claude Code, after Task 4 data | P2 |
 | G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | **P1** |
+| G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 
 ## 4. What only people can do
 
@@ -87,8 +89,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 * Type hints (G5), splitting long functions (G4) and `tools/` docstrings (G6): done on 28 October, one commit per
   file. Still to do before pushing: with the pack in `FULL_CODE/data/pack/`, run
   `uv run python main.py score --part all` (must stay 0.9325) and `uv run python main.py stress --part tune`
-  (must stay 0.9996). They could not be run when the changes were made, because the pack was not on that machine;
-  the synthetic sets, 182 tests and ruff were.
+  (must stay 0.9996). Run with the pack on 29 October: unchanged (0.9325, 0.9996; holdout 0.9611).
 
 ## 6. Learning the code (for both of us)
 

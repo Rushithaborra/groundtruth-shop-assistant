@@ -85,7 +85,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 206 tests
+uv run pytest        # 207 tests
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -151,9 +151,9 @@ per-query CSV and a summary to `FULL_CODE/output/reports/`. Measured on a MacBoo
 | | GroundTruth (measured) | An LLM writes every reply (**estimate**) |
 |---|---|---|
 | Answered by | rules, 100% of queries | the provided Qwen2.5-0.5B model |
-| Latency per query | mean 1.3 ms, p50 0.8 ms, p95 3.2 ms, max 11.7 ms | about 13.4 s |
+| Latency per query | mean 0.7 ms, p50 0.5 ms, p95 1.6 ms, max 8.3 ms | about 13.4 s |
 | Model tokens per query | **0** | about 3,830 in + 120 out |
-| All 190 queries | 0.25 s, 0 tokens | about 42 minutes, about 750,000 tokens |
+| All 190 queries | 0.13 s, 0 tokens | about 42 minutes, about 750,000 tokens |
 
 The estimate comes from one measured call of the provided model with the prompt it needs to stay grounded (the
 catalogue's allowed product types and attribute values), multiplied by the number of queries; it was not run for
@@ -199,7 +199,9 @@ came before Day 1 (`git log` has the full history):
 | 2026-10-28 | `36eb7d6` to `950f46b` | Rushitha Borra | The pack's answering rules; measuring the provided models; latency and token report; submission zip builder |
 | 2026-10-28 | `4411aea` to `552edb4` | Rushitha Borra | API validation and security headers; behaviour gaps; hardening; catalogue stress set and the fixes it found |
 | 2026-10-28 | `f7cedbb` | Sushanth Kilari | Read the request body before refusing (flaky connection resets on Windows) |
-| 2026-10-28 | `e3901d7` onwards | Rushitha Borra | Fixes found while rehearsing the demo; demo script; status document; README and lint fixes |
+| 2026-10-28 | `e3901d7` to `4e75a03` | Rushitha Borra | Fixes found while rehearsing the demo; demo script; status document |
+| 2026-10-28 | `3abaa8f` to `d000e83` | Sushanth Kilari | Type hints, shorter functions and `tools/` docstrings; a stricter grounding checker (prices bound to their citation, attribute words, policy quotes); strict pack loading; stock wording; retailer view split; handover |
+| 2026-10-29 | after `d000e83` | Rushitha Borra | Lint and README fixes; grounding checker no longer flags attribute names |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),

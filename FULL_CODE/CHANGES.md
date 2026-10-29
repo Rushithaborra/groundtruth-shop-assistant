@@ -546,6 +546,34 @@ An outside review of `main` raised four code issues. Each was reproduced first, 
 Still to do before submitting: run `score`, `stress`, `submit` and `package` on the final commit with the pack (strict
 loading is exercised only there), and the tests on Python 3.9 and 3.12; they were run on 3.13 only.
 
+## Checks on the real pack, and a checker false positive, 29 October
+
+Sushanth's review fixes were run with the pack for the first time, after rebasing onto `d000e83`. Every number is
+from a command run on 29 October.
+
+| Check | Before | After |
+|---|---|---|
+| Tests (Python 3.9 and 3.12) | 206 | 207 |
+| Dev, all 40 / check half / tune half (official scorer) | 0.9325 / 0.865 / 1.000 | unchanged |
+| Stress tune / holdout | 0.9996 / 0.9611 | unchanged |
+| Hallucinated prices, every run | 0 | 0 |
+| Strict loading of the pack catalogue | not run | accepts 5,000 products |
+| `R3_predictions.jsonl` against the committed file | | identical apart from timings |
+| Synthetic sets (`evaluate`), groundedness / helpfulness | 1.0 / 1.0 | 1.0 / 1.0 |
+| Pack replies (40 dev, 150 test) flagged by the grounding checker | **36 of 190** | **0 of 190** |
+| `# fmt: skip` in the new test files | 3 | 0 |
+| Latency per query (`report`) | mean 1.3 ms, p95 3.2 ms (earlier run) | mean 0.7 ms, p95 1.6 ms, max 8.3 ms |
+
+**The false positive.** The new attribute-word rule treated attribute *names* as attribute values. The pack has
+values such as "color pencil" (`colour_type`), "color crayon" (`sub_category`) and "wipe with water", so the reply's
+own prompt "tell me a brand, colour or budget", a clarification "you can tell me the material or pattern or sleeve",
+and a refusal "does not list a water_resistance_rating for X" were reported as unsupported claims; the demo would have
+shown good replies failing the grounding check. Attribute names now never count as value words: compound names
+(`anti_slip`, `water_resistance_rating`) are removed from a sentence before it is checked, and one-word names
+(`color`, `sleeve`, `material`) are left out of the value words. Real values ("silk", "red") are still checked; all of
+Sushanth's checker tests pass, and a new test fails on the previous checker. The diagnosis used the dev replies; the
+test replies were only counted, and no reply or score changed, so nothing is contaminated.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
