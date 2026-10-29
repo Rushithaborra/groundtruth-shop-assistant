@@ -32,7 +32,7 @@ These scores are on small samples and on sets we wrote; the hidden test score ma
 | 5. Known behaviour gaps | done, one part waits | "which sizes", "A or B", policy-silent: done. "Review the describing-word refusal rule" waits for Task 4 (G14) |
 | 6. Latency and token-cost report | done | `report`: mean 0.6 ms, 0 tokens; the LLM-every-query estimate is labelled as one |
 | 7. Web demo and API security | done, one look left | phone width checked in Chrome's phone emulation (G7); one look on a real phone left |
-| 8. Hardening | done | product code: 0 functions over 40 lines, 0 untyped parameters, 0 missing return types, 0 dead code, docstrings on every top-level function, `pip-audit` clean, one documented catch-all at the server boundary. Dev-tool leftovers: G19 |
+| 8. Hardening | done | product code: 0 functions over 40 lines, 0 untyped parameters, 0 missing return types, 0 dead code, docstrings on every top-level function, `pip-audit` clean, one documented catch-all at the server boundary; the dev tools meet the same rules (G19) |
 | 9. README and submission zip | done | rule-12 sections current; `package` builds the zip from a fresh clone and checks the guidelines' list |
 | Extra | done | `stress` and `shoppers` sets, `docs/demo_script.md`, `docs/code_tour.md`, retailer view |
 
@@ -60,7 +60,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 | G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
 | G18 | Demo script step 2 failed when typed after step 1: "cotton kurti for women" kept step 1's "blue running shoes" and refused; the retailer view filed iPhone under "words I couldn't place" | the demo | phone run of the script | Claude Code | done: a new kind of product starts a new search; known outside brands count as demand |
-| G19 | The old data generators (`tools/generate_*`, `stress.build`) have 53 untyped parameters in nested helpers, 15 missing return types and 6 functions over 40 lines (longest 179) | rule 1 (G4/G5 covered product code only) | AST count, 29 Oct | Sushanth, if time | P3 |
+| G19 | The data generators and dev tools had 53 untyped parameters, 15 missing return types and 6 functions over 40 lines (longest 179) | rule 1 (G4/G5 covered product code only) | AST count, 29 Oct | Claude Code | done: 0, 0 and 0 across the whole codebase; every generated file, the stress set and the shopper set are byte-identical before and after |
 | G20 | 73 product-code functions had no docstring, nearly all private helpers (`_route`, `_send`, config readers) | rule 12: docstrings on key functions | AST count, 29 Oct | Claude Code | done: 66 added (only docstrings changed, checked by comparing syntax trees); 7 tiny nested helpers left |
 
 ## 4. What is left, in order
@@ -82,7 +82,6 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 |---|---|---|---|
 | 7 | 50+ questions from people who haven't seen the code (Hinglish, Telugu-English, short, misspelt): about 20 on a product's price, stock or a detail, 10 vague, 10 for things the store doesn't sell, 10 on returns, delivery, warranty, payment, cancellation. One per row in a shared sheet; **don't show them the code, the dev questions or our replies** | Sushanth + friends | G10 |
 | 8 | Score them once (expected answers by filtering the catalogue), then fix what they show, including the describing-word rule | Rushitha + Claude Code | G10, G14 |
-| 9 | Dev-tool tidy-up | anyone | G19 |
 
 If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
 

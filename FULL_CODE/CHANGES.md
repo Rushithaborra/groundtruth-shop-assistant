@@ -682,6 +682,19 @@ the same few thousand words; it is now cached (bounded at 65,536 words, so shopp
 limit). Each attribute name was indexed once per product (33,725 times for 159 names); now once. Docstrings were
 inserted by a script that compared each file's syntax tree with docstrings removed, before and after.
 
+## Dev tools brought to the same rules, 29 October (G19)
+
+The data generators and dev tools had 53 untyped parameters, 15 missing return types and 6 functions over 40 lines
+(`generate_hard.make` 179, `generate_synthetic.make_questions` 128, `stress.build` 58, `generate_scale` 44,
+`generate_synthetic.make_catalogue` 42, `calibrate` 42). The two long question lists became small typed builder
+classes with one method per section, called in the original order; the others had one block moved into a helper.
+Now 0, 0 and 0 across the whole codebase.
+
+Behaviour is unchanged, checked byte for byte: all 12 files `main.py generate all` writes (including the committed
+synthetic catalogue and question sets) are identical before and after, in a throwaway clone; the stress and shopper
+sets hash the same; `calibrate` returns the same report on the test's fake model; 225 tests pass on Python 3.9 and
+3.12; dev 0.9475, stress tune 0.9996, shoppers tune 0.9564.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
