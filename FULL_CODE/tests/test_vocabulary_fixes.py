@@ -116,6 +116,17 @@ class VocabularyFixTests(unittest.TestCase):
     def test_brand_names_keep_their_own_spelling(self):
         self.assertTrue(self.ask("do you sell iPhones?").text.startswith("I don't have iPhone"))
 
+    def test_indian_brands_the_shop_does_not_carry_are_refused_by_name(self):
+        for q, shown in (
+            ("havells table fan", "Havells"),  # was a fan listing with an "I can't verify" note
+            ("sparx running shoes", "Sparx"),
+            ("loreal shampoo", "L'Oreal"),
+            ("kya aapke paas nivea body lotion hai", "Nivea"),
+        ):
+            r = self.ask(q)
+            self.assertEqual(r.action, REFUSE, q)
+            self.assertIn(f"I don't have {shown} products", r.text)
+
     def test_follow_up_naming_something_unsold_is_refused_not_relisted(self):
         r = self.ask("black hoodie", "laptop")
         self.assertEqual(r.action, REFUSE)  # never a fresh listing presented as an answer
