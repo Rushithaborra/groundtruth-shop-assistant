@@ -13,7 +13,11 @@ _MAX = [
         rf"(?:under|below|less than|lesser than|upto|up to|within|max(?:imum)?|not more than|at most|"
         rf"budget(?: of| is)?|<=?)\s*{_AMT}"
     ),
-    re.compile(rf"{_AMT}\s*(?:tak|ke andar|ke ander|se kam|ke niche|or less|or below|and below|max)\b"),
+    # "1500 tak", "1500 rupees max", "1500/- ke andar", Telugu "1500 lopu" / "1500 varaku" / "1500 kanna takkuva"
+    re.compile(
+        rf"{_AMT}\s*(?:rs\.?|rupees?|rupaye|/-)?\s*(?:tak|ke andar|ke ander|se kam|ke niche|or less|or below|"
+        rf"and below|max|lopu|lopala|loopu|varaku|daaka|kanna takkuva|kante takkuva)\b"
+    ),
 ]
 _MIN = [
     re.compile(rf"(?:above|over|more than|greater than|at least|min(?:imum)?|>=?)\s*{_AMT}"),

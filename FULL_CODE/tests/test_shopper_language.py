@@ -9,6 +9,7 @@ from pathlib import Path
 
 from groundtruth.answering import ANSWER, Session
 from groundtruth.builder import build_assistant
+from groundtruth.understanding.money import extract_money
 
 
 def product(pid, title, sub, price, attrs=None):
@@ -115,6 +116,19 @@ class ShopperLanguageTests(unittest.TestCase):
             with self.subTest(question):
                 r = self.ask(question)
                 self.assertEqual((r.action, r.claims.sections), (ANSWER, [section]), r.text)
+
+    def test_budgets_written_the_way_shoppers_write_them(self):
+        for text in ("1500 rupees max", "1500/- tak", "1500 lopu", "1.5k lopala", "1500 varaku", "1500 kanna takkuva"):
+            with self.subTest(text):
+                self.assertEqual(extract_money(f"kurta {text}")[1:], (None, 1500.0))
+
+    def test_telugu_and_hinglish_shopping_words(self):
+        r = self.ask("runvex zen white running shoes entha")  # "how much"
+        self.assertEqual(r.claims.prices, [("SKU-RS1", 1999.0)])
+        self.assertLists("pankha dikhao", {"SKU-FN1"})  # Hindi for fan
+        self.assertLists("running shoes 2500 lopu chupinchu", {"SKU-RS1"})  # "within 2500, show me"
+        r = self.ask("enni rojulu lo delivery avutundi")  # "in how many days will it be delivered"
+        self.assertEqual((r.action, r.claims.sections), (ANSWER, ["2.2"]))
 
 
 if __name__ == "__main__":

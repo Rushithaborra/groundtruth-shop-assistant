@@ -9,8 +9,24 @@ import re
 
 from ..text import STOPWORDS
 
-PRICE_W = {"price", "kitna", "kitne", "kitni", "much"}
-STOCK_W = {"stock", "available", "availability", "milega", "milegi", "milenge", "instock", "left"}
+PRICE_W = {"price", "kitna", "kitne", "kitni", "much", "entha", "enta", "dhara", "dara", "vela"}
+STOCK_W = {
+    "stock",
+    "available",
+    "availability",
+    "milega",
+    "milegi",
+    "milenge",
+    "instock",
+    "left",
+    "unda",
+    "undha",
+    "untunda",
+    "dorukutunda",
+    "dorukuthunda",
+    "milta",
+    "milti",
+}
 RATING_W = {"rating", "rated", "review", "star", "feedback"}
 POLICY_W = {
     "return",
@@ -33,7 +49,20 @@ POLICY_W = {
     "courier",
     "dispatch",
 }
-CHEAP_W = {"cheapest", "cheap", "cheaper", "sasta", "sasti", "lowest", "affordable"}
+CHEAP_W = {
+    "cheapest",
+    "cheap",
+    "cheaper",
+    "sasta",
+    "sasti",
+    "lowest",
+    "affordable",
+    "takkuva",
+    "thakkuva",
+    "chavaka",
+    "chowka",
+    "saste",
+}
 EXPENSIVE_W = {
     "costliest",
     "costlier",
@@ -48,6 +77,7 @@ EXPENSIVE_W = {
     "mehngi",
     "mehengi",
     "premium",
+    "ekkuva",
 }
 NEG_W = {"not", "except", "without", "excluding", "nahi", "no", "non"}
 BEST_W = {
@@ -65,6 +95,8 @@ BEST_W = {
     "badiya",
     "behtareen",
     "mast",
+    "manchi",
+    "manchidi",
 }
 # Indian shoppers' names for a backpack ("school bag"); a plain "bag" still searches the bags category
 BACKPACK_PHRASE = re.compile(r"\b(school|college|laptop|office|travel|tuition)\s*bags?\b")
@@ -133,7 +165,18 @@ ACCOUNT_PHRASES = (
 )
 WH_W = {"what", "whats", "which", "kya", "kaun", "kaunsa", "kaunsi", "kis"}
 # Words that make a message a question about a product's details ("bluetooth hai?", "kitni moti hai")
-QUESTION_W = {"hai", "hain", "kitna", "kitni", "kitne"}  # Hinglish; an English question needs "?"
+QUESTION_W = {
+    "hai",
+    "hain",
+    "kitna",
+    "kitni",
+    "kitne",
+    "entha",
+    "enta",
+    "unda",
+    "undha",
+    "untunda",
+}  # Hinglish and Telugu-English; English needs "?"
 # Words that ask for the price itself; "kitna" alone may ask "how much" of something else ("kitni moti")
 EXPLICIT_PRICE_W = {"price", "rate"}
 # One product wanted, not a list: "sabse sasta", "cheapest", "the most expensive"
