@@ -17,10 +17,19 @@ POLICY = "# Policy\n\n## 1. Returns\n\n### 1.1 Return window\nReturns within 30 
 
 def product(pid, price=499):
     return {
-        "product_id": pid, "title": f"Voltix Spark {pid} Power Bank", "brand": "Voltix", "category": "Test",
-        "sub_category": "Power Banks", "description": "A power bank.", "attributes": {}, "price_inr": price,
-        "mrp_inr": price, "stock_status": "in_stock", "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": f"Voltix Spark {pid} Power Bank",
+        "brand": "Voltix",
+        "category": "Test",
+        "sub_category": "Power Banks",
+        "description": "A power bank.",
+        "attributes": {},
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": "in_stock",
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 class StrictPackCatalogueTests(unittest.TestCase):

@@ -13,10 +13,19 @@ from groundtruth.grounding import Grounding
 
 def product(pid, title, sub, price):
     return {
-        "product_id": pid, "title": title, "brand": title.split()[0], "category": "Test", "sub_category": sub,
-        "description": f"{title}.", "attributes": {}, "price_inr": price, "mrp_inr": price,
-        "stock_status": "in_stock", "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": title,
+        "brand": title.split()[0],
+        "category": "Test",
+        "sub_category": sub,
+        "description": f"{title}.",
+        "attributes": {},
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": "in_stock",
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 CATALOGUE = [
