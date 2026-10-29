@@ -93,6 +93,39 @@ def format_inr(amount: float) -> str:
     return f"₹{whole}" + ("" if frac == "00" else f".{frac}")
 
 
+_UNITS = {
+    "mm": "mm",
+    "cm": "cm",
+    "m": "m",
+    "ft": "ft",
+    "in": "inches",
+    "l": "L",
+    "ml": "ml",
+    "g": "g",
+    "kg": "kg",
+    "w": "W",
+    "mah": "mAh",
+    "c": "°C",
+    "hours": "hours",
+    "min": "minutes",
+    "months": "months",
+}
+
+
+def field_label(key: str) -> str:
+    """A catalogue field name as a shopper reads it: "water_resistance_rating" -> "water resistance rating",
+    "thickness_mm" -> "thickness (mm)"."""
+    words = key.split("_")
+    if len(words) > 1 and words[-1] in _UNITS:
+        return f"{' '.join(words[:-1])} ({_UNITS[words[-1]]})"
+    return " ".join(words)
+
+
+def value_label(value: str) -> str:
+    """A catalogue value as a shopper reads it: booleans become Yes / No, everything else is unchanged."""
+    return {"True": "Yes", "False": "No"}.get(value, value)
+
+
 def approx_tokens(text: str) -> int:
     """Rough LLM token estimate (about four characters per token)."""
     return max(1, math.ceil(len(text) / 4))

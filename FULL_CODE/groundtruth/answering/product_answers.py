@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from ..catalogue import CatalogueIndex, Product
-from ..text import format_inr
+from ..text import field_label, format_inr, value_label
 from ..understanding import Parsed
 from .formatting import product_line, stock_text
 from .response import ANSWER, REFUSE, Claims, Response
@@ -75,11 +75,14 @@ def _attribute_facts(prod: Product, keys: list[str], claims: Claims) -> tuple[li
     for key in keys:
         values = prod.attr_values(key)
         if values:
-            sentences.append(f"The {key} of the {prod.title} is {', '.join(values)} {cite}.")
+            if _values(values) != ", ".join(values):  # a Yes / No field: "For the X, water resistant: No"
+                sentences.append(f"For the {prod.title}, {field_label(key)}: {_values(values)} {cite}.")
+            else:
+                sentences.append(f"The {field_label(key)} of the {prod.title} is {_values(values)} {cite}.")
             claims.attribute(prod, key)
             supported = True
         else:
-            sentences.append(f"The catalogue does not list a {key} for the {prod.title} {cite}.")
+            sentences.append(f'The catalogue does not list "{field_label(key)}" for the {prod.title} {cite}.')
     return sentences, supported
 
 
@@ -138,11 +141,11 @@ def shown_details(products: list[Product], keys: list[str]) -> Response:
         for key in keys:
             values = prod.attr_values(key)
             if values:
-                parts.append(f"{key} {', '.join(values)}")
+                parts.append(f"{field_label(key)}: {_values(values)}")
                 claims.attribute(prod, key)
                 supported = True
             else:
-                parts.append(f"{key} not listed")
+                parts.append(f"{field_label(key)} not listed")
         claims.cite(prod)
         lines.append(f"- {prod.title}: {'; '.join(parts)} [{prod.id}]")
     return Response("\n".join(lines), ANSWER if supported else REFUSE, claims=claims)
@@ -153,3 +156,8 @@ def relevant_keys(products: list[Product], keys: list[str]) -> list[str]:
     them has any, only the first, so the reply says once that the catalogue doesn't list it."""
     present = [k for k in keys if any(prod.attr_values(k) for prod in products)]
     return present or keys[:1]
+
+
+def _values(values: list[str]) -> str:
+    """Attribute values as a shopper reads them ("Yes" for True)."""
+    return ", ".join(map(value_label, values))

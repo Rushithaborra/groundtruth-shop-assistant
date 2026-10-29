@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..catalogue import SIZE_KEY, CatalogueIndex, Product, Spec
+from ..text import field_label, value_label
 from ..understanding import Parsed
 from .formatting import product_line
 from .response import ANSWER, CLARIFY, Claims, Response
@@ -37,7 +38,7 @@ def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> R
     varying = [k for k in keys if len({lowered[h.id].get(k) for h in hits}) > 1][:3]
     lines, claims = ["I found more than one match, so I don't want to guess. Which one do you mean?"], Claims()
     for h in hits[:clarify_limit]:
-        detail = ", ".join(v for k in varying for v in h.attr_values(k)[:1])
+        detail = ", ".join(_shown_value(k, v) for k in varying for v in h.attr_values(k)[:1])
         lines.append(f"- {h.title}{f' ({detail})' if detail else ''} [{h.id}]")
         claims.cite(h)
         for key in varying:  # the reply shows only the first value of a list attribute, so only that is claimed
@@ -49,8 +50,14 @@ def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> R
     if len(hits) > clarify_limit:
         lines.append("There are more options too.")
     if varying:
-        lines.append("You can tell me the " + " or ".join(varying) + " to pick one.")
+        lines.append("You can tell me the " + " or ".join(map(field_label, varying)) + " to pick one.")
     return Response("\n".join(lines), CLARIFY, claims=claims)
+
+
+def _shown_value(key: str, value: str) -> str:
+    """A value as shown beside a candidate: a Yes / No needs its field name to mean anything."""
+    shown = value_label(value)
+    return f"{field_label(key)}: {shown}" if shown != value else value
 
 
 def choice(index: CatalogueIndex, p: Parsed, per_kind: int) -> Response:

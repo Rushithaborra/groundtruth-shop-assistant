@@ -13,7 +13,7 @@ import re
 
 from ..catalogue import CatalogueIndex
 from ..policy import Section
-from ..text import STOPWORDS, format_inr, tokenize
+from ..text import STOPWORDS, field_label, format_inr, tokenize
 
 CITE = re.compile(r"\[([^\]]+)\]")
 POLICY_CITE = re.compile(r"\[policy:([^\]]+)\]")
@@ -38,8 +38,9 @@ class Grounding:
             self.title_ids.setdefault(p.title, set()).add(p.id)
         # attribute names ("colour", "anti_slip") say what is talked about, not what it is: "tell me a colour" and
         # "does not list a water_resistance_rating" make no claim, so names are never checked as value words
-        compound = sorted((k for k in index.attr_values if "_" in k), key=len, reverse=True)
-        self.attr_names = re.compile(r"\b(?:" + "|".join(map(re.escape, compound)) + r")\b" if compound else r"(?!)")
+        compound = {k for k in index.attr_values if "_" in k} | {field_label(k) for k in index.attr_values if "_" in k}
+        names = "|".join(map(re.escape, sorted(compound, key=len, reverse=True)))
+        self.attr_names = re.compile(rf"(?<!\w)(?:{names})(?!\w)" if names else r"(?!)")
         name_words = {t for k in index.attr_values if "_" not in k for t in tokenize(k)}
         # words that name a colour, material, brand, gender, ... in this catalogue (sizes and numbers excluded)
         self.attr_words = frozenset(
