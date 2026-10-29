@@ -44,7 +44,7 @@ mentions ("sunday delivery"), it says the policy is silent and quotes what it do
 | A new catalogue? | The vocabulary is built from the catalogue at load time; only synonyms and Hinglish are hand-written. | `index.py` `__init__` |
 | Speed and cost? | Mean 0.6 ms a query, 0 model tokens; an LLM writing every reply is estimated at about 13.4 s and 3,950 tokens a query. | `main.py report` |
 | Security? | Every API request is validated; same-site only; rate limits; security headers; replies are never rendered as HTML. | `api/validation.py`, `api/security.py` |
-| What is it bad at? | Words nobody prepared it for: on a set whose wording it never saw it scores 0.603. It refuses rather than guesses, so it stays honest, but it is less helpful there. Questions from real shoppers are the next step. | README Limitations, `main.py shoppers` |
+| What is it bad at? | Words nobody prepared it for: on wording outside its word lists it scores about 0.51. It refuses rather than guesses, so it stays honest, but it is less helpful there. Questions from real shoppers are the next step. | README Limitations, `main.py shoppers` |
 | Who wrote what? | Both of us, with Claude Code; every commit and its author is in the README's pre-built-code table. | README |
 
 ## 4. Try it yourselves (20 minutes)

@@ -695,6 +695,37 @@ synthetic catalogue and question sets) are identical before and after, in a thro
 sets hash the same; `calibrate` returns the same report on the test's fake model; 225 tests pass on Python 3.9 and
 3.12; dev 0.9475, stress tune 0.9996, shoppers tune 0.9564.
 
+## Common Telugu-English and Hinglish shopping words; the shopper holdout is contaminated, 29 October
+
+Added general shopping vocabulary from common usage (not from any question set): Telugu-English and Hindi filler
+words ("chupinchu", "kavali", "andi", "dikhaiye"), price and stock words ("entha", "dhara", "unda"), cheap and dear
+("takkuva", "ekkuva"), days ("rojulu"), women and men ("ammayilaki", "magavallaki"), colours ("erra", "pacha",
+"gulabi") and shoppers' names for kinds sold ("parda", "pankha", "tauliya", "moisturiser", "adapter", "racquet",
+"dabba"); and budgets written "1500 rupees max", "1500/- tak", "1500 lopu", "1500 varaku", "1500 kanna takkuva".
+Each source word was checked not to be a catalogue word ("press", "scent", "rc" and "luggage" are, so they were left
+out). Words for children ("pillalaki", "bacche") were tried and removed: gender is a hard filter, and they turned a
+test question about a Boys' set from an answer into a refusal.
+
+**Contamination.** The vocabulary was written with the first shopper holdout's words in view (I wrote that set), so
+it no longer measures unseen wording: it went from 0.603 to 0.886, which is not evidence. Following the brief's
+rule 4, a fresh second holdout (`--part holdout2`, 310 questions, own random seed) was written afterwards in
+wording outside every list and outside the earlier parts (a test checks both); the first two parts are
+byte-identical. Measured once: **0.509**, 0 hallucinated prices. Its per-question results were not opened.
+
+| Measure | Before | After |
+|---|---|---|
+| Dev check half / all 40 / tune half | 0.895 / 0.9475 / 1.000 | unchanged |
+| Stress tune / holdout | 0.9996 / 0.9877 | unchanged |
+| Shopper tune | 0.956 | unchanged |
+| Shopper first holdout | 0.603 | 0.886 (**contaminated**, not evidence) |
+| **Shopper second holdout** (new, wording outside every list) | | **0.509** |
+| Test predictions changed | | 4 refusal texts no longer quote filler words; 0 actions |
+| Tests | 225 | 229 |
+
+What this shows: word lists help the words they contain and nothing else. Real shoppers' questions (Task 4) are
+the honest next step; no more language rules will be written until they arrive, because anything written now would
+be shaped by our own holdouts.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

@@ -58,7 +58,7 @@ against the pack's format before writing. To score the dev questions with the or
 uv sync                                          # once: the scorer needs pandas and numpy (dev-only)
 uv run python main.py score --baseline --details # reports in output/reports/
 uv run python main.py stress --part holdout      # catalogue-built stress set, scored by the same official scorer
-uv run python main.py shoppers --part holdout    # shopper-language set (Hinglish, Telugu-English, own words)
+uv run python main.py shoppers --part holdout2   # shopper-language set (Hinglish, Telugu-English, own words)
 ```
 
 The loader accepts `.jsonl`, `.json` and `.csv` catalogues with common column spellings (`id|product_id|sku`,
@@ -220,10 +220,12 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
   unlisted facts) scores 0.988 on its held-back half; it was written by us, so it measures robustness to those
   phrasings, not general accuracy. The organisers' 150 test questions are only used to write the submission.
 * **Words nobody prepared it for are its weak spot.** A shopper-language set (`main.py shoppers`: Hinglish and
-  Telugu-English phrasings, shoppers' own names such as "tiffin" or "press", budgets like "1500 lopu", typos) has
-  halves that share no wording. Tuned on one half it scores 0.956; the other half, all words it never saw, scores
-  only **0.603** (0.535 before the general fixes). Rules can't guess unseen Telugu words or local names; questions
-  from real shoppers (the brief's Task 4) or a stronger model are what would close that gap.
+  Telugu-English phrasings, shoppers' own names such as "tiffin" or "parda", budgets like "1500 lopu", typos) is
+  split so its parts share no wording. Common Telugu-English and Hinglish shopping words have been added, but a
+  fresh part written afterwards, in wording outside every list, scores only **0.509**. Word lists don't reach words
+  they don't contain; questions from real shoppers (the brief's Task 4) or a stronger model are what would close
+  that gap. (The first held-back part, 0.603 before the vocabulary, is contaminated: the vocabulary was added with
+  its words in view.)
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
 * **No model in the shipped path.** The provided models were measured and didn't help on dev (see AI usage), so
