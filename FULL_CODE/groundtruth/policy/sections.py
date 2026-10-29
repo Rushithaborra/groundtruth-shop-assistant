@@ -92,13 +92,22 @@ def best_sentences(
     best = None
     for sec in sections:
         bonus = bool(wanted & sec.heading_tokens)
+        # a strong word in the heading ("Exchanges") makes the section about it when no sentence shares the word
+        # itself, because the body's own wording stems differently ("exchanged" -> "exchang")
+        titled = bool(wanted & sec.heading_tokens & strong) and not any(wanted & toks for _, toks in sec.sentences)
         scored = [
-            (len(wanted & toks) + bonus, i, sent)
+            (len(wanted & toks) + bonus, i, sent, len(wanted & (toks | sec.heading_tokens)) + bonus)
             for i, (sent, toks) in enumerate(sec.sentences)
-            if wanted & toks and (len(wanted & toks) + bonus >= 2 or wanted & toks & strong)
+            if (wanted & toks or titled) and (len(wanted & toks) + bonus >= 2 or wanted & toks & strong or titled)
         ]
-        if scored and (best is None or max(scored)[0] > best[0]):
-            top = max(sc for sc, _, _ in scored)
+        if not scored:
+            continue
+        # the section is chosen by how many question words it covers, each counted once whether its heading or the
+        # sentence has it; ties go to the section whose heading the question names ("delivery kitne din": Delivery
+        # timelines, not a return sentence that also mentions delivery and days)
+        rank = (max(t[3] for t in scored), bonus)
+        if best is None or rank > best[0]:
+            top = max(t[0] for t in scored)  # sentences within it are chosen and ordered by their own words
             keep = heapq.nlargest(limit, scored, key=lambda t: (t[0], -t[1]))  # most relevant sentence first
-            best = (top, sec, [sent for sc, _, sent in keep if sc >= top - 1])
+            best = (rank, sec, [t[2] for t in keep if t[0] >= top - 1])
     return (best[1], best[2]) if best else None
