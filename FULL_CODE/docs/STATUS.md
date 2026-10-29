@@ -12,7 +12,7 @@ that was run; "not done" means not done.
 | Stress set from the catalogue, held-back half (81, written by us) | 0.961 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 207 pass on Python 3.9 and 3.12 |
+| Tests | 214 pass on Python 3.9 and 3.12 |
 | Lint, format, `pip-audit` | clean |
 | Latency / model tokens | mean 0.7 ms a query / 0 |
 | Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |
@@ -47,16 +47,18 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G4 | **Done 28 Oct.** Was 9 product functions over 40 lines (`make_handler` 97, `parse_settings` 82, `CatalogueIndex.__init__` 63, `summarise` 62, `product_answer` 51, `build_assistant` 51, `build_examples` 48, `check` 46, `no_match` 45); now none is over 40 (longest 33) | rule 1: short, single-purpose functions | AST count; 182 tests; 328 reply and score entries identical before and after | Sushanth with Claude Code | done |
 | G5 | **Done 28 Oct.** Was 37 parameters and 15 return types without type hints in product code; now 0 and 0 | rule 1: type hints | AST count; 182 tests; ruff clean | Sushanth with Claude Code | done |
 | G6 | **Done 28 Oct.** Was 48 functions in `tools/` without docstrings; now 0. Only docstrings changed: the code is identical once they are ignored | rule 12: docstrings on key functions | AST count and AST comparison with the committed files | Sushanth with Claude Code | done |
-| G7 | Web demo not checked at phone width in a real browser | brief task 7 | only the CSS was reviewed | **Sushanth** | **P1** |
+| G7 | Web demo at phone width | brief task 7 | **Checked 29 Oct in Chrome's phone emulation** (390×844 and 360×740): the whole demo script, a card flip, compare, a citation and `/insights`, 15 states each, 0 with horizontal overflow. Found and fixed a raw `sub_category: Kurtas` chip. Not yet tried on a real phone | Sushanth: one look on a real phone | P2 |
 | G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? Is `.gitattributes` allowed at the top level? | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
 | G9 | Round-1 deck shows old synthetic numbers (0.987, 88 tests, 0.8 ms); slide 1 has "Rushita Bora" and "Retail • Biotechnology" | honest reporting | deck text | Rushitha decides | updated copy made: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`), outside the repo; original untouched |
 | G10 | Task 4 not done: no independent held-out set | brief rule 4, task 4 | | **Sushanth + friends** collect; Rushitha + Claude Code score once | **P1** |
-| G11 | Offline readiness on the event laptop not tried: fresh clone, copy the pack into `FULL_CODE/data/pack/`, `python3 main.py serve` with no internet | demo must run offline | not tried | **Sushanth** | **P1** |
+| G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
 | G12 | "Every team member must be able to explain the code" | fair play | Sushanth hasn't been walked through the core | both (section 6) | **P1** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
 | G14 | Known behaviour limits: unusual synonyms are refused; "policy is silent" covers delivery days/times only; refusals for unlisted facts score 0.75 on the stress holdout (not inspected) | | CHANGES.md | Claude Code, after Task 4 data | P2 |
 | G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | **P1** |
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
+| G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
+| G18 | Demo script step 2 failed when typed after step 1: "cotton kurti for women" kept step 1's "blue running shoes" and refused; the retailer view filed iPhone under "words I couldn't place" | the demo | phone run of the script | Claude Code | done: a new kind of product starts a new search; known outside brands count as demand |
 
 ## 4. What only people can do
 

@@ -574,6 +574,42 @@ shown good replies failing the grounding check. Attribute names now never count 
 Sushanth's checker tests pass, and a new test fails on the previous checker. The diagnosis used the dev replies; the
 test replies were only counted, and no reply or score changed, so nothing is contaminated.
 
+## Readable replies, unsold brands, and the demo run at phone width, 29 October
+
+Every number is from a command run on 29 October, after `c632eb1`.
+
+| Check | Before | After |
+|---|---|---|
+| Tests (Python 3.9 and 3.12) | 207 | 214 |
+| Dev, all 40 / check half / tune half (official scorer) | 0.9325 / 0.865 / 1.000 | unchanged |
+| Stress tune / holdout | 0.9996 / 0.9611 | unchanged |
+| Hallucinated prices; pack replies flagged by the grounding checker | 0; 0 of 190 | 0; 0 of 190 |
+| Test answers showing raw field names or True/False | 43 of 150 | 3 (all word-for-word quotes of policy 3.1) |
+| Test predictions changed | | 45 answer texts; 0 actions, citations, facts or prices |
+| Official validator on `R3_predictions.jsonl` | accepts 150 | accepts 150 |
+| Demo script typed in order, one session | step 2 refused | all 9 steps as the script says |
+| Phone emulation, 390×844 and 360×740, 15 states each | not checked | 0 with horizontal overflow |
+
+1. **Readable field names** (HANDOVER 3C.1). "The water_resistant of X is False" is now "For X, water resistant: No";
+   "does not list a paraben_free" is now `does not list "paraben free"`; clarifications say "thickness (mm)". The
+   structured `stated_facts` keep the catalogue's field names, and the official scorer reads `answer_text` only for
+   ₹ amounts, so no score can move. The grounding checker treats the readable names like the raw ones.
+2. **Brands the shop doesn't carry** (3C.2). Most unlisted brands were already refused as unknown words, but a brand
+   before a product the shop sells ("havells table fan") listed that product with an "I can't verify" note. 124
+   well-known Indian brands across the pack's ten categories were added to `external_brands`, each checked to be in
+   neither the catalogue nor the vocabulary; the six unsold items in the stress holdout were left out so it stays a
+   fair measure. The describing-word rule itself is unchanged; it waits for Task 4. 3C.3 needs no change: the
+   official scorer gives a correct refuse full credit whether or not it cites products.
+3. **Demo step 2.** "kurti" is read as a category filter (`sub_category: Kurtas`), not a product word, so "cotton
+   kurti for women" after "blue running shoes" was treated as a refinement and kept "blue" and "running shoes". A
+   different category now starts a new search, as product words already did. No dev, stress or test answer changed.
+4. **Web page and retailer view.** The memory chips showed `sub_category: Kurtas` (now "Kurtas"), and refused
+   requests for a known outside brand were filed under "words I couldn't place" (now "asked for, not stocked", shown
+   as "iPhone", "Havells").
+
+All four were found with our own probes and the demo script, never with dev or test questions, so nothing is
+contaminated.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

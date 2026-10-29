@@ -7,7 +7,7 @@ command that was run; "not run" means not run.
 
 ## 0. Done on 29 October (Rushitha's session)
 
-Section 3A was run with the pack after rebasing Rushitha's two commits onto `d000e83`: 207 tests pass on Python 3.9 and 3.12; ruff clean; dev 0.9325 (check half 0.865), stress tune 0.9996, holdout 0.9611, all unchanged; strict loading accepts the 5,000-product catalogue; stock values are only `in_stock`, `out_of_stock`, `low_stock`; the new `R3_predictions.jsonl` is identical to the committed one apart from timings. Step A.5 found 36 of 190 replies flagged because attribute names matched attribute values ("colour" vs "color pencil"); fixed in the checker, now 0 of 190 (STATUS.md G16). G1, G2, G3 and G9 are done. Section 3C is still open.
+Section 3A was run with the pack after rebasing Rushitha's two commits onto `d000e83`: 207 tests pass on Python 3.9 and 3.12; ruff clean; dev 0.9325 (check half 0.865), stress tune 0.9996, holdout 0.9611, all unchanged; strict loading accepts the 5,000-product catalogue; stock values are only `in_stock`, `out_of_stock`, `low_stock`; the new `R3_predictions.jsonl` is identical to the committed one apart from timings. Step A.5 found 36 of 190 replies flagged because attribute names matched attribute values ("colour" vs "color pencil"); fixed in the checker, now 0 of 190 (STATUS.md G16). G1, G2, G3 and G9 are done. Section 3C was done later the same day (STATUS.md G17), and section 4's phone and offline checks were run on Rushitha's laptop (G7, G11); only the event-laptop run and a real phone remain.
 
 ## 1. State of `main`
 
