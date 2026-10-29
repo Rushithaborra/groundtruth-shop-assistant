@@ -36,13 +36,18 @@ class Grounding:
         self.title_ids: dict[str, set[str]] = {}
         for p in index.products.values():
             self.title_ids.setdefault(p.title, set()).add(p.id)
+        # attribute names ("colour", "anti_slip") say what is talked about, not what it is: "tell me a colour" and
+        # "does not list a water_resistance_rating" make no claim, so names are never checked as value words
+        compound = sorted((k for k in index.attr_values if "_" in k), key=len, reverse=True)
+        self.attr_names = re.compile(r"\b(?:" + "|".join(map(re.escape, compound)) + r")\b" if compound else r"(?!)")
+        name_words = {t for k in index.attr_values if "_" not in k for t in tokenize(k)}
         # words that name a colour, material, brand, gender, ... in this catalogue (sizes and numbers excluded)
         self.attr_words = frozenset(
             t
             for values in index.attr_values.values()
             for tokens in values
             for t in tokens
-            if len(t) >= 3 and not t.isdigit() and t not in STOPWORDS
+            if len(t) >= 3 and not t.isdigit() and t not in STOPWORDS and t not in name_words
         )
 
     def source(self, cite: str) -> str | None:
@@ -147,7 +152,7 @@ class Grounding:
         for unit in UNITS.split(text):
             cited = " ".join(self.source(c) or "" for c in dict.fromkeys(CITE.findall(unit)))
             known = asked | set(tokenize(cited))
-            words = set(tokenize(CITE.sub("", unit))) & self.attr_words
+            words = set(tokenize(self.attr_names.sub(" ", CITE.sub("", unit)))) & self.attr_words
             problems += [f"'{w}' is not in the cited record" for w in sorted(words - known)]
         return problems
 

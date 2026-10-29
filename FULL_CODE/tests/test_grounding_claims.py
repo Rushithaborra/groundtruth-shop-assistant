@@ -13,16 +13,33 @@ from groundtruth.grounding import Grounding
 
 def product(pid, title, sub, price, attrs):
     return {
-        "product_id": pid, "title": title, "brand": title.split()[0], "category": "Test", "sub_category": sub,
-        "description": f"{title}.", "attributes": attrs, "price_inr": price, "mrp_inr": price,
-        "stock_status": "in_stock", "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": title,
+        "brand": title.split()[0],
+        "category": "Test",
+        "sub_category": sub,
+        "description": f"{title}.",
+        "attributes": attrs,
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": "in_stock",
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 CATALOGUE = [
     product("SKU-C", "Threadly Kora Cotton Shirt - Blue", "Shirts", 899, {"material": "cotton", "colour": "blue"}),
     product("SKU-S", "Threadly Sera Silk Shirt - Red", "Shirts", 2499, {"material": "silk", "colour": "red"}),
     product("SKU-L", "Lomax Vida Linen Shirt - Blue", "Shirts", 1299, {"material": "linen", "colour": "blue"}),
+    # attribute values that repeat attribute names: "color", "water" (as in the pack: colour_type "color pencil")
+    product(
+        "SKU-K",
+        "Kalaa Vivid Wax Crayons",
+        "Crayons",
+        199,
+        {"colour_type": "color crayon", "care": "wipe with water", "water_resistance_rating": "IPX4"},
+    ),
 ]
 POLICY = (
     "# Policy\n\n## 1. Returns\n\n### 1.1 Return window\n"
@@ -69,6 +86,12 @@ class AttributeAndPolicyClaimTests(unittest.TestCase):
         )
         self.assertEqual(self.problems(refusal, "silk shirt under 100"), [])
         self.assertEqual(self.problems("It is made of silk."), ["'silk' is not in the cited record"])
+
+    def test_attribute_names_are_not_claims(self):
+        self.assertEqual(self.problems("There are more matches; tell me a brand, colour or budget."), [])
+        missing = f"The catalogue does not list a water_resistance_rating for the {C} [SKU-C]."
+        self.assertEqual(self.problems(missing), [])
+        self.assertEqual(self.problems(f"The {C} is wiped with water [SKU-C]."), ["'water' is not in the cited record"])
 
     def test_an_invented_policy_sentence_is_flagged_and_the_policys_own_is_not(self):
         invented = "Returns are always free and need no packaging. [policy:1.1]"
