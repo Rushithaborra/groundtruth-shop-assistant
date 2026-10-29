@@ -15,18 +15,29 @@ import re
 import time
 from typing import TYPE_CHECKING
 
-from ..catalogue import CatalogueIndex, Product, Spec
+from ..catalogue import KIND_KEY, CatalogueIndex, Product, Spec
 from ..config import get_settings
 from ..policy import STRONG, Section
-from ..text import POLICY_TIME_WORDS, UNSOLD_PRODUCTS, approx_tokens, field_label, format_inr, tokenize
+from ..text import (
+    GENERAL_ASK_WORDS,
+    GIFT_SERVICES,
+    GIFT_WORDS,
+    NEEDS,
+    POLICY_TIME_WORDS,
+    UNSOLD_PRODUCTS,
+    approx_tokens,
+    field_label,
+    format_inr,
+    tokenize,
+)
 from ..understanding import Parsed, understand
 from ..understanding.lexicon import BROWSE_W
 from ..understanding.parser import COMMON_WORD_PRODUCTS
 from . import listings, product_answers, refusals
-from .formatting import SORT_LABELS, head_nouns
+from .formatting import SORT_LABELS, head_nouns, product_line
 from .policy_answers import cited_section, policy_answer, policy_silent
 from .product_answers import FACTS
-from .response import ANSWER, CLARIFY, REFUSE, Response, Session
+from .response import ANSWER, CLARIFY, REFUSE, Claims, Response, Session
 
 if TYPE_CHECKING:  # only for the annotations below: the model fallbacks are optional and load lazily
     from ..models.normaliser import LLMNormaliser
@@ -165,6 +176,10 @@ class ShoppingAssistant:
         if forced is None and p.intents & {"price", "stock"} and session.shown and spec.is_empty():
             shown = [self.index.products[pid] for pid in session.shown]  # "how much is it?" after a listing
             return self._one_of(p, shown, session)
+        if not (self._names_a_kind(p) or any(k in spec.filters for k in KIND_FILTERS) or p.mentioned or p.product_id):
+            need = self._for_a_need(p, spec, session)  # "ghar pe workout ke liye kya chahiye", "mummy ka birthday gift"
+            if need is not None:
+                return need
         if self._asks_what_the_catalogue_lacks(p):
             return Response("The catalogue doesn't record that, so I can't say.", REFUSE)
         _treat_description_words_as_unknown(p, spec, session)
@@ -173,6 +188,48 @@ class ShoppingAssistant:
         if _asks_for_nothing(spec):  # "not nike" alone says what isn't wanted
             return Response(ASK_WHAT, CLARIFY)
         return self._search(p, spec, session)
+
+    def _for_a_need(self, p: Parsed, spec: Spec, session: Session) -> Response | None:
+        """A need or occasion and no product named: one well-rated product of each kind that serves it, within any
+        budget ("ghar pe workout": a yoga mat, dumbbells, resistance bands, ...). A gift with nothing else to go on
+        asks who it is for. None when the message names neither."""
+        # "treadmill ghar ke liye" asks for one thing by name; a need is asked as "kuch", "kya kya", "something"
+        general = bool(p.all_tokens & GENERAL_ASK_WORDS)
+        kinds = next((kinds for words, kinds in NEEDS if p.all_tokens & words), None) if general else None
+        if kinds and not all(
+            self._fits_some(value, kinds) for key, value in p.spec.filters.items() if key not in IDENTIFYING
+        ):
+            return None  # "a wooden study table": a table is asked for, which none of the desk kinds is
+        picks = [hit for hit in (self._best_of_kind(p, spec, kind) for kind in kinds or ()) if hit][
+            : self.list_limit + 1
+        ]
+        if picks:
+            claims = Claims()
+            lines = ["Here are a few things that could help:"] + [product_line(h, claims) for h in picks]
+            session.last_product, session.shown = None, [h.id for h in picks]
+            return Response("\n".join(lines), ANSWER, claims=claims)
+        if p.all_tokens & GIFT_WORDS and not p.all_tokens & GIFT_SERVICES:  # not "gift wrap karke bhej sakte ho?"
+            return Response(GIFT_QUESTION, CLARIFY)
+        return None
+
+    def _fits_some(self, value: str, kinds: list[str]) -> bool:
+        """Whether some product of these kinds can have this value ("dry" for a body lotion's skin type)."""
+        toks = tuple(tokenize(value))
+        return any(toks in self.index.attr_values.get(k, {}) for kind in kinds for k in self.index.kind_keys(kind))
+
+    def _best_of_kind(self, p: Parsed, spec: Spec, kind: str) -> Product | None:
+        """The top-ranked product of one kind within the budget, keeping filters that kind has ("dry" skin)."""
+        keys = self.index.kind_keys(kind)
+        if not keys:
+            return None  # a kind this catalogue doesn't sell
+        wanted = Spec(filters={KIND_KEY: kind}, price_min=spec.price_min, price_max=spec.price_max)
+        for key, value in p.spec.filters.items():
+            toks = tuple(tokenize(value))
+            other = next((k for k in sorted(keys) if toks in self.index.attr_values.get(k, {})), None)
+            if key in keys or other:
+                wanted.filters[key if key in keys else other] = value
+        hits, _ = self.index.search(wanted, p.all_tokens)
+        return hits[0] if hits else None
 
     def _one_of(self, p: Parsed, hits: list[Product], session: Session) -> Response:
         """The shopper means one of these products (rule 6.2): answer when they all give the same answer to what
@@ -369,6 +426,10 @@ def _names_products(p: Parsed) -> bool:
     return bool(p.product_id or p.mentioned or s.type_tokens or s.filters or s.desc_tokens)
 
 
+GIFT_QUESTION = (
+    "Happy to help with a gift. Who is it for, and what do they like? Tell me a kind of product and a budget, and "
+    "I'll show you options."
+)
 ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
 _AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
 KIND_FILTERS = ("category", "sub_category")  # filters that name the kind of product itself

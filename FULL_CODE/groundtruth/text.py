@@ -76,6 +76,14 @@ POLICY_TIME_WORDS = frozenset(normalise_word(w) for w in _VOCAB["policy_time_wor
 # ("laptop" in Laptop Sleeves, "rice" in a rice-water face wash): named alone, they are refused, not listed.
 UNSOLD_PRODUCTS = frozenset(normalise_word(w) for w in _VOCAB["unsold_products"])
 
+# A need or occasion ("ghar pe workout", "baarish") -> the kinds of product that serve it, specific needs first
+NEEDS: list[tuple[frozenset[str], list[str]]] = [
+    (frozenset(normalise_word(w) for w in need["words"]), need["kinds"]) for need in _VOCAB["needs"].values()
+]
+GIFT_WORDS = frozenset(normalise_word(w) for w in _VOCAB["gift_words"])
+GIFT_SERVICES = frozenset(normalise_word(w) for w in _VOCAB["gift_services"])  # "gift wrap": a service
+GENERAL_ASK_WORDS = frozenset(normalise_word(w) for w in _VOCAB["general_ask_words"])  # "kuch", "kya kya"
+
 
 def tokenize(text: str) -> list[str]:
     """Normalised word tokens of a text."""

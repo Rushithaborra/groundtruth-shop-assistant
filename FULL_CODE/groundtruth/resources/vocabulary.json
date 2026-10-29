@@ -703,5 +703,328 @@
     "medicine",
     "medicines",
     "machine"
+  ],
+  "needs": {
+    "workout": {
+      "words": [
+        "workout",
+        "exercise",
+        "gym",
+        "fitness",
+        "yoga",
+        "vyayam"
+      ],
+      "kinds": [
+        "Yoga Mats",
+        "Dumbbells",
+        "Resistance Bands",
+        "Skipping Ropes",
+        "Gym Gloves",
+        "Shaker Bottles"
+      ]
+    },
+    "tea": {
+      "words": [
+        "chai",
+        "tea",
+        "coffee"
+      ],
+      "kinds": [
+        "Electric Kettles",
+        "Induction Cooktops"
+      ]
+    },
+    "drinking": {
+      "words": [
+        "peene",
+        "drinking",
+        "hydration",
+        "hydrated"
+      ],
+      "kinds": [
+        "Water Bottles",
+        "Shaker Bottles"
+      ]
+    },
+    "skincare": {
+      "words": [
+        "skin",
+        "skincare",
+        "twacha"
+      ],
+      "kinds": [
+        "Body Lotion",
+        "Face Wash",
+        "Sunscreen",
+        "Lip Balm"
+      ]
+    },
+    "travel": {
+      "words": [
+        "travel",
+        "travelling",
+        "traveling",
+        "trip",
+        "journey",
+        "safar",
+        "tour"
+      ],
+      "kinds": [
+        "Trolley Bags",
+        "Duffel Bags",
+        "Backpacks",
+        "Power Banks",
+        "Water Bottles",
+        "Wallets"
+      ]
+    },
+    "wfh": {
+      "words": [
+        "wfh",
+        "setup"
+      ],
+      "kinds": [
+        "Mobile Stands",
+        "Desk Organisers",
+        "Keyboards",
+        "Computer Mouse",
+        "Laptop Sleeves"
+      ]
+    },
+    "desk": {
+      "words": [
+        "desk",
+        "padhai",
+        "study"
+      ],
+      "kinds": [
+        "Desk Organisers",
+        "Files & Folders",
+        "Sticky Notes",
+        "Mobile Stands"
+      ]
+    },
+    "storage": {
+      "words": [
+        "organize",
+        "organise",
+        "organizer",
+        "organiser",
+        "messy",
+        "bikhra",
+        "space",
+        "storage",
+        "neat"
+      ],
+      "kinds": [
+        "Storage Containers",
+        "Desk Organisers",
+        "Files & Folders"
+      ]
+    },
+    "decor": {
+      "words": [
+        "decorate",
+        "decor",
+        "decoration",
+        "aesthetic",
+        "sajana"
+      ],
+      "kinds": [
+        "Curtains",
+        "Cushion Covers",
+        "Bedsheets"
+      ]
+    },
+    "kitchen": {
+      "words": [
+        "kitchen",
+        "rasoi",
+        "cooking",
+        "khana"
+      ],
+      "kinds": [
+        "Pressure Cookers",
+        "Frying Pans",
+        "Kadai & Woks",
+        "Mixer Grinders",
+        "Electric Kettles",
+        "Storage Containers"
+      ]
+    },
+    "rain": {
+      "words": [
+        "baarish",
+        "barish",
+        "rain",
+        "rainy",
+        "monsoon"
+      ],
+      "kinds": [
+        "Flip-Flops & Slippers",
+        "Jackets",
+        "Towels",
+        "Backpacks"
+      ]
+    },
+    "summer": {
+      "words": [
+        "garmi",
+        "summer",
+        "heat",
+        "hot"
+      ],
+      "kinds": [
+        "Fans",
+        "T-Shirts",
+        "Sunscreen",
+        "Water Bottles",
+        "Flip-Flops & Slippers"
+      ]
+    },
+    "walk": {
+      "words": [
+        "walk",
+        "jogging",
+        "stroll"
+      ],
+      "kinds": [
+        "Walking Shoes",
+        "Track Pants",
+        "Water Bottles",
+        "Wireless Earbuds"
+      ]
+    },
+    "school": {
+      "words": [
+        "school",
+        "schools"
+      ],
+      "kinds": [
+        "School Bags",
+        "Kids School Shoes",
+        "Notebooks",
+        "Geometry Boxes",
+        "Lunch Boxes"
+      ]
+    },
+    "college": {
+      "words": [
+        "college",
+        "university",
+        "campus"
+      ],
+      "kinds": [
+        "Backpacks",
+        "Notebooks",
+        "Pens",
+        "Calculators",
+        "Water Bottles",
+        "Laptop Sleeves"
+      ]
+    },
+    "hostel": {
+      "words": [
+        "hostel",
+        "pg"
+      ],
+      "kinds": [
+        "Bedsheets",
+        "Towels",
+        "Storage Containers",
+        "Electric Kettles",
+        "Water Bottles",
+        "Flip-Flops & Slippers"
+      ]
+    },
+    "office": {
+      "words": [
+        "office",
+        "work",
+        "job"
+      ],
+      "kinds": [
+        "Laptop Sleeves",
+        "Backpacks",
+        "Formal Shoes",
+        "Water Bottles",
+        "Lunch Boxes",
+        "Wallets"
+      ]
+    },
+    "guests": {
+      "words": [
+        "guest",
+        "guests",
+        "mehmaan",
+        "mehman"
+      ],
+      "kinds": [
+        "Dinner Sets",
+        "Bedsheets",
+        "Towels",
+        "Cushion Covers"
+      ]
+    },
+    "home": {
+      "words": [
+        "ghar",
+        "home",
+        "house",
+        "room"
+      ],
+      "kinds": [
+        "Bedsheets",
+        "Curtains",
+        "Storage Containers",
+        "Towels",
+        "Cushion Covers"
+      ]
+    }
+  },
+  "gift_words": [
+    "gift",
+    "gifts",
+    "birthday",
+    "anniversary",
+    "present",
+    "tohfa",
+    "surprise"
+  ],
+  "general_ask_words": [
+    "kuch",
+    "kya",
+    "something",
+    "anything",
+    "things",
+    "thing",
+    "stuff",
+    "items",
+    "item",
+    "cheez",
+    "cheeze",
+    "cheezein",
+    "cheezen",
+    "samaan",
+    "saman",
+    "products",
+    "ideas",
+    "idea",
+    "options",
+    "suggest",
+    "suggestion",
+    "accessories",
+    "essentials",
+    "emaina",
+    "em",
+    "what"
+  ],
+  "gift_services": [
+    "wrap",
+    "wrapping",
+    "card",
+    "voucher",
+    "receipt",
+    "packing"
   ]
 }

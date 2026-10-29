@@ -46,6 +46,8 @@ CATALOGUE = [
     product("IR1", "Pavana Astra Dry Iron 1200 W - White", "Irons", 649, {"wattage_w": 1200}),
     product("IR2", "Zestro Amber Dry Iron 1000 W - Teal", "Irons", 389, {"wattage_w": 1000}),
     product("DB1", "Kridaa Core Dumbbell 5 kg", "Dumbbells", 999, {"weight_kg": 5}),
+    product("YM1", "Flexmora Calm Yoga Mat 6 mm - Purple", "Yoga Mats", 699, {"thickness_mm": 6}),
+    product("RB1", "Shuttlr Ember Resistance Bands Set of 3", "Resistance Bands", 399, {"pack_of": 3}),
     product("TF1", "Grindora Urban Table Fan 300 mm - Black", "Fans", 1299, {"fan_type": "table", "speed_settings": 3}),
     product("TF2", "Grindora Echo Table Fan 400 mm - White", "Fans", 1499, {"fan_type": "table", "speed_settings": 3}),
     product("LB1", "Mistique Zen Lip Balm 4.5 g", "Lip Balm", 99, {"spf": 15}),
@@ -150,6 +152,27 @@ class RealShopperTests(unittest.TestCase):
         self.assertEqual((r.action, r.claims.sections), (ANSWER, ["1.4"]))
         r = self.ask("package open chesaka return cheyocha?")  # "package" is not "pack" + "age"
         self.assertEqual((r.action, r.claims.sections), (ANSWER, ["6.1"]))
+
+    # needs and occasions, with no product named
+    def test_a_need_shows_one_product_of_each_kind_that_serves_it(self):
+        r = self.ask("Yaar ghar pe workout karne ke liye kya kya chahiye?")
+        self.assertEqual(r.action, ANSWER)
+        kinds = {self.a.index.products[pid].attributes["sub_category"] for pid in r.claims.products}
+        self.assertTrue(kinds <= {"Yoga Mats", "Dumbbells", "Resistance Bands", "Gym Gloves"}, kinds)
+        self.assertGreaterEqual(len(kinds), 3)
+
+    def test_a_need_keeps_the_budget(self):
+        r = self.ask("workout ke liye kuch chahiye under 500")
+        self.assertTrue(r.claims.products)
+        self.assertTrue(all(self.a.index.products[pid].price <= 500 for pid in r.claims.products), r.text)
+
+    def test_a_gift_with_nothing_else_asks_who_it_is_for(self):
+        self.assertEqual(self.ask("Mummy ka birthday hai, kuch accha gift suggest karo").action, CLARIFY)
+        self.assertNotEqual(self.ask("gift wrap karke bhej sakte ho?").action, CLARIFY)  # a service, not a present
+
+    def test_one_thing_asked_for_by_name_is_not_a_need(self):
+        self.assertNotEqual(self.ask("treadmill ghar ke liye").action, ANSWER)  # not "things for the home"
+        self.assertNotEqual(self.ask("I need a wooden study table, do you have one?").action, ANSWER)
 
 
 if __name__ == "__main__":
