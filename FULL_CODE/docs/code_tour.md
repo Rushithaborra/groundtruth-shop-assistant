@@ -36,7 +36,7 @@ mentions ("sunday delivery"), it says the policy is silent and quotes what it do
 |---|---|---|
 | Why no LLM? | We measured the provided models instead of assuming: the embedding fallback lowered the dev score (0.92 against 1.00 on the tune half); the 0.5B model took 13.4 s a call and cut its JSON off. Rules take about 1 ms and invent nothing. The fallbacks are still in the code, with timeouts, retries and fall-back to rules. | `models/`, README "AI usage" |
 | How do you know it doesn't lie? | Claims are recorded as they are written, then re-checked independently; the organisers' scorer agrees: 0 hallucinated prices. | `response.py` `Claims`, `checker.py` |
-| What's your score? | Official scorer, dev questions we never tuned on: 0.895 (pack baseline 0.8275); all 40 dev: 0.9475. Small samples; the hidden test may be lower. | `main.py score --part check` |
+| What's your score? | Official scorer, dev questions we never tuned on: 0.900 (pack baseline 0.8275); all 40 dev: 0.950; real shoppers' first questions: 0.556 before we fixed what they showed. Small samples; the hidden test may be lower. | `main.py score --part check` |
 | When does it refuse? | Products or brands the shop doesn't sell, facts the catalogue doesn't list ("missing is not no"), orders and accounts, policy topics the policy never mentions. | `refusals.py` |
 | When does it ask instead? | When "the" product could be several products at different prices, or "A or B which is better" (the catalogue has nothing to judge "better" by). | `listings.py` `clarify`, `choice` |
 | Hinglish and typos? | A Hinglish word list in `vocabulary.json`; typos are matched only against the catalogue's own words, so a typo can't turn into an invented product. | `parser.py`, `index.py` `_closest` |
@@ -44,7 +44,7 @@ mentions ("sunday delivery"), it says the policy is silent and quotes what it do
 | A new catalogue? | The vocabulary is built from the catalogue at load time; only synonyms and Hinglish are hand-written. | `index.py` `__init__` |
 | Speed and cost? | Mean 0.6 ms a query, 0 model tokens; an LLM writing every reply is estimated at about 13.4 s and 3,950 tokens a query. | `main.py report` |
 | Security? | Every API request is validated; same-site only; rate limits; security headers; replies are never rendered as HTML. | `api/validation.py`, `api/security.py` |
-| What is it bad at? | Words nobody prepared it for: on wording outside its word lists it scores about 0.51. It refuses rather than guesses, so it stays honest, but it is less helpful there. Questions from real shoppers are the next step. | README Limitations, `main.py shoppers` |
+| What is it bad at? | Requests for a need, not a product ("something for my morning workout", a gift); on wording it was never tuned on it scores about 0.73. It refuses rather than guesses, so it stays honest, but it is less helpful there. Questions from real shoppers are the next step. | README Limitations, `main.py shoppers` |
 | Who wrote what? | Both of us, with Claude Code; every commit and its author is in the README's pre-built-code table. | README |
 
 ## 4. Try it yourselves (20 minutes)

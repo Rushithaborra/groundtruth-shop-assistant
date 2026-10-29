@@ -726,6 +726,55 @@ What this shows: word lists help the words they contain and nothing else. Real s
 the honest next step; no more language rules will be written until they arrive, because anything written now would
 be shaped by our own holdouts.
 
+## Task 4: the first questions from real shoppers, 29 October
+
+64 messages (50 questions and 5 short conversations) from people who had never seen the code, collected by a
+teammate. Rules followed: saved word for word in `output/task4/` (git-ignored: other people's writing); every
+expected answer worked out from the catalogue and the policy by the pack's own rules (section 6) **before the
+assistant saw a question**; 53 judged by the official scorer, 11 open-ended ones ("gift ideas", "something for my
+morning workout") judged by hand against criteria written beforehand; scored once.
+
+**First contact: 0.556 official (53), 1.5 of 11 by hand, 0 hallucinated prices.** It never lied, but often refused
+or picked the wrong action. The patterns, each fixed as a general rule (tests in `tests/test_real_shoppers.py`):
+
+1. The pack's rule 6.2 in full: when the shopper means one product and several match, answer if they all give the
+   same answer, refuse if none records what was asked, and ask which one only when the answers differ.
+2. Rule 6.3: a question about a kind of product that asks nothing the catalogue records ("is the lip balm good for
+   daily use?", "sunscreen ka expiry date?") is refused; a named product keeps its own path.
+3. A kind named as a category counts as named, so filler words ("rn", "em", "travelling") no longer refuse it; a
+   refinement turn with filler ("budget 800 lopu undali") is not refused.
+4. Reading the message against the kind it names: the most specific kind wins ("shoes for daily walking" =
+   Walking Shoes), a value goes to the attribute that kind has ("oily" = skin_type for sunscreen), and common
+   words of other kinds become soft ("gym" for a water bottle) while names stay hard ("LumaPro").
+5. "grey or black" accepts either; "size 9" means UK 9; "how much is it?" after a listing asks which one ("much"
+   alone no longer thanks); "package" is not split into "pack" + "age"; attribute names are not asked by function
+   words ("price of" no longer asks about pack_of); slippers are no longer read as sandals.
+6. Policy: "how can I / kaise" finds the "How to ..." section; sections are ranked by how many different question
+   words they cover ("returned once the seal is opened" beats "Return window" for an opened product); "policy" is
+   not a topic word.
+7. Products the shop doesn't sell, named alone ("laptop", "mobile phone", "fridge", "rice"), are refused rather
+   than matched to laptop sleeves or a rice-water face wash (a short list, from Task 4 and the tune set only).
+
+| Measure | Before | After |
+|---|---|---|
+| **Shopper second holdout** (310, never inspected; wording outside every list) | **0.509** | **0.733** |
+| **Dev check half** (never used for decisions) | 0.895 | **0.900** |
+| Dev all 40 / tune half | 0.9475 / 1.000 | 0.950 / 1.000 |
+| Stress tune / holdout | 0.9996 / 0.988 | 0.9996 / **1.000** |
+| Shopper tune | 0.956 | 0.976 |
+| Task 4 (official 53) | 0.556 | 0.953 (**used**: not evidence) |
+| Task 4 open-ended (11, by hand) | 1.5 | 1.5 (needs and occasions: not addressed) |
+| Hallucinated prices; pack replies flagged by the grounding checker | 0; 0 of 190 | 0; 0 of 190 |
+| Test predictions | | 5 actions changed (a fridge refused; mobile stand, 4-jar mixer, cheapest 2000 W dryer and a blue follow-up answered), 1 policy citation (opened shampoo: 6.1) |
+| Tests | 229 | 240 |
+
+Mistakes caught on the way: three test-question regressions (a line name softened, a brand-named question refused,
+a policy question turned into "which kurta?") were found by reviewing changed replies and undone with general
+conditions; adding the specific words from those test questions ("ANC", "dho") was deliberately not done, as that
+would be tuning on the organisers' test set. **The Task 4 set is now used**; a fresh batch is needed to measure
+these fixes honestly. The labels were not changed after scoring, so three disagreements remain (bedsheets with 1 or
+2 pillow covers, keyboards and walking shoes answered as lists).
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

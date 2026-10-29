@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 225 tests
+uv run pytest        # 240 tests
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -152,7 +152,7 @@ per-query CSV and a summary to `FULL_CODE/output/reports/`. Measured on a MacBoo
 | | GroundTruth (measured) | An LLM writes every reply (**estimate**) |
 |---|---|---|
 | Answered by | rules, 100% of queries | the provided Qwen2.5-0.5B model |
-| Latency per query | mean 0.6 ms, p50 0.3 ms, p95 1.4 ms, max 8.0 ms | about 13.4 s |
+| Latency per query | mean 0.6 ms, p95 1.5 ms | about 13.4 s |
 | Model tokens per query | **0** | about 3,830 in + 120 out |
 | All 190 queries | 0.11 s, 0 tokens | about 42 minutes, about 750,000 tokens |
 
@@ -214,18 +214,21 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
 ## Limitations
 
 * **Official scores are on small samples.** The 40 dev questions were split in half: rules were tuned on one half,
-  and the other half (never inspected question by question) scores **0.895**, against the shipped baseline's 0.8275
-  on the same 20 questions. All 40 dev score 0.9475 (baseline 0.7315), but that includes the tuned half. A stress
+  and the other half (never inspected question by question) scores **0.900**, against the shipped baseline's 0.8275
+  on the same 20 questions. All 40 dev score 0.950 (baseline 0.7315), but that includes the tuned half. A stress
   set built from the catalogue (`main.py stress`: split and misspelt product names, Hinglish, unsold items,
-  unlisted facts) scores 0.988 on its held-back half; it was written by us, so it measures robustness to those
+  unlisted facts) scores 1.000 on its held-back half; it was written by us, so it measures robustness to those
   phrasings, not general accuracy. The organisers' 150 test questions are only used to write the submission.
-* **Words nobody prepared it for are its weak spot.** A shopper-language set (`main.py shoppers`: Hinglish and
-  Telugu-English phrasings, shoppers' own names such as "tiffin" or "parda", budgets like "1500 lopu", typos) is
-  split so its parts share no wording. Common Telugu-English and Hinglish shopping words have been added, but a
-  fresh part written afterwards, in wording outside every list, scores only **0.509**. Word lists don't reach words
-  they don't contain; questions from real shoppers (the brief's Task 4) or a stronger model are what would close
-  that gap. (The first held-back part, 0.603 before the vocabulary, is contaminated: the vocabulary was added with
-  its words in view.)
+* **Real shoppers: 0.556 on first contact.** 64 messages from people who had never seen the code (the brief's
+  Task 4: Hinglish, Telugu-English, vague and opinion questions) were labelled from the catalogue and policy before
+  the assistant saw them and scored once: **0.556** on the 53 the official scorer can judge, 0 hallucinated prices.
+  The patterns found there were fixed as general rules; a shopper-language part that was never inspected and
+  shares no wording with our lists then went from 0.509 to **0.733**. The Task 4 set is now used (0.953 after the
+  fixes, which is not evidence) and a fresh one is needed for the next honest measure.
+* **Needs and occasions, not products, are its weak spot.** "Something for my morning workout", "kitchen ki useful
+  items", "gift for amma" name a need, not a kind of product; it refuses or lists the wrong kind (1.5 of 11 such
+  Task 4 messages judged good). Mapping needs to kinds of product, by hand or with the provided embedding model, is
+  the next step.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
 * **No model in the shipped path.** The provided models were measured and didn't help on dev (see AI usage), so

@@ -7,13 +7,14 @@ below comes from a command that was run; "not done" means not done. L1 is on 30 
 
 | Measure (official scorer unless noted) | Result |
 |---|---|
-| Dev check half (20 questions, never tuned on) | **0.895** (shipped baseline 0.8275) |
-| All 40 dev questions (includes the half we tuned on) | 0.9475 (baseline 0.7315) |
-| Stress set from the catalogue, held-back half (81, written by us) | 0.988 |
-| Shopper-language set, second holdout (310, wording outside every list) | 0.509 (tune half 0.956; first holdout contaminated, see CHANGES) |
+| Dev check half (20 questions, never tuned on) | **0.900** (shipped baseline 0.8275) |
+| All 40 dev questions (includes the half we tuned on) | 0.950 (baseline 0.7315) |
+| Stress set from the catalogue, held-back half (81, written by us) | 1.000 |
+| **Real shoppers (Task 4), first and only honest scoring** (53 officially scored, of 64) | **0.556**; after fixes 0.953 (set now used, not evidence) |
+| Shopper-language set, second holdout (310, never inspected) | **0.733** (0.509 before the Task 4 fixes; tune half 0.976) |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 225 pass on Python 3.9 and 3.12 |
+| Tests | 240 pass on Python 3.9 and 3.12 |
 | Lint, format, `pip-audit` | clean |
 | Latency / model tokens | mean 0.6 ms a query / 0 |
 | Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |
@@ -28,7 +29,7 @@ These scores are on small samples and on sets we wrote; the hidden test score ma
 | 1. Restructure to the guidelines layout | done | `FULL_CODE/`, `main.py`, config, logging, lockfile, ruff, LF, licence |
 | 2. The organisers' data and format | done | loads the pack strictly; `submit` (the pack's validator accepts it); official scorer via `score`, with the shipped baseline per question type (`--baseline`); tuned on half of dev only |
 | 3. The provided models | done | measured; both fallbacks hurt or were too slow, so they are off; every model call has a timeout, retries, a fall-back to rules, logging and mocked tests |
-| **4. A fresh held-out set from people who haven't seen the code** | **not done** | needs people (G10). Our own `shoppers` set shows why it matters: wording outside our lists scores 0.509 |
+| 4. A fresh held-out set from people who haven't seen the code | done | 64 messages collected by a teammate (29 Oct), labelled before the assistant saw them, scored once: 0.556; fixed as general rules; the set is now used (CHANGES) |
 | 5. Known behaviour gaps | done, one part waits | "which sizes", "A or B", policy-silent: done. "Review the describing-word refusal rule" waits for Task 4 (G14) |
 | 6. Latency and token-cost report | done | `report`: mean 0.6 ms, 0 tokens; the LLM-every-query estimate is labelled as one |
 | 7. Web demo and API security | done, one look left | phone width checked in Chrome's phone emulation (G7); one look on a real phone left |
@@ -50,12 +51,12 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G6 | **Done 28 Oct.** Was 48 functions in `tools/` without docstrings; now 0. Only docstrings changed: the code is identical once they are ignored | rule 12: docstrings on key functions | AST count and AST comparison with the committed files | Sushanth with Claude Code | done |
 | G7 | Web demo at phone width | brief task 7 | **Checked 29 Oct in Chrome's phone emulation** (390×844 and 360×740): the whole demo script, a card flip, compare, a citation and `/insights`, 15 states each, 0 with horizontal overflow. Found and fixed a raw `sub_category: Kurtas` chip. Not yet tried on a real phone | Sushanth: one look on a real phone | P2 |
 | G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? Is `.gitattributes` allowed at the top level? | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
-| G9 | Round-1 deck showed old synthetic numbers (0.987, 88 tests, 0.8 ms) and "Rushita Bora" | honest reporting | deck text | Claude Code; Rushitha uses it | done: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`) shows 0 hallucinated prices, 0.895, ~1 ms, 225 tests, 0.635 → 0.895, stress 0.885 → 0.988; outside the repo; original untouched. Check the 60-second recording slides 3 and 7 mention exists |
-| G10 | Task 4 not done: no independent held-out set | brief rule 4, task 4 | | **Sushanth + friends** collect; Rushitha + Claude Code score once | **P1** |
+| G9 | Round-1 deck showed old synthetic numbers (0.987, 88 tests, 0.8 ms) and "Rushita Bora" | honest reporting | deck text | Claude Code; Rushitha uses it | done: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`) shows 0 hallucinated prices, 0.900, ~1 ms, 240 tests, 0.635 → 0.900, stress 0.885 → 1.000; outside the repo; original untouched. Check the 60-second recording slides 3 and 7 mention exists |
+| G10 | Task 4: no independent held-out set | brief rule 4, task 4 | | teammate collected 64; Rushitha + Claude Code scored once | done (29 Oct): 0.556 on first contact; the set is now used |
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
 | G12 | "Every team member must be able to explain the code" | fair play | | both: `docs/code_tour.md` (about an hour, or "quiz me" with Claude Code) | **P1, before L1** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
-| G14 | Real shoppers' language. **Done as far as rules honestly go (29 Oct):** typos in category names, swapped/doubled letters, "irons", kind names read as attribute questions, policy headings, shoppers' own words, common Telugu-English and Hinglish shopping words, budgets like "1500 rupees max" / "1500 lopu". Dev check 0.865 → 0.895, stress holdout 0.961 → 0.988. **Still weak:** wording outside every list scores 0.509 (fresh holdout); unsold items that share a word with a product ("rice") wait for Task 4, as the brief says for the describing-word rule. No more language changes until Task 4's questions: any rule written now would be shaped by our own holdouts | `main.py shoppers --part holdout2` | Claude Code with Task 4 data | P2 |
+| G14 | Real shoppers' language. **Done 29 Oct, from Task 4:** the pack's rule 6.2 applied fully, questions the catalogue can't answer refused, filler words, values read against the kind's own attribute, the most specific kind, "X or Y", sizes, refinements, "how much is it?", policy how-to and section ranking, unsold products named alone; plus typos, shopper words and budgets. Fresh holdout 0.509 → 0.733; dev check 0.865 → 0.900; stress holdout 0.961 → 1.000. **Still weak:** needs and occasions ("something for my morning workout", gifts): 1.5 of 11 judged good | `main.py shoppers --part holdout2`; Task 4 | Claude Code; a fresh Task 4 batch to measure | P2 |
 | G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | done (29 Oct) |
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 | G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
@@ -80,8 +81,8 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 
 | # | What | Who | Gap |
 |---|---|---|---|
-| 7 | 50+ questions from people who haven't seen the code (Hinglish, Telugu-English, short, misspelt): about 20 on a product's price, stock or a detail, 10 vague, 10 for things the store doesn't sell, 10 on returns, delivery, warranty, payment, cancellation. One per row in a shared sheet; **don't show them the code, the dev questions or our replies** | Sushanth + friends | G10 |
-| 8 | Score them once (expected answers by filtering the catalogue), then fix what they show, including the describing-word rule | Rushitha + Claude Code | G10, G14 |
+| 7 | Needs and occasions ("morning workout", "gift for amma"): try the provided embedding model, narrowly, and keep it only if it measurably helps | Rushitha + Claude Code | G14 |
+| 8 | A fresh batch of 50+ shopper questions (the first is now used), collected the same way, to measure the fixes honestly | teammate + friends | G10 |
 
 If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
 
@@ -90,8 +91,8 @@ If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code ch
 * Before anything: `git pull --rebase origin main`; say in the group chat when you push; never commit `.env`,
   `data/pack/`, `models/` or `output/`.
 * After any change: `uv run pytest -q`, `uv run ruff check . && uv run ruff format --check .`, and with the pack
-  `uv run python main.py score --part all` (must stay at least 0.9475), `uv run python main.py stress --part tune`
-  (0.9996) and `uv run python main.py shoppers --part tune` (0.9564). Rebuild the zip after the last push.
+  `uv run python main.py score --part all` (must stay at least 0.950), `uv run python main.py stress --part tune`
+  (0.9996) and `uv run python main.py shoppers --part tune` (0.9761). Rebuild the zip after the last push.
 
 ## 6. Learning the code (for both of us)
 
