@@ -52,10 +52,10 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G9 | Round-1 deck shows old synthetic numbers (0.987, 88 tests, 0.8 ms); slide 1 has "Rushita Bora" and "Retail • Biotechnology" | honest reporting | deck text | Rushitha decides | updated copy made: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`), outside the repo; original untouched |
 | G10 | Task 4 not done: no independent held-out set | brief rule 4, task 4 | | **Sushanth + friends** collect; Rushitha + Claude Code score once | **P1** |
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
-| G12 | "Every team member must be able to explain the code" | fair play | Sushanth hasn't been walked through the core | both (section 6) | **P1** |
+| G12 | "Every team member must be able to explain the code" | fair play | | both: read `docs/code_tour.md` together and do its section 4 | **P1, tonight** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
 | G14 | Known behaviour limits: unusual synonyms are refused; "policy is silent" covers delivery days/times only; refusals for unlisted facts score 0.75 on the stress holdout (not inspected) | | CHANGES.md | Claude Code, after Task 4 data | P2 |
-| G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | **P1** |
+| G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | done (29 Oct) |
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 | G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
 | G18 | Demo script step 2 failed when typed after step 1: "cotton kurti for women" kept step 1's "blue running shoes" and refused; the retailer view filed iPhone under "words I couldn't place" | the demo | phone run of the script | Claude Code | done: a new kind of product starts a new search; known outside brands count as demand |
@@ -94,6 +94,9 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
   (must stay 0.9996). Run with the pack on 29 October: unchanged (0.9325, 0.9996; holdout 0.9611).
 
 ## 6. Learning the code (for both of us)
+
+Start with `docs/code_tour.md`: one message traced through the code, the likely judge questions with where to
+point, and 20 minutes of exercises. The reading order below is for going deeper.
 
 Read in this order; each file is short:
 
