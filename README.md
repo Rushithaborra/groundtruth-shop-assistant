@@ -151,14 +151,14 @@ per-query CSV and a summary to `FULL_CODE/output/reports/`. Measured on a MacBoo
 | | GroundTruth (measured) | An LLM writes every reply (**estimate**) |
 |---|---|---|
 | Answered by | rules, 100% of queries | the provided Qwen2.5-0.5B model |
-| Latency per query | mean 1.3 ms, p50 0.8 ms, p95 3.2 ms, max 11.5 ms | about 13.4 s |
+| Latency per query | mean 1.3 ms, p50 0.8 ms, p95 3.2 ms, max 11.7 ms | about 13.4 s |
 | Model tokens per query | **0** | about 3,830 in + 120 out |
 | All 190 queries | 0.25 s, 0 tokens | about 42 minutes, about 750,000 tokens |
 
 The estimate comes from one measured call of the provided model with the prompt it needs to stay grounded (the
 catalogue's allowed product types and attribute values), multiplied by the number of queries; it was not run for
 every query. The pack states no token or cost budget; GroundTruth's cost is CPU time only. The per-query CSV also
-gives an estimate of the context each reply cites (mean 139 tokens) and of the reply itself (mean 62 tokens), about
+gives an estimate of the context each reply cites (mean 139 tokens) and of the reply itself (mean 55 tokens), about
 four characters per token.
 
 ## AI usage
@@ -187,23 +187,26 @@ documentation. The team reviewed every change and can explain the code.
 ## Pre-built and third-party code
 
 **Written for this hackathon before Day 1 (30 October 2026).** All the code in this repository was written for this
-hackathon. These commits came before Day 1:
+hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit so far
+came before Day 1 (`git log` has the full history):
 
-| Date | Commit | What |
-|---|---|---|
-| 2026-10-15 | `ed014d7` | Grounded assistant, evaluator and synthetic data |
-| 2026-10-15 | `49effd0` | Negation, comparisons, split words, multi-intent; hard and scale test sets |
-| 2026-10-15 | `b9bc130` | Inverted-index search, cached typo matching, session store, benchmark |
-| 2026-10-16 | `8898bec` | Fewer false refusals, tolerant catalogue loading, model fallbacks, held-out evaluation |
-| 2026-10-18 | `b28bb0f` | Compare, retailer view, snapshot dates |
-| 2026-10-18 | `1321d50` | Retail UI; shopper-phrasing fixes; held-out set 2 |
-| 2026-10-27 to 28 | `d098c6e` … `8d8e35d` | Restructure to the guidelines layout, config file, logging (no behaviour change) |
+| Dates | Commits | Author | What |
+|---|---|---|---|
+| 2026-10-15 | `ed014d7`, `49effd0`, `b9bc130` | Sushanth Kilari | First grounded assistant, evaluator and synthetic data; negation, comparisons, multi-intent; inverted-index search, typo matching, session store, benchmark |
+| 2026-10-16 to 18 | `8898bec`, `b28bb0f`, `1321d50` | Rushitha Borra | Fewer false refusals, tolerant catalogue loading, model fallbacks, held-out sets; compare, retailer view, snapshot dates; retail UI |
+| 2026-10-27 to 28 | `d098c6e` to `173642c` | Rushitha Borra | Restructure to the guidelines layout: `FULL_CODE/`, `main.py`, config, logging, lockfile, ruff, licence, README (no behaviour change) |
+| 2026-10-28 | `7cb6fd5` to `7640361` | Rushitha Borra | The problem pack: loading, structured claims, submission file, the official scorer beside the baseline, dev split |
+| 2026-10-28 | `36eb7d6` to `950f46b` | Rushitha Borra | The pack's answering rules; measuring the provided models; latency and token report; submission zip builder |
+| 2026-10-28 | `4411aea` to `552edb4` | Rushitha Borra | API validation and security headers; behaviour gaps; hardening; catalogue stress set and the fixes it found |
+| 2026-10-28 | `f7cedbb` | Sushanth Kilari | Read the request body before refusing (flaky connection resets on Windows) |
+| 2026-10-28 | `e3901d7` onwards | Rushitha Borra | Fixes found while rehearsing the demo; demo script; status document; README and lint fixes |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
-development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT), pytest
-(MIT) and pip-audit (Apache-2.0). The optional
-model fallbacks load the provided models with Hugging Face transformers or sentence-transformers (Apache-2.0) and
-PyTorch (BSD-3-Clause), installed only when the models are used.
+development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),
+pytest (MIT), pip-audit (Apache-2.0), and numpy and pandas (BSD-3-Clause), which only the organisers' scorer and
+baseline need. The optional model fallbacks, off by default and not in the lockfile, use sentence-transformers
+(Apache-2.0), PyTorch (BSD-3-Clause) and llama-cpp-python (MIT). The problem pack's data is the organisers'
+(CC BY 4.0) and stays out of the repository.
 
 ## Limitations
 
