@@ -38,8 +38,8 @@ python3 main.py report                                # latency and token cost o
 
 Say it plainly:
 
-* Official scorer, dev questions we never tuned on: **0.865**, against the shipped baseline's 0.8275 on the same 20
-  questions (small sample). All 40 dev: 0.9325 against 0.7315.
+* Official scorer, dev questions we never tuned on: **0.895**, against the shipped baseline's 0.8275 on the same 20
+  questions (small sample). All 40 dev: 0.9475 against 0.7315.
 * **0 hallucinated prices** in every run. Prices are copied from the catalogue by code; the reply cannot contain a
   rupee amount that isn't a cited product's price or MRP, a policy amount, or the shopper's own budget.
 * **0 model tokens, about 1 ms per query.** We measured the provided 0.5B model: 13 s and about 3,800 tokens per

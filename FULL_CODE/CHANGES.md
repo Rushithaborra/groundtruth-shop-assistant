@@ -610,6 +610,57 @@ Every number is from a command run on 29 October, after `c632eb1`.
 All four were found with our own probes and the demo script, never with dev or test questions, so nothing is
 contaminated.
 
+## Real shoppers' language, 29 October
+
+A new set, `main.py shoppers` (`tools/shoppers.py`), built from the catalogue and the policy headings, never from dev
+or test questions: budget listings, cheapest-one questions, misspelt product words, shoppers' own names for things,
+price and stock questions in Hinglish and Telugu-English, policy questions and unsold items, 371 questions. Expected
+answers come from filtering the catalogue. **The halves differ by wording, not only by product**: every phrasing,
+shopper word and unsold item is listed in exactly one half (a test checks it), so the holdout measures words nobody
+tuned for. Failures were read and fixed on the tune half only; the holdout's per-question results were never opened.
+
+| Measure (official scorer) | Before | After |
+|---|---|---|
+| Shopper set, tune half (203) | 0.836 | 0.956 |
+| **Shopper set, holdout (168), wording never seen** | **0.535** | **0.603** |
+| Dev tune half | 1.000 | 1.000 |
+| **Dev check half** (not used for decisions) | **0.865** | **0.895** |
+| Dev, all 40 | 0.9325 | 0.9475 |
+| Stress tune / **holdout** | 0.9996 / **0.961** | 0.9996 / **0.988** |
+| Hallucinated prices; pack replies flagged by the grounding checker | 0; 0 of 190 | 0; 0 of 190 |
+| Test predictions changed | | 5 texts; 1 refusal now answered with the price; 0 other actions |
+| Latency mean / p95 (`report`) | 0.7 / 1.6 ms | 0.6 / 1.4 ms |
+| Tests (Python 3.9 and 3.12) | 214 | 225 |
+
+General fixes (each with a test that fails on the previous code, `tests/test_shopper_language.py`):
+
+1. **Typos inside category names.** Category names were matched before typos were fixed, so "runniing shoes" read
+   as "shoes" alone (Sneakers) plus "running" and found nothing. A value of several words may now have one misspelt
+   word when its others are exact. Values that can't match a message are skipped before scanning it, which made
+   parsing faster overall.
+2. **Swapped and doubled letters** ("sihrts", "pecnils", "kurttis") are tried before the similarity ratio, which
+   scores them too low.
+3. **A word that is both a material and a kind** ("irons") names the kind when no other kind is named; "iron tawa"
+   keeps material iron. Of equal-length values, kinds are now matched last, so this no longer depends on the order
+   of the catalogue's attributes.
+4. **A kind's own name is not an attribute question.** "...sarees kitne ka hai" answered the saree length and
+   dropped the price (`saree_length_m` shares the word); "data cable" ignored "cable" (`cable_type`). Only a kind's
+   head noun counts: "water" in Water Bottles still asks about water resistance ("paani me chalega").
+5. **Head nouns** included only each title's last word, which in the pack is usually a colour ("... - White"); they
+   now also include each kind's head noun.
+6. **Policy.** A section whose heading names the topic is found even when its body stems the word differently
+   ("Exchanges" / "exchanged" was refused); sections are chosen by how many question words they cover, each counted
+   once, so "delivery kitne din" gets 2.2 Delivery timelines instead of a return sentence.
+
+Vocabulary from the tune half only: tiffin, mixie, chadar/chaddar, copy, sunblock, deo, tws, suitcase, sari, kadhai,
+sipper, jump (rope). Left out on purpose: "lower" (it would turn "lower price" into track pants) and "post it".
+
+**Still weak, and why it isn't patched:** the holdout's 0.603 is mostly words no list contains (Telugu words such
+as "chupinchu" and "lopu", names such as "press" for an iron). Adding them now would be tuning on the holdout. And
+unsold items that share a word with a product ("rice" lists a rice-water face wash, "mobile phone" lists mobile
+stands) are the describing-word rule the brief says to review against Task 4's questions. Measurement count: the
+shopper holdout was scored at the start, once mid-way and at the end (headline only); the stress holdout likewise.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

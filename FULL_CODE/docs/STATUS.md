@@ -7,14 +7,15 @@ that was run; "not done" means not done.
 
 | Measure (official scorer unless noted) | Result |
 |---|---|
-| Dev check half (20 questions, never tuned on) | **0.865** (shipped baseline 0.8275) |
-| All 40 dev questions (includes the half we tuned on) | 0.9325 (baseline 0.7315) |
-| Stress set from the catalogue, held-back half (81, written by us) | 0.961 |
+| Dev check half (20 questions, never tuned on) | **0.895** (shipped baseline 0.8275) |
+| All 40 dev questions (includes the half we tuned on) | 0.9475 (baseline 0.7315) |
+| Stress set from the catalogue, held-back half (81, written by us) | 0.988 |
+| Shopper-language set, held-back half (168, wording never tuned on) | 0.603 (tune half 0.956) |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 214 pass on Python 3.9 and 3.12 |
+| Tests | 225 pass on Python 3.9 and 3.12 |
 | Lint, format, `pip-audit` | clean |
-| Latency / model tokens | mean 0.7 ms a query / 0 |
+| Latency / model tokens | mean 0.6 ms a query / 0 |
 | Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |
 | Submission zip (`python3 main.py package`) | checklist passes |
 
@@ -54,7 +55,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
 | G12 | "Every team member must be able to explain the code" | fair play | | both: read `docs/code_tour.md` together and do its section 4 | **P1, tonight** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
-| G14 | Known behaviour limits: unusual synonyms are refused; "policy is silent" covers delivery days/times only; refusals for unlisted facts score 0.75 on the stress holdout (not inspected) | | CHANGES.md | Claude Code, after Task 4 data | P2 |
+| G14 | Real shoppers' language. **Partly done 29 Oct:** typos inside category names, swapped/doubled letters, material-or-kind words ("irons"), a kind's name read as an attribute question, policy headings (exchange, delivery days), 13 shoppers' words; shopper holdout 0.535 → 0.603, dev check 0.865 → 0.895, stress holdout 0.961 → 0.988. **Still weak:** words nobody prepared it for (Telugu words, local names); unsold items that share a word with a product ("rice" → rice-water face wash) wait for Task 4, as the brief says for the describing-word rule | `main.py shoppers` | Claude Code; Task 4 data from Sushanth | P2 |
 | G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | done (29 Oct) |
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 | G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
@@ -90,8 +91,8 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 * Collect the Task 4 questions from friends who haven't seen the code (G10).
 * Type hints (G5), splitting long functions (G4) and `tools/` docstrings (G6): done on 28 October, one commit per
   file. Still to do before pushing: with the pack in `FULL_CODE/data/pack/`, run
-  `uv run python main.py score --part all` (must stay 0.9325) and `uv run python main.py stress --part tune`
-  (must stay 0.9996). Run with the pack on 29 October: unchanged (0.9325, 0.9996; holdout 0.9611).
+  `uv run python main.py score --part all` (must stay 0.9475) and `uv run python main.py stress --part tune`
+  (must stay 0.9996), and `uv run python main.py shoppers --part tune` (must stay 0.9564).
 
 ## 6. Learning the code (for both of us)
 
