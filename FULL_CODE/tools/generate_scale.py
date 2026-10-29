@@ -97,21 +97,7 @@ def make_scale_catalogue() -> list[dict]:
         if title in used:
             continue
         used.add(title)
-        attrs = {"brand": brand, "color": color, "material": material}
-        if t["gender"]:
-            attrs["gender"] = rng.choice(t["gender"])
-        if t["sizes"]:
-            attrs["size"] = t["sizes"]
-        if t.get("warranty"):
-            attrs["warranty"] = t["warranty"]
-        if rng.random() < 0.10:  # messy
-            roll = rng.random()
-            if roll < 0.4:
-                attrs["Colour"] = attrs.pop("color").upper() + " "
-            elif roll < 0.7:
-                attrs["material"] = attrs["material"].upper()
-            else:
-                attrs.pop("material")
+        attrs = _attributes(t, brand, color, material)
         lo, hi = t["price"]
         products.append(
             {
@@ -127,6 +113,26 @@ def make_scale_catalogue() -> list[dict]:
             }
         )
     return products
+
+
+def _attributes(t: dict, brand: str, color: str, material: str) -> dict:
+    """A product's attributes; about a tenth get a messy spelling ("Colour": "BLUE ") or lose their material."""
+    attrs = {"brand": brand, "color": color, "material": material}
+    if t["gender"]:
+        attrs["gender"] = rng.choice(t["gender"])
+    if t["sizes"]:
+        attrs["size"] = t["sizes"]
+    if t.get("warranty"):
+        attrs["warranty"] = t["warranty"]
+    if rng.random() < 0.10:  # messy
+        roll = rng.random()
+        if roll < 0.4:
+            attrs["Colour"] = attrs.pop("color").upper() + " "
+        elif roll < 0.7:
+            attrs["material"] = attrs["material"].upper()
+        else:
+            attrs.pop("material")
+    return attrs
 
 
 def main() -> None:

@@ -19,6 +19,7 @@ import hashlib
 import json
 import random
 import re
+from collections.abc import Iterable
 
 from groundtruth.builder import build_assistant
 from groundtruth.config import get_settings
@@ -89,20 +90,24 @@ def _part_of(key: str) -> str:
     return "tune" if int(hashlib.sha256(key.encode()).hexdigest(), 16) % 2 == 0 else "holdout"
 
 
-def build(catalogue: list[dict], n_products: int = 120, seed: int = SEED) -> list[dict]:
-    """Truth rows (the official scorer's format) for questions about sampled products and unsold items."""
-    rng = random.Random(seed)
-    by_identity: dict[tuple, list[dict]] = {}
-    for p in catalogue:
-        by_identity.setdefault(_identity(p), []).append(p)
-    rows: list[dict] = []
+class _Rows(list):
+    """Truth rows in the official scorer's format."""
 
-    def add(text: str, action: str, qtype: str, part: str, products=(), facts=(), candidates=()) -> None:
+    def add(
+        self,
+        text: str,
+        action: str,
+        qtype: str,
+        part: str,
+        products: Iterable[str] = (),
+        facts: Iterable[dict] = (),
+        candidates: Iterable[str] = (),
+    ) -> None:
         """Add one stress question with its expected action, type, part and the products and facts it needs."""
-        rows.append(
+        self.append(
             {
-                "question_id": f"S-{len(rows):04d}",
-                "conversation_id": f"SC-{len(rows):04d}",
+                "question_id": f"S-{len(self):04d}",
+                "conversation_id": f"SC-{len(self):04d}",
                 "turn": 1,
                 "question_text": text,
                 "expected_action": action,
@@ -115,38 +120,50 @@ def build(catalogue: list[dict], n_products: int = 120, seed: int = SEED) -> lis
             }
         )
 
+
+def build(catalogue: list[dict], n_products: int = 120, seed: int = SEED) -> list[dict]:
+    """Truth rows (the official scorer's format) for questions about sampled products and unsold items."""
+    rng = random.Random(seed)
+    by_identity: dict[tuple, list[dict]] = {}
+    for p in catalogue:
+        by_identity.setdefault(_identity(p), []).append(p)
+    rows = _Rows()
     for p in rng.sample(catalogue, n_products):
-        part, matches = _part_of(p["product_id"]), by_identity[_identity(p)]
-        name = _name(p, rng.randrange(4), rng)
-        if len(matches) > 1:
-            if len({m["price_inr"] for m in matches}) > 1:  # same name, different prices: ask which one
-                ids = [m["product_id"] for m in matches]
-                add(rng.choice(PRICE_ASKS).format(name=name), "clarify", "clarify_ambiguous", part, candidates=ids)
-            continue
-        pid = p["product_id"]
-        kind = rng.randrange(4)
-        if kind == 0:
-            fact = {"product_id": pid, "field": "price_inr", "value": p["price_inr"]}
-            add(rng.choice(PRICE_ASKS).format(name=name), "answer", "answer_lookup", part, [pid], [fact])
-        elif kind == 1:
-            fact = {"product_id": pid, "field": "stock_status", "value": p["stock_status"]}
-            add(rng.choice(STOCK_ASKS).format(name=name), "answer", "answer_lookup", part, [pid], [fact])
-        elif kind == 2 and "material" in p["attributes"]:
-            fact = {"product_id": pid, "field": "material", "value": p["attributes"]["material"]}
-            add(rng.choice(MATERIAL_ASKS).format(name=name), "answer", "answer_attribute", part, [pid], [fact])
-        elif kind == 3 or kind == 2:
-            attrs = p["attributes"]
-            if "water_resistant" in attrs:
-                fact = {"product_id": pid, "field": "water_resistant", "value": attrs["water_resistant"]}
-                add(rng.choice(WATER_ASKS).format(name=name), "answer", "answer_attribute", part, [pid], [fact])
-            elif "water_resistance_rating" not in attrs:
-                add(rng.choice(WATER_ASKS).format(name=name), "refuse", "refuse_unanswerable", part, [pid])
+        _product_question(rows, p, by_identity[_identity(p)], rng)
     for (colour, sub), ids in _vague_groups(catalogue, rng):
         ask = rng.choice(VAGUE_ASKS).format(colour=colour, kind=sub.lower())
-        add(ask, "clarify", "clarify_ambiguous", _part_of(colour + sub), candidates=ids)
+        rows.add(ask, "clarify", "clarify_ambiguous", _part_of(colour + sub), candidates=ids)
     for item in NOT_SOLD:
-        add(rng.choice(NOT_SOLD_ASKS).format(item=item), "refuse", "refuse_out_of_catalogue", _part_of(item))
-    return rows
+        rows.add(rng.choice(NOT_SOLD_ASKS).format(item=item), "refuse", "refuse_out_of_catalogue", _part_of(item))
+    return list(rows)
+
+
+def _product_question(rows: _Rows, p: dict, matches: list[dict], rng: random.Random) -> None:
+    """One question about a sampled product: which one (several share its name), or its price, stock, material
+    or water resistance, the last refused when the catalogue doesn't list it."""
+    part = _part_of(p["product_id"])
+    name = _name(p, rng.randrange(4), rng)
+    if len(matches) > 1:
+        if len({m["price_inr"] for m in matches}) > 1:  # same name, different prices: ask which one
+            ids = [m["product_id"] for m in matches]
+            rows.add(rng.choice(PRICE_ASKS).format(name=name), "clarify", "clarify_ambiguous", part, candidates=ids)
+        return
+    pid, attrs = p["product_id"], p["attributes"]
+    kind = rng.randrange(4)
+    if kind == 0:
+        fact = {"product_id": pid, "field": "price_inr", "value": p["price_inr"]}
+        rows.add(rng.choice(PRICE_ASKS).format(name=name), "answer", "answer_lookup", part, [pid], [fact])
+    elif kind == 1:
+        fact = {"product_id": pid, "field": "stock_status", "value": p["stock_status"]}
+        rows.add(rng.choice(STOCK_ASKS).format(name=name), "answer", "answer_lookup", part, [pid], [fact])
+    elif kind == 2 and "material" in attrs:
+        fact = {"product_id": pid, "field": "material", "value": attrs["material"]}
+        rows.add(rng.choice(MATERIAL_ASKS).format(name=name), "answer", "answer_attribute", part, [pid], [fact])
+    elif "water_resistant" in attrs:
+        fact = {"product_id": pid, "field": "water_resistant", "value": attrs["water_resistant"]}
+        rows.add(rng.choice(WATER_ASKS).format(name=name), "answer", "answer_attribute", part, [pid], [fact])
+    elif "water_resistance_rating" not in attrs:
+        rows.add(rng.choice(WATER_ASKS).format(name=name), "refuse", "refuse_unanswerable", part, [pid])
 
 
 def _vague_groups(catalogue: list[dict], rng: random.Random, n: int = 16) -> list[tuple]:

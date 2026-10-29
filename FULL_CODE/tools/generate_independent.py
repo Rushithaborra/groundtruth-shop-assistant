@@ -13,8 +13,9 @@ calling the assistant), so the ground truth is independent of the code under tes
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 
-from groundtruth.catalogue import load_catalogue  # field-name normalisation only
+from groundtruth.catalogue import Product, load_catalogue  # field-name normalisation only
 from groundtruth.config import get_settings
 from groundtruth.console import write_out
 
@@ -22,27 +23,27 @@ SCALE = get_settings().paths.scale_dir
 PRODUCTS = load_catalogue(SCALE / "catalogue.jsonl")
 
 
-def ptype(p) -> str:
+def ptype(p: Product) -> str:
     """The product type at the end of a title: 'Brand Model 3 Running Shoes (Blue)' gives 'Running Shoes'."""
     return p.title.split("(")[0].strip().split(" ", 3)[-1]  # "Brand Model N Running Shoes (Blue)" -> "Running Shoes"
 
 
-def attr(p, key) -> list[str]:
+def attr(p: Product, key: str) -> list[str]:
     """A product's values for an attribute, stripped and lower-cased."""
     return [v.strip().lower() for v in p.attr_values(key)]
 
 
 def pick(
-    types=None,
-    max_price=None,
-    min_price=None,
-    color=None,
-    material=None,
-    gender=None,
-    size=None,
-    category=None,
-    brand=None,
-):
+    types: set[str] | None = None,
+    max_price: float | None = None,
+    min_price: float | None = None,
+    color: str | None = None,
+    material: str | None = None,
+    gender: list[str] | None = None,
+    size: str | None = None,
+    category: str | None = None,
+    brand: str | None = None,
+) -> list[Product]:
     """Catalogue products matching every given constraint; expected answers are worked out this way."""
     out = []
     for p in PRODUCTS:
@@ -68,7 +69,7 @@ def pick(
     return out
 
 
-def ids(ps):
+def ids(ps: list[Product]) -> list[str]:
     """The ids of these products."""
     return [p.id for p in ps]
 
@@ -76,7 +77,7 @@ def ids(ps):
 Q: list[dict] = []
 
 
-def listing(qid, turns, ps, accept=("answer",)):
+def listing(qid: str, turns: list[str], ps: list[Product], accept: tuple[str, ...] = ("answer",)) -> None:
     """Add a browsing question: expected to cite only products that fit, or to be refused when none do."""
     behaviour = list(accept) if ps else ["refuse"]
     exp = {"behaviour": behaviour if len(behaviour) > 1 else behaviour[0]}
@@ -85,7 +86,7 @@ def listing(qid, turns, ps, accept=("answer",)):
     Q.append({"id": qid, "turns": turns, "category": "answerable", "expected": exp})
 
 
-def single(qid, turns, p, must=()):
+def single(qid: str, turns: list[str], p: Product, must: Iterable[str] = ()) -> None:
     """Add a question about one product: expected to answer with that product and the given text."""
     Q.append(
         {
@@ -97,17 +98,17 @@ def single(qid, turns, p, must=()):
     )
 
 
-def clarify(qid, turns):
+def clarify(qid: str, turns: list[str]) -> None:
     """Add a question that fits several products: expected to ask which one."""
     Q.append({"id": qid, "turns": turns, "category": "ambiguous", "expected": {"behaviour": "clarify"}})
 
 
-def refuse(qid, turns):
+def refuse(qid: str, turns: list[str]) -> None:
     """Add a question about something the shop doesn't sell: expected to be refused."""
     Q.append({"id": qid, "turns": turns, "category": "out_of_catalogue", "expected": {"behaviour": "refuse"}})
 
 
-def policy(qid, turns, sections, must=()):
+def policy(qid: str, turns: list[str], sections: list[str], must: Iterable[str] = ()) -> None:
     """Add a policy question: expected to answer from the given policy sections and include the given text."""
     Q.append(
         {

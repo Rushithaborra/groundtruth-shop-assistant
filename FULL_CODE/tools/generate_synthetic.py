@@ -212,7 +212,7 @@ TYPES = [
 def make_catalogue() -> list[dict]:
     """The small synthetic catalogue, with exactly three blue running shoes so that 'the blue running
     shoe' is an ambiguous question."""
-    products, used, counter = [], set(), 1
+    products, used = [], set()
     for t in TYPES:
         made = 0
         while made < t["n"]:
@@ -220,37 +220,38 @@ def make_catalogue() -> list[dict]:
             if (brand, model, t["name"]) in used:
                 continue
             used.add((brand, model, t["name"]))
-            material = rng.choice(t["materials"])
-            color = rng.choice(COLORS) if t["category"] != "Home" or t["name"] == "Bedsheet" else rng.choice(COLORS)
-            attrs = {"brand": brand, "color": color, "material": material}
-            if t["gender"]:
-                attrs["gender"] = rng.choice(t["gender"])
-            if t["sizes"]:
-                attrs["size"] = t["sizes"]
-            if t.get("warranty"):
-                attrs["warranty"] = t["warranty"]
-            lo, hi = t["price"]
-            products.append(
-                {
-                    "id": f"P{counter:04d}",
-                    "title": f"{brand} {model} {t['name']}",
-                    "description": t["desc"].format(material=material),
-                    "category": t["category"],
-                    "attributes": attrs,
-                    "price": int(round(rng.uniform(lo, hi), -1)) - 1,
-                    "in_stock": rng.random() > 0.15,
-                    "rating": round(rng.uniform(3.2, 4.8), 1),
-                    "rating_count": rng.randint(12, 2400),
-                }
-            )
-            counter += 1
+            products.append(_product(t, brand, model, len(products) + 1))
             made += 1
     # trap: exactly three blue running shoes, so "the blue running shoe" is ambiguous
     shoes = [p for p in products if p["title"].endswith("Running Shoes")]
     for i, p in enumerate(shoes):
         p["attributes"]["color"] = "blue" if i < 3 else rng.choice([c for c in COLORS if c != "blue"])
-    # make sure a single black t-shirt is not accidentally the only one, and one cotton kurta is cheap
     return products
+
+
+def _product(t: dict, brand: str, model: str, number: int) -> dict:
+    """One product of type `t`; its material, colour, gender, price, stock and rating are drawn at random."""
+    material = rng.choice(t["materials"])
+    color = rng.choice(COLORS) if t["category"] != "Home" or t["name"] == "Bedsheet" else rng.choice(COLORS)
+    attrs = {"brand": brand, "color": color, "material": material}
+    if t["gender"]:
+        attrs["gender"] = rng.choice(t["gender"])
+    if t["sizes"]:
+        attrs["size"] = t["sizes"]
+    if t.get("warranty"):
+        attrs["warranty"] = t["warranty"]
+    lo, hi = t["price"]
+    return {
+        "id": f"P{number:04d}",
+        "title": f"{brand} {model} {t['name']}",
+        "description": t["desc"].format(material=material),
+        "category": t["category"],
+        "attributes": attrs,
+        "price": int(round(rng.uniform(lo, hi), -1)) - 1,
+        "in_stock": rng.random() > 0.15,
+        "rating": round(rng.uniform(3.2, 4.8), 1),
+        "rating_count": rng.randint(12, 2400),
+    }
 
 
 POLICY = (
@@ -279,7 +280,14 @@ POLICY = (
 )
 
 
-def is_match(p, *, title_has=None, filters=None, max_price=None, min_price=None):
+def is_match(
+    p: dict,
+    *,
+    title_has: str | None = None,
+    filters: dict | None = None,
+    max_price: float | None = None,
+    min_price: float | None = None,
+) -> bool:
     """Whether a product fits a title word, attribute values and a price range; used to work out expectations."""
     if title_has and title_has.lower() not in (p["title"] + " " + p["category"]).lower():
         return False
@@ -292,134 +300,178 @@ def is_match(p, *, title_has=None, filters=None, max_price=None, min_price=None)
     return not (min_price is not None and p["price"] < min_price)
 
 
-def make_questions(products: list[dict]) -> list[dict]:
-    """The standard question set for a catalogue (facts, searches, ambiguity, refusals, policy,
-    multi-turn), with expectations computed by brute force over the catalogue."""
-    qs: list[dict] = []
+class _StandardQuestions:
+    """Builds the standard question set section by section; expectations come from filtering the catalogue."""
 
-    def add(turns, behaviour, **expected):
+    def __init__(self, products: list[dict]) -> None:
+        self.products = products
+        self.qs: list[dict] = []
+
+    def add(self, turns: str | list[str], behaviour: str | list[str], **expected: object) -> None:
         """Add one question with its expected behaviour and details."""
-        qs.append(
+        self.qs.append(
             {
-                "id": f"q{len(qs) + 1:03d}",
+                "id": f"q{len(self.qs) + 1:03d}",
                 "turns": turns if isinstance(turns, list) else [turns],
                 "expected": {"behaviour": behaviour, **expected},
             }
         )
 
-    def unique(**kw):
+    def unique(self, **kw: object) -> list[dict]:
         """Products matching the given constraints."""
-        return [p for p in products if is_match(p, **kw)]
+        return [p for p in self.products if is_match(p, **kw)]
 
-    # --- specific facts about a uniquely named product ---
-    for p in rng.sample(products, 8):
-        add(f"price of {p['title']}?", "answer", product_ids=[p["id"]], must_include=[f"{p['price']:,}"])
-    for p in rng.sample(products, 4):
-        add(f"{p['title']} kitne ka hai", "answer", product_ids=[p["id"]], must_include=[f"{p['price']:,}"])
-    for p in rng.sample(products, 4):
+    def search(self, q: str, **kw: object) -> None:
+        """Add a search question: answerable if any product fits, otherwise expected to be refused."""
+        ids = [p["id"] for p in self.unique(**kw)]
+        self.add(q, "answer" if ids else "refuse", valid_ids=ids)
+
+    def facts(self) -> None:
+        """Specific facts about a uniquely named product."""
+        add, products = self.add, self.products
+        # --- specific facts about a uniquely named product ---
+        for p in rng.sample(products, 8):
+            add(f"price of {p['title']}?", "answer", product_ids=[p["id"]], must_include=[f"{p['price']:,}"])
+        for p in rng.sample(products, 4):
+            add(f"{p['title']} kitne ka hai", "answer", product_ids=[p["id"]], must_include=[f"{p['price']:,}"])
+        for p in rng.sample(products, 4):
+            add(
+                f"is {p['title']} in stock",
+                "answer",
+                product_ids=[p["id"]],
+                must_include=["in stock" if p["in_stock"] else "out of stock"],
+            )
+        for p in rng.sample(products, 3):
+            add(f"rating of {p['title']}", "answer", product_ids=[p["id"]], must_include=[str(p["rating"])])
+        p = rng.choice(products)
         add(
-            f"is {p['title']} in stock",
+            f"what is the material of {p['id']}",
             "answer",
             product_ids=[p["id"]],
-            must_include=["in stock" if p["in_stock"] else "out of stock"],
+            must_include=[p["attributes"]["material"]],
         )
-    for p in rng.sample(products, 3):
-        add(f"rating of {p['title']}", "answer", product_ids=[p["id"]], must_include=[str(p["rating"])])
-    p = rng.choice(products)
-    add(
-        f"what is the material of {p['id']}",
-        "answer",
-        product_ids=[p["id"]],
-        must_include=[p["attributes"]["material"]],
-    )
 
-    # --- searches with constraints (valid_ids = every product satisfying them) ---
-    def search(q, **kw):
-        """Add a search question: answerable if any product fits, otherwise expected to be refused."""
-        ids = [p["id"] for p in unique(**kw)]
-        add(q, "answer" if ids else "refuse", valid_ids=ids)
+    def searches(self) -> None:
+        """Searches with constraints (valid_ids = every product satisfying them)."""
+        add, unique, search = self.add, self.unique, self.search
+        search("cotton shirts under ₹2000", title_has="shirt", filters={"material": "cotton"}, max_price=2000)
+        search("show me earbuds", title_has="earbuds")
+        search("sasta running shoe dikhao", title_has="running shoes")
+        search("cotton kurta 1500 ke andar", title_has="kurta", filters={"material": "cotton"}, max_price=1500)
+        search("black hoodie under 2500", title_has="hoodie", filters={"color": "black"}, max_price=2500)
+        search("power bank between 1000 and 2500", title_has="power bank", min_price=1000, max_price=2500)
+        search("leather wallet for men", title_has="wallet", filters={"material": "leather", "gender": "men"})
+        search("backpack above ₹1500", title_has="backpack", min_price=1500)
+        search("waterproof speaker", title_has="speaker")
+        search("smartwatch", title_has="smartwatch")
+        add("best rated bedsheet", "answer", valid_ids=[p["id"] for p in unique(title_has="bedsheet")])
 
-    search("cotton shirts under ₹2000", title_has="shirt", filters={"material": "cotton"}, max_price=2000)
-    search("show me earbuds", title_has="earbuds")
-    search("sasta running shoe dikhao", title_has="running shoes")
-    search("cotton kurta 1500 ke andar", title_has="kurta", filters={"material": "cotton"}, max_price=1500)
-    search("black hoodie under 2500", title_has="hoodie", filters={"color": "black"}, max_price=2500)
-    search("power bank between 1000 and 2500", title_has="power bank", min_price=1000, max_price=2500)
-    search("leather wallet for men", title_has="wallet", filters={"material": "leather", "gender": "men"})
-    search("backpack above ₹1500", title_has="backpack", min_price=1500)
-    search("waterproof speaker", title_has="speaker")
-    search("smartwatch", title_has="smartwatch")
-    add("best rated bedsheet", "answer", valid_ids=[p["id"] for p in unique(title_has="bedsheet")])
+    def superlatives_and_ambiguity(self) -> None:
+        """Cheapest-one questions, and ones that several products fit."""
+        add, unique = self.add, self.unique
+        # --- cheapest / superlative questions with one right answer ---
+        cheapest = min(unique(title_has="power bank"), key=lambda p: p["price"])
+        add(
+            "cheapest power bank price", "answer", product_ids=[cheapest["id"]], must_include=[f"{cheapest['price']:,}"]
+        )
 
-    # --- cheapest / superlative questions with one right answer ---
-    cheapest = min(unique(title_has="power bank"), key=lambda p: p["price"])
-    add("cheapest power bank price", "answer", product_ids=[cheapest["id"]], must_include=[f"{cheapest['price']:,}"])
+        # --- ambiguous: several products fit, so ask which ---
+        add("what's the price of the blue running shoe?", "clarify")
+        add("kitna hai blue running shoe ka price", "clarify")
+        multi = next(c for c in COLORS if len(unique(title_has="t-shirt", filters={"color": c})) > 1)
+        add(f"rating of the {multi} t-shirt", "clarify")
+        add("how much is the kettle", "clarify" if len(unique(title_has="kettle")) > 1 else "answer")
+        add("price?", "clarify")
+        add("I want something good", "clarify")
 
-    # --- ambiguous: several products fit, so ask which ---
-    add("what's the price of the blue running shoe?", "clarify")
-    add("kitna hai blue running shoe ka price", "clarify")
-    multi = next(c for c in COLORS if len(unique(title_has="t-shirt", filters={"color": c})) > 1)
-    add(f"rating of the {multi} t-shirt", "clarify")
-    add("how much is the kettle", "clarify" if len(unique(title_has="kettle")) > 1 else "answer")
-    add("price?", "clarify")
-    add("I want something good", "clarify")
+    def refusals(self) -> None:
+        """Things the catalogue doesn't have, and constraints nothing satisfies."""
+        add = self.add
+        # --- not in the catalogue / constraints nothing satisfies ---
+        for q in [
+            "do you sell iPhones?",
+            "price of macbook air",
+            "do you have a PS5",
+            "Rolex watch price",
+            "ferrari toy car",
+            "sell me a laptop",
+            "cotton shirts under ₹100",
+            "red running shoes under ₹300",
+            "is there a 55 inch TV",
+            "yoga mat",
+        ]:
+            add(q, "refuse")
+        add("blue wallet in size 99", "refuse")
 
-    # --- not in the catalogue / constraints nothing satisfies ---
-    for q in [
-        "do you sell iPhones?",
-        "price of macbook air",
-        "do you have a PS5",
-        "Rolex watch price",
-        "ferrari toy car",
-        "sell me a laptop",
-        "cotton shirts under ₹100",
-        "red running shoes under ₹300",
-        "is there a 55 inch TV",
-        "yoga mat",
-    ]:
-        add(q, "refuse")
-    add("blue wallet in size 99", "refuse")
+    def policy(self) -> None:
+        """Store-policy questions."""
+        add = self.add
+        # --- policy ---
+        add(
+            "can I return earbuds after opening",
+            "answer",
+            policy_sections=["returns"],
+            must_include=["cannot be returned"],
+        )
+        add("how many days to return", "answer", policy_sections=["returns"], must_include=["30 days"])
+        add("return kitne din me", "answer", policy_sections=["returns"], must_include=["30 days"])
+        add(
+            "do you ship outside India",
+            "answer",
+            policy_sections=["shipping"],
+            must_include=["do not ship outside India"],
+        )
+        add("is cod available", "answer", policy_sections=["shipping"], must_include=["Cash on delivery"])
+        add("warranty on electronics", "answer", policy_sections=["warranty"], must_include=["warranty"])
+        add(
+            "can I cancel after dispatch",
+            "answer",
+            policy_sections=["cancellations"],
+            must_include=["cannot be cancelled"],
+        )
+        add("do you offer gift wrapping?", "refuse")
+        add("do you have a loyalty program", "refuse")
 
-    # --- policy ---
-    add(
-        "can I return earbuds after opening", "answer", policy_sections=["returns"], must_include=["cannot be returned"]
-    )
-    add("how many days to return", "answer", policy_sections=["returns"], must_include=["30 days"])
-    add("return kitne din me", "answer", policy_sections=["returns"], must_include=["30 days"])
-    add("do you ship outside India", "answer", policy_sections=["shipping"], must_include=["do not ship outside India"])
-    add("is cod available", "answer", policy_sections=["shipping"], must_include=["Cash on delivery"])
-    add("warranty on electronics", "answer", policy_sections=["warranty"], must_include=["warranty"])
-    add(
-        "can I cancel after dispatch", "answer", policy_sections=["cancellations"], must_include=["cannot be cancelled"]
-    )
-    add("do you offer gift wrapping?", "refuse")
-    add("do you have a loyalty program", "refuse")
+    def multi_turn(self) -> None:
+        """Conversations over several turns."""
+        add, unique, products = self.add, self.unique, self.products
+        # --- multi-turn ---
+        add(
+            ["show me shirts", "only cotton ones", "under ₹2,000, and I already said I want cotton"],
+            "answer",
+            valid_ids=[p["id"] for p in unique(title_has="shirt", filters={"material": "cotton"}, max_price=2000)],
+        )
+        add(
+            ["running shoes", "blue ones"],
+            "answer",
+            valid_ids=[p["id"] for p in unique(title_has="running shoes", filters={"color": "blue"})],
+        )
+        add(
+            ["I want a kurta", "cotton", "under 1000"],
+            "answer" if unique(title_has="kurta", filters={"material": "cotton"}, max_price=1000) else "refuse",
+            valid_ids=[p["id"] for p in unique(title_has="kurta", filters={"material": "cotton"}, max_price=1000)],
+        )
+        p = rng.choice(products)
+        add(
+            [f"tell me about {p['id']}", "what's the price?"],
+            "answer",
+            product_ids=[p["id"]],
+            must_include=[f"{p['price']:,}"],
+        )
+        add(["running shoes", "blue ones", "the cheapest"], "answer")
 
-    # --- multi-turn ---
-    add(
-        ["show me shirts", "only cotton ones", "under ₹2,000, and I already said I want cotton"],
-        "answer",
-        valid_ids=[p["id"] for p in unique(title_has="shirt", filters={"material": "cotton"}, max_price=2000)],
-    )
-    add(
-        ["running shoes", "blue ones"],
-        "answer",
-        valid_ids=[p["id"] for p in unique(title_has="running shoes", filters={"color": "blue"})],
-    )
-    add(
-        ["I want a kurta", "cotton", "under 1000"],
-        "answer" if unique(title_has="kurta", filters={"material": "cotton"}, max_price=1000) else "refuse",
-        valid_ids=[p["id"] for p in unique(title_has="kurta", filters={"material": "cotton"}, max_price=1000)],
-    )
-    p = rng.choice(products)
-    add(
-        [f"tell me about {p['id']}", "what's the price?"],
-        "answer",
-        product_ids=[p["id"]],
-        must_include=[f"{p['price']:,}"],
-    )
-    add(["running shoes", "blue ones", "the cheapest"], "answer")
-    return qs
+
+def make_questions(products: list[dict]) -> list[dict]:
+    """The standard question set for a catalogue (facts, searches, ambiguity, refusals, policy,
+    multi-turn), with expectations computed by brute force over the catalogue."""
+    built = _StandardQuestions(products)
+    built.facts()
+    built.searches()
+    built.superlatives_and_ambiguity()
+    built.refusals()
+    built.policy()
+    built.multi_turn()
+    return built.qs
 
 
 def main() -> None:

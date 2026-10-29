@@ -116,18 +116,7 @@ def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: 
         m = fallback.nearest_type(" ".join(tokenize(word)) or word)
         rows.append(("map", word, m.target, m.score, m.target in ok))
     alt_t = round(map_t - alt_gap, 4)
-    policy_t = None
-    pos, neg = [], []
-    if fallback.policy_units:
-        sec_by_sent = [s.id for s, _ in fallback.policy_units]
-        for q, sec in POLICY_POS.items():
-            v = fallback.embedder.encode([q])[0]
-            score, i = max((dot(v, p), i) for i, p in enumerate(fallback.policy_vecs))
-            pos.append((q, sec_by_sent[i], score, sec_by_sent[i] == sec))
-        for q in POLICY_NEG:
-            v = fallback.embedder.encode([q])[0]
-            neg.append((q, max(dot(v, p) for p in fallback.policy_vecs)))
-        policy_t = round(max(s for _, s in neg) + margin, 4)
+    pos, neg, policy_t = _policy_scores(fallback, margin)
     mapped_ok = [r for r in rows if r[0] == "map" and r[4] and r[3] >= map_t]
     report = {
         "map_threshold": map_t,
@@ -139,6 +128,24 @@ def calibrate(fallback: SemanticFallback, margin: float | None = None, alt_gap: 
         "model": fallback.embedder.name,
     }
     return {"config": report, "rows": rows, "policy_pos": pos, "policy_neg": neg}
+
+
+def _policy_scores(fallback: SemanticFallback, margin: float) -> tuple[list[tuple], list[tuple], float | None]:
+    """How close policy questions come to their right section, how close unrelated ones come to any, and the
+    threshold just above the unrelated ones (None when the policy has no sentences to compare)."""
+    pos: list[tuple] = []
+    neg: list[tuple] = []
+    if not fallback.policy_units:
+        return pos, neg, None
+    sec_by_sent = [s.id for s, _ in fallback.policy_units]
+    for q, sec in POLICY_POS.items():
+        v = fallback.embedder.encode([q])[0]
+        score, i = max((dot(v, p), i) for i, p in enumerate(fallback.policy_vecs))
+        pos.append((q, sec_by_sent[i], score, sec_by_sent[i] == sec))
+    for q in POLICY_NEG:
+        v = fallback.embedder.encode([q])[0]
+        neg.append((q, max(dot(v, p) for p in fallback.policy_vecs)))
+    return pos, neg, round(max(s for _, s in neg) + margin, 4)
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
