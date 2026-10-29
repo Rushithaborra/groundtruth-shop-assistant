@@ -5,11 +5,35 @@ Written 28 October 2026 for the Claude Code session working with Rushitha, and f
 `CHANGES.md` too; this page only adds what changed after them and what is still open. Every number below comes from a
 command that was run; "not run" means not run.
 
-## 0. Done on 29 October (Rushitha's session)
+## 0. Where every item below stands (29 October, at `f31c99b`)
 
-Section 3A was run with the pack after rebasing Rushitha's two commits onto `d000e83`: 207 tests pass on Python 3.9 and 3.12; ruff clean; dev 0.9325 (check half 0.865), stress tune 0.9996, holdout 0.9611, all unchanged; strict loading accepts the 5,000-product catalogue; stock values are only `in_stock`, `out_of_stock`, `low_stock`; the new `R3_predictions.jsonl` is identical to the committed one apart from timings. Step A.5 found 36 of 190 replies flagged because attribute names matched attribute values ("colour" vs "color pencil"); fixed in the checker, now 0 of 190 (STATUS.md G16). G1, G2, G3 and G9 are done. Section 3C was done later the same day (STATUS.md G17), and section 4's phone and offline checks were run on Rushitha's laptop (G7, G11); only the event-laptop run and a real phone remain.
+Sections 1–6 are Sushanth's handover of 28 October, kept as written. Everything in them has been pushed and run with
+the pack. Measured on 29 October: 225 tests pass on Python 3.9 and 3.12; dev 0.9475 (check half 0.895); stress
+holdout 0.988; 0 hallucinated prices; the grounding checker flags 0 of 190 pack replies.
 
-## 1. State of `main`
+| Item | State |
+|---|---|
+| 3A.1–2 tests, ruff, scores must not drop | done: nothing dropped; later work raised them (above) |
+| 3A.3 strict loading on the real catalogue | done: accepts all 5,000 products |
+| 3A.4 real stock values | done: only `in_stock`, `out_of_stock`, `low_stock`, so the "ships in N days" change affects nothing |
+| 3A.5 new grounding rules on the real pack | done: they flagged 36 of 190 good replies (attribute names read as values); fixed, now 0 (STATUS G16) |
+| 3A.6 compare the submission; `package` | done: the validator accepts all 150 lines; the zip is rebuilt after every push |
+| 3A.7 Python 3.9 and 3.12 | done |
+| 3B G1, G2, G3, G9, G15 | done |
+| 3B G8 ask the organisers | **open** (Rushitha) |
+| 3B G12 explain the code | **open** (both): `docs/code_tour.md` |
+| 3C.1 raw attribute names in answers | done: 43 of 150 → 3, all word-for-word policy quotes (STATUS G17) |
+| 3C.2 unlisted brands | done: 124 brands refused by name (STATUS G17) |
+| 3C.3 refusals that cite products | no change needed: the official scorer gives a correct refuse full credit |
+| 3C.4 synonyms, policy-silent topics | partly done (STATUS G14): shopper-language fixes; words nobody prepared for wait for Task 4 |
+| 4 phone check (G7) | checked in Chrome's phone emulation; one look on a real phone left (Sushanth) |
+| 4 offline dry run (G11) | checked on Rushitha's laptop with bare Python 3.9; the event laptop with Wi-Fi off is left (Sushanth) |
+| 4 Task 4 questions (G10) | **open** (Sushanth + friends), after L1 |
+
+Also found and fixed on 29 October, beyond this page: demo step 2 failed when typed after step 1, and the retailer
+view filed iPhone as an unplaced word (STATUS G18). The full list of what is left is STATUS.md section 4.
+
+## 1. State of `main` (28 October; all of it has been pushed since)
 
 * Local `main` on Sushanth's machine is **7 commits ahead of `origin/main`** (not pushed yet): `d64240a`, `223b83e`,
   `b59342a`, `63aca43`, `0bf0e1b`, `e4fbdf8`, `728c9f9`. Sushanth's Claude never pushes; it gives Sushanth the commands. After the

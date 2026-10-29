@@ -661,6 +661,27 @@ unsold items that share a word with a product ("rice" lists a rice-water face wa
 stands) are the describing-word rule the brief says to review against Task 4's questions. Measurement count: the
 shopper holdout was scored at the start, once mid-way and at the end (headline only); the stress holdout likewise.
 
+## Audit, faster start-up and docstrings, 29 October
+
+An audit against the brief's nine tasks, Sushanth's HANDOVER.md and the guidelines (results in STATUS.md, sections 2
+to 4; HANDOVER.md section 0 now says where each of its items stands). Product code: 0 functions over 40 lines, 0
+untyped parameters, 0 missing return types, 0 functions defined but never used. Found: my own `tools/shoppers.py` had
+3 untyped parameters and 3 missing docstrings (fixed); the old data generators still have untyped nested helpers
+(G19, dev tools only).
+
+| Measure | Before | After |
+|---|---|---|
+| Building the assistant on the pack, Python 3.12 / 3.9 (3 runs each) | 0.29 s / 0.45 s | 0.20 s / 0.29 s |
+| Peak memory after building it | 87 MB | 82 MB |
+| Latency per query, mean (`report`) | 0.59 ms | 0.59 ms |
+| Product functions without a docstring | 73 | 7 (tiny nested helpers) |
+| Submission, dev, stress and shopper scores | | identical (all 150 answers equal apart from timing) |
+
+Start-up: `normalise_word` (lower-case, synonyms, stemming) ran 275,000 times while indexing 5,000 products, mostly on
+the same few thousand words; it is now cached (bounded at 65,536 words, so shopper input can't grow it without
+limit). Each attribute name was indexed once per product (33,725 times for 159 names); now once. Docstrings were
+inserted by a script that compared each file's syntax tree with docstrings removed, before and after.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
