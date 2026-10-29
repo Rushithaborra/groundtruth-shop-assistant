@@ -39,7 +39,7 @@ class ShoppersToolTests(unittest.TestCase):
     def test_rows_are_reproducible_and_in_the_official_truth_format(self):
         rows = shoppers.build(CATALOGUE)
         self.assertEqual(rows, shoppers.build(CATALOGUE))
-        self.assertEqual({r["part"] for r in rows}, {"tune", "holdout"})
+        self.assertEqual({r["part"] for r in rows}, {"tune", "holdout", "holdout2"})
         for r in rows:
             self.assertLessEqual(REQUIRED, set(r))
 
@@ -62,6 +62,27 @@ class ShoppersToolTests(unittest.TestCase):
             self.assertFalse(set(table["tune"]) & set(table["holdout"]))
         tune_policy = {text for text, _ in shoppers.POLICY["tune"]}
         self.assertFalse(tune_policy & {text for text, _ in shoppers.POLICY["holdout"]})
+
+    def test_the_second_holdout_shares_no_wording_with_the_other_parts(self):
+        second = shoppers.SECOND
+        earlier = set()
+        for table in (shoppers.BUDGET, shoppers.CHEAPEST, shoppers.BROWSE, shoppers.NOT_SOLD_ASKS, shoppers.NOT_SOLD):
+            for part in table.values():
+                earlier |= set(part)
+        for table in (shoppers.LOOKUP, shoppers.POLICY):
+            for part in table.values():
+                earlier |= {text for text, _ in part}
+        mine = set(second["budget"]) | set(second["cheapest"]) | set(second["browse"]) | set(second["not_sold"])
+        mine |= set(second["not_sold_asks"]) | {t for t, _ in second["lookup"]} | {t for t, _ in second["policy"]}
+        self.assertFalse(mine & earlier)
+        names = set(shoppers.OTHER_NAMES["tune"]) | set(shoppers.OTHER_NAMES["holdout"])
+        self.assertFalse(set(second["other_names"]) & names)
+
+    def test_the_second_holdout_leaves_the_first_parts_unchanged(self):
+        rows = shoppers.build(CATALOGUE)
+        self.assertIn("holdout2", {r["part"] for r in rows})
+        first = [r for r in rows if r["part"] != "holdout2"]
+        self.assertEqual([r["question_id"] for r in first], [f"SH-{i:04d}" for i in range(len(first))])
 
     def test_a_typo_is_one_slip(self):
         rng = random.Random(1)

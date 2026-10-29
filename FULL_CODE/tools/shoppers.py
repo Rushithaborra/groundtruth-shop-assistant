@@ -2,7 +2,8 @@
 scored by the official scorer.
 
     python main.py shoppers --part tune      # fix failures found here
-    python main.py shoppers --part holdout   # measure only: never read its failures to fix them
+    python main.py shoppers --part holdout   # contaminated on 29 October (see SECOND below); kept for reference
+    python main.py shoppers --part holdout2  # measure only: never read its failures to fix them
 
 Real shoppers in India write Hinglish and Telugu-English, use their own names for things ("tiffin", "mixie", "press"),
 give budgets in many ways ("1.5k", "1500 lopu") and misspell product words. Each question applies one of those to
@@ -144,6 +145,62 @@ NOT_SOLD = {
 NOT_SOLD_ASKS = {"tune": ("{item} hai kya", "{item} dikhao"), "holdout": ("{item} unda", "{item} kavali")}
 
 
+# A second holdout, written on 29 October after general shopper vocabulary was added with the first holdout's words
+# in view (so the first holdout no longer counts as unseen). Its wording avoids every word in our lists and in the
+# parts above; it has its own random seed, so the tune and first holdout parts are unchanged.
+SEED2 = 3010
+SECOND = {
+    "budget": (
+        "{kind} {n} ke bheetar",
+        "{kind} {n} se jyada nahi",
+        "{kind} upto rs {n}",
+        "{kind} within {k}k",
+        "{n} ki range me {kind}",
+    ),
+    "cheapest": (
+        "{kind} sabse kam daam",
+        "least price {kind}",
+        "{kind} me se cheapest konsa",
+        "budget friendly {kind}",
+    ),
+    "lookup": (
+        ("{name} ki keemat", "price_inr"),
+        ("{name} ka price batao", "price_inr"),
+        ("{name} rate enthandi", "price_inr"),
+        ("{name} abhi milega kya", "stock_status"),
+        ("{name} available hai ya nahi", "stock_status"),
+    ),
+    "browse": ("{word} dikha do", "{word} bhejo", "{word} kavalandi"),
+    "other_names": {
+        "sleepers": "Flip-Flops & Slippers",
+        "tracksuit": "Track Pants",
+        "ball pen": "Pens",
+        "earphones": "Wired Earphones",
+        "lunchbox": "Lunch Boxes",
+        "hand towel": "Towels",
+        "induction stove": "Induction Cooktops",
+        "shaver": "Trimmers",
+        "sun cream": "Sunscreen",
+        "teddy bear": "Soft Toys",
+        "geometry set": "Geometry Boxes",
+        "body cream": "Body Lotion",
+        "tea kettle": "Electric Kettles",
+    },
+    "policy": (
+        ("paisa wapas kab milega", "1.5"),
+        ("kitne din me order pahunchega", "2.2"),
+        ("size badalna possible hai", "1.6"),
+        ("delivery pe cash dena possible hai", "4.2"),
+        ("order cancel chesukovachha", "5.1"),
+        ("free delivery kis amount pe", "2.1"),
+        ("guarantee kitne mahine ka hai", "3.1"),
+        ("return time limit kitna hai", "1.1"),
+    ),
+    "not_sold": ("almirah", "kitchen chimney", "water purifier", "smartphone", "biscuits", "car tyre", "train ticket"),
+    "not_sold_asks": ("{item} rakhte ho kya", "{item} dorikuthunda", "{item} bechte ho"),
+}
+
+
 def _hashed_part(key: str) -> str:
     """Assign a question to the tune or holdout part by hashing its key, so the split is stable."""
     return "tune" if int(hashlib.sha256(key.encode()).hexdigest(), 16) % 2 == 0 else "holdout"
@@ -227,7 +284,51 @@ def build(catalogue: list[dict], seed: int = SEED) -> list[dict]:
     for part, items in NOT_SOLD.items():
         for item in items:
             rows.add(rng.choice(NOT_SOLD_ASKS[part]).format(item=item), "refuse", "refuse_out_of_catalogue", part)
+    _second_holdout_kinds(rows, kinds, random.Random(SEED2))
+    _second_holdout_rest(rows, catalogue, random.Random(SEED2 + 1))
     return list(rows)
+
+
+def _second_holdout_kinds(rows: _Rows, kinds: dict[str, list[dict]], rng: random.Random) -> None:
+    """The second holdout's budget, cheapest-one and misspelt questions, one of each per kind of product."""
+    for sub in sorted(kinds):
+        kind, products = sub.lower(), kinds[sub]
+        n = _budget(products)
+        if n is not None:
+            asks = [a for a in SECOND["budget"] if n >= 1000 or "{k}" not in a]
+            ids = [p["product_id"] for p in products if p["price_inr"] <= n]
+            text = rng.choice(asks).format(kind=kind, n=n, k=f"{n / 1000:g}")
+            rows.add(text, "answer", "answer_filter", "holdout2", ids)
+        low = min(p["price_inr"] for p in products)
+        cheapest = [p["product_id"] for p in products if p["price_inr"] == low]
+        facts = [{"product_id": cheapest[0], "field": "price_inr", "value": low}] if len(cheapest) == 1 else []
+        text = rng.choice(SECOND["cheapest"]).format(kind=kind)
+        rows.add(text, "answer", "answer_superlative", "holdout2", cheapest, facts)
+        misspelt = _typo(kind, rng)
+        if misspelt != kind:
+            ids = [p["product_id"] for p in products]
+            rows.add(f"{misspelt} dikha do", "answer", "answer_filter", "holdout2", ids)
+
+
+def _second_holdout_rest(rows: _Rows, catalogue: list[dict], rng: random.Random, n: int = 40) -> None:
+    """The second holdout's shopper names, named-product lookups, policy questions and unsold items."""
+    for word, sub in SECOND["other_names"].items():
+        ids = [p["product_id"] for p in catalogue if p["sub_category"] == sub]
+        rows.add(rng.choice(SECOND["browse"]).format(word=word), "answer", "answer_filter", "holdout2", ids)
+    by_identity: dict[tuple, list[dict]] = {}
+    for p in catalogue:
+        by_identity.setdefault(_identity(p), []).append(p)
+    unique = [p for p in catalogue if len(by_identity[_identity(p)]) == 1]
+    for p in rng.sample(unique, min(n, len(unique))):
+        brand, line, colour, sub = _identity(p)
+        name = " ".join(x for x in (brand, line, colour, sub.lower()) if x)
+        text, field = rng.choice(SECOND["lookup"])
+        fact = {"product_id": p["product_id"], "field": field, "value": p[field]}
+        rows.add(text.format(name=name), "answer", "answer_lookup", "holdout2", [p["product_id"]], [fact])
+    for text, section in SECOND["policy"]:
+        rows.add(text, "answer", "answer_policy", "holdout2", sections=[section])
+    for item in SECOND["not_sold"]:
+        rows.add(rng.choice(SECOND["not_sold_asks"]).format(item=item), "refuse", "refuse_out_of_catalogue", "holdout2")
 
 
 def _kind_questions(rows: _Rows, kind: str, products: list[dict], rng: random.Random) -> None:
@@ -276,7 +377,7 @@ def _lookup_questions(rows: _Rows, catalogue: list[dict], rng: random.Random, n:
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
     """The shoppers command's options: which part to score, and per-question details."""
-    ap.add_argument("--part", choices=("tune", "holdout", "all"), default="tune")
+    ap.add_argument("--part", choices=("tune", "holdout", "holdout2", "all"), default="tune")
     ap.add_argument("--details", action="store_true", help="also write per-question results (score_details.jsonl)")
 
 
