@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from ..catalogue import CatalogueIndex
+from ..catalogue import KIND_KEY, CatalogueIndex
 from ..text import ABROAD, ATTRIBUTE_WORDS, EXTERNAL_BRANDS, RELATED, STOPWORDS, tokenize
 from .lexicon import (
     ACCOUNT_PHRASES,
@@ -143,11 +143,19 @@ def _match_attribute_names(parsed: Parsed, tokens: list[str], index: CatalogueIn
 def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: CatalogueIndex, consumed: list[bool]) -> None:
     """Attribute-value filters (colour, material, brand, ...), longest values first; "not X" becomes an exclusion.
 
-    Marks the tokens used as filter values in `consumed`.
+    Marks the tokens used as filter values in `consumed`. A value of several words may have a typo in one of them
+    when its other words are exact: "runniing shoes" is Running Shoes, not Sneakers ("shoes" alone).
     """
+    present = set(tokens)
+    typos = {t for t in tokens if t not in index.vocab and len(t) >= 4}  # words that could be a slip
     for n, toks, key, val in index.attr_candidates:
+        missing = sum(t not in present for t in toks)
+        if missing > (1 if typos and n >= 2 else 0):
+            continue  # cheap rejection: most values can't match this message at all
         for i in range(len(tokens) - n + 1):
-            if tuple(tokens[i : i + n]) == toks and not any(consumed[i : i + n]):
+            window = tuple(tokens[i : i + n])
+            same = window == toks or (missing and _one_slip(window, toks, typos, index))
+            if same and not any(consumed[i : i + n]):
                 if i > 0 and tokens[i - 1] in NEG_W:
                     parsed.spec.exclude.setdefault(key, []).append(val)
                 elif key not in parsed.spec.filters:
@@ -155,6 +163,27 @@ def _apply_attribute_filters(parsed: Parsed, tokens: list[str], index: Catalogue
                 for j in range(i, i + n):
                     consumed[j] = True
                 break
+    _prefer_kind(parsed, index)
+
+
+def _one_slip(window: tuple, value: tuple, typos: set[str], index: CatalogueIndex) -> bool:
+    """The window spells the value except for one misspelt word that the typo matcher reads as the missing word."""
+    off = [(w, v) for w, v in zip(window, value) if w != v]
+    return len(off) == 1 and off[0][0] in typos and index.closest(off[0][0]) == off[0][1]
+
+
+def _prefer_kind(parsed: Parsed, index: CatalogueIndex) -> None:
+    """A word that is both an attribute value and a kind of product ("irons": material iron, or the Irons) names
+    the product when no other kind is named. "iron tawa" keeps material iron with the Tawa kind."""
+    if KIND_KEY in parsed.spec.filters:
+        return
+    kinds = index.attr_values.get(KIND_KEY, {})
+    for key, val in list(parsed.spec.filters.items()):
+        kind = kinds.get(tuple(tokenize(val)))
+        if kind:
+            del parsed.spec.filters[key]
+            parsed.spec.filters[KIND_KEY] = kind
+            return
 
 
 def _detect_fact_intents(parsed: Parsed, tokens: list[str], index: CatalogueIndex, asks: bool) -> None:
@@ -169,7 +198,7 @@ def _detect_fact_intents(parsed: Parsed, tokens: list[str], index: CatalogueInde
     asked_words = token_set | {ATTRIBUTE_WORDS[t] for t in token_set if t in ATTRIBUTE_WORDS}  # "moti" -> thickness
     in_names = _words_in_product_names(tokens, index)
     for ktok, keys in index.attr_key_groups.items():
-        if ktok not in asked_words or ktok in PRICE_W or ktok in in_names or not asks:
+        if ktok not in asked_words or ktok in PRICE_W or ktok in in_names or ktok in index.kind_nouns or not asks:
             continue
         for key in keys:  # "water" asks about water_resistant and water_resistance_rating
             if key not in parsed.spec.filters and key not in parsed.spec.exclude and key not in parsed.detail_keys:
@@ -213,7 +242,9 @@ def _classify_tokens(parsed: Parsed, tokens: list[str], consumed: list[bool], in
     for i, tok in enumerate(tokens):
         if tok not in STOPWORDS and not tok.isdigit():
             parsed.keywords.append(tok)
-        if consumed[i] or tok in IGNORE or tok in index.attr_keys or tok.isdigit() or len(tok) < 2:
+        # an attribute's name is not a product word, unless it is also a kind sold ("cable": USB Cables, cable_type)
+        named_attribute = tok in index.attr_keys and tok not in index.kind_nouns
+        if consumed[i] or tok in IGNORE or named_attribute or tok.isdigit() or len(tok) < 2:
             continue
         if tok not in index.type_vocab and tok not in index.desc_vocab and len(tok) >= 5:
             tok = index.closest(tok) or tok  # typos: "runing"

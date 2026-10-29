@@ -296,7 +296,20 @@
     "hara": "green",
     "peela": "yellow",
     "rate": "price",
-    "rates": "price"
+    "rates": "price",
+    "tiffin": "lunch",
+    "mixie": "mixer",
+    "chadar": "bedsheet",
+    "chaddar": "bedsheet",
+    "copy": "notebook",
+    "sunblock": "sunscreen",
+    "deo": "deodorant",
+    "tws": "earbud",
+    "suitcase": "trolley",
+    "sari": "saree",
+    "kadhai": "kadai",
+    "sipper": "bottle",
+    "jump": "skipping"
   },
   "external_brands": [
     "nike",

@@ -12,13 +12,14 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from ..config import get_settings
-from ..text import tokenize
+from ..text import normalise_word, tokenize
 from .loader import Product
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
 # Unit suffixes in attribute names ("thickness_mm", "wattage_w"); they say how a value is measured, not what it is
 UNIT_WORDS = frozenset({"mm", "cm", "m", "ft", "in", "w", "l", "ml", "mah", "kg", "g", "c", "min", "hour", "hours"})
 GENDER_KEY = "gender"
+KIND_KEY = "sub_category"  # the attribute that names the kind of product ("Running Shoes")
 
 
 @dataclass
@@ -134,11 +135,16 @@ class CatalogueIndex:
         self.type_vocab = set(self._text_postings)
         self.desc_vocab = {t for t in doc_freq if t not in self.type_vocab}
         self.vocab = self.type_vocab | self.desc_vocab
-        # longest attribute values first, so "sky blue" wins over "blue"; used by the query parser
+        # longest attribute values first, so "sky blue" wins over "blue"; used by the query parser. Of equal length,
+        # kinds of product come last: in "iron tawa", "iron" is the material and "tawa" the kind
         self.attr_candidates = sorted(
             ((len(toks), toks, key, val) for key, vals in self.attr_values.items() for toks, val in vals.items()),
-            key=lambda c: -c[0],
+            key=lambda c: (-c[0], c[2] == KIND_KEY),
         )
+        # the nouns that name a kind of product sold ("saree" in Sarees, "cable" in USB Cables; not "water" in Water
+        # Bottles): naming one names the product, so it doesn't by itself ask about an attribute that shares the
+        # word (saree_length_m, cable_type)
+        self.kind_nouns = frozenset(toks[-1] for toks in self.attr_values.get(KIND_KEY, {}))
 
     def _build_typo_lookup(self, cache_size: int) -> None:
         """Group the product-type words by length (typo matching only compares similar lengths) and cache matches."""
@@ -161,6 +167,12 @@ class CatalogueIndex:
 
     # -- typo tolerance ------------------------------------------------------------------------
     def _closest(self, token: str) -> str | None:
+        """The catalogue word a misspelt word most likely means: a swapped or doubled letter first ("sihrt",
+        "kurtti"), which a similarity ratio scores too low, then the closest word of a similar length."""
+        for slip in _slips(token):
+            word = normalise_word(slip)
+            if word in self.type_vocab:
+                return word
         pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._vocab_by_len.get(n, ())]
         match = difflib.get_close_matches(token, pool, n=1, cutoff=self.typo_cutoff)
         return match[0] if match else None
@@ -262,6 +274,13 @@ class CatalogueIndex:
             return []
         longest = max(len(self.title_tokens[p.id]) for p in full)
         return [p for p in full if len(self.title_tokens[p.id]) == longest]
+
+
+def _slips(token: str) -> list[str]:
+    """The word with one typing slip undone: two neighbouring letters swapped back, or a doubled letter single."""
+    swapped = [token[:i] + token[i + 1] + token[i] + token[i + 2 :] for i in range(len(token) - 1)]
+    single = [token[:i] + token[i + 1 :] for i in range(1, len(token)) if token[i] == token[i - 1]]
+    return [w for w in dict.fromkeys(swapped + single) if w != token]
 
 
 def _unit_values(p: Product, unit: str) -> list:

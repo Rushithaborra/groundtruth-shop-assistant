@@ -10,8 +10,9 @@ SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "ra
 
 
 def head_nouns(index: CatalogueIndex) -> frozenset[str]:
-    """Words that name what a product is: the last word of each title (\"... Running Shoes (Blue)\" -> \"shoe\")."""
-    nouns = set()
+    """Words that name what a product is: the last word of each title (\"... Running Shoes (Blue)\" -> \"shoe\"), and
+    the last word of each kind sold (\"cable\" in USB Cables), since titles may end in a colour (\"... - White\")."""
+    nouns = set(index.kind_nouns)
     for p in index.products.values():
         words = [w.replace("-", "") for w in p.title.split("(")[0].split()]  # "T-Shirt" -> "TShirt"
         words = [w for w in words if w.isalpha()]
