@@ -225,10 +225,12 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
   The patterns found there were fixed as general rules; a shopper-language part that was never inspected and
   shares no wording with our lists then went from 0.509 to **0.733**. The Task 4 set is now used (0.953 after the
   fixes, which is not evidence) and a fresh one is needed for the next honest measure.
-* **Needs and occasions, not products, are its weak spot.** "Something for my morning workout", "kitchen ki useful
-  items", "gift for amma" name a need, not a kind of product; it refuses or lists the wrong kind (1.5 of 11 such
-  Task 4 messages judged good). Mapping needs to kinds of product, by hand or with the provided embedding model, is
-  the next step.
+* **Needs and occasions are answered from a hand-written map.** "Ghar pe workout ke liye kya chahiye", "hostel
+  shift ho rahi hu", "baarish ka season" name a need, not a product: a map from needs to kinds of product
+  (`vocabulary.json`, `needs`) shows one well-rated product of each kind, and a gift with nothing else to go on asks
+  who it is for. On 50 such messages from a teammate, judged by criteria written beforehand, the half never used
+  for fixing went from 0.06 to **0.68**. Needs outside the map ("daily life easy banani hai", "cute cheezein") are
+  still refused.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their
   1.0 scores say nothing about real accuracy; the last clean estimate on them was 0.987.
 * **No model in the shipped path.** The provided models were measured and didn't help on dev (see AI usage), so

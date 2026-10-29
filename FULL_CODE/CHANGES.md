@@ -775,6 +775,39 @@ would be tuning on the organisers' test set. **The Task 4 set is now used**; a f
 these fixes honestly. The labels were not changed after scoring, so three disagreements remain (bedsheets with 1 or
 2 pillow covers, keyboards and walking shoes answered as lists).
 
+## Needs and occasions: a second batch of 50 shopper requests, 29 October
+
+50 Hinglish requests that name a need or an occasion, not a product ("gym jana start kiya hai, ghar pe workout ke
+liye kya kya chahiye?", "mummy ka birthday", "hostel shift ho rahi hu"), from a teammate. Saved word for word in
+`output/task4b/` (git-ignored) and split before anything else: odd numbers tune (25, read and fixed), even numbers
+holdout (25, never opened). The official scorer can't judge open requests fairly, so criteria were written for all
+50 before the assistant saw them: the kinds of product that would fit each, any budget, and a fixed rubric (a fitting
+listing or, for a gift, a question about who it is for = 1; a question or a mixed listing = 0.5; a refusal of
+things the store sells, or unrelated products = 0).
+
+**First contact: tune 0.24, holdout 0.06.** It refused nearly every request, echoing the filler words.
+
+The fix: a hand-written map from needs to kinds of product (`vocabulary.json`, `needs`: workout, tea, drinking water,
+skincare, travel, work from home, desk, storage, decor, kitchen, rain, summer, walk, school, college, hostel, office,
+guests, home; specific needs before general ones), used only when the message names no product and asks for things
+in general ("kuch", "kya kya", "something"). It shows one well-rated, in-stock product of each kind, within any
+budget, keeping filters the kind has ("dry" skin); a gift with nothing else to go on asks who it is for. Guards found
+by reviewing changed replies: a specific product named alone ("treadmill ghar ke liye", "a wooden study table") is
+not a need, and "gift wrap" is a service, not a present.
+
+| Measure | Before | After |
+|---|---|---|
+| **Need requests, held-back half** (25, never opened; measured once before and once after the last two guards) | **0.06** | **0.68**, both times |
+| Need requests, tune half | 0.24 | 0.92 |
+| Need replies flagged by the grounding checker | | 0 of 50 |
+| Dev check / all / tune; stress tune / holdout; shopper tune / holdout2 | 0.900 / 0.950 / 1.000; 0.9996 / 1.000; 0.976 / 0.733 | unchanged |
+| Hallucinated prices; pack replies flagged | 0; 0 of 190 | 0; 0 of 190 |
+| Test predictions | | unchanged by this step |
+| Tests | 240 | 244 |
+
+Still refused: needs outside the map ("daily routine thodi easy banani hai", "cute cheezein"). The map is written by
+hand, so it reaches only the needs it lists; the provided embedding model is the candidate for the rest.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

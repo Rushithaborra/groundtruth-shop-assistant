@@ -12,6 +12,7 @@ below comes from a command that was run; "not done" means not done. L1 is on 30 
 | Stress set from the catalogue, held-back half (81, written by us) | 1.000 |
 | **Real shoppers (Task 4), first and only honest scoring** (53 officially scored, of 64) | **0.556**; after fixes 0.953 (set now used, not evidence) |
 | Shopper-language set, second holdout (310, never inspected) | **0.733** (0.509 before the Task 4 fixes; tune half 0.976) |
+| Need and occasion requests (50 from a teammate, half held back, judged by criteria written first) | held-back half **0.68** (0.06 before); tune half 0.92 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
 | Tests | 240 pass on Python 3.9 and 3.12 |
@@ -56,7 +57,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
 | G12 | "Every team member must be able to explain the code" | fair play | | both: `docs/code_tour.md` (about an hour, or "quiz me" with Claude Code) | **P1, before L1** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
-| G14 | Real shoppers' language. **Done 29 Oct, from Task 4:** the pack's rule 6.2 applied fully, questions the catalogue can't answer refused, filler words, values read against the kind's own attribute, the most specific kind, "X or Y", sizes, refinements, "how much is it?", policy how-to and section ranking, unsold products named alone; plus typos, shopper words and budgets. Fresh holdout 0.509 → 0.733; dev check 0.865 → 0.900; stress holdout 0.961 → 1.000. **Still weak:** needs and occasions ("something for my morning workout", gifts): 1.5 of 11 judged good | `main.py shoppers --part holdout2`; Task 4 | Claude Code; a fresh Task 4 batch to measure | P2 |
+| G14 | Real shoppers' language. **Done 29 Oct, from Task 4 and a second batch of 50 need requests:** the pack's rules 6.2 and 6.3 in full, filler words, values read against the kind's own attribute, the most specific kind, "X or Y", sizes, refinements, policy how-to, unsold products named alone; needs and occasions mapped to kinds of product, gifts answered with a question. Fresh shopper holdout 0.509 → 0.733; need holdout 0.06 → 0.68; dev check 0.865 → 0.900; stress holdout 0.961 → 1.000. **Still weak:** needs outside the hand-written map | `main.py shoppers --part holdout2`; Task 4 | Claude Code; a fresh batch to measure | P2 |
 | G15 | L1 payment for R3 and R5 | event | application tracker | Rushitha | done (29 Oct) |
 | G16 | The new attribute-word rule flagged 36 of 190 real pack replies: attribute *names* ("tell me a brand, colour or budget", "does not list a water_resistance_rating") matched attribute values such as "color pencil" | the demo's grounding badge must not fail good replies | HANDOVER.md step A.5 | Claude Code | done: names are not checked as values; 0 of 190 flagged; regression test |
 | G17 | HANDOVER 3C: raw field names in 43 of 150 test answers ("The water_resistant of ... is False"); 3 fan brands (Havells, Bajaj, Usha) listed fans instead of refusing | readable, honest replies | submission scan; probes | Claude Code | done: 3 left, all word-for-word policy quotes; 124 Indian brands refused by name; 13 refusals that cite products need no change (the official scorer gives a correct refuse full credit) |
@@ -81,7 +82,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 
 | # | What | Who | Gap |
 |---|---|---|---|
-| 7 | Needs and occasions ("morning workout", "gift for amma"): try the provided embedding model, narrowly, and keep it only if it measurably helps | Rushitha + Claude Code | G14 |
+| 7 | Needs outside the hand-written map: try the provided embedding model, narrowly, and keep it only if it measurably helps | Rushitha + Claude Code | G14 |
 | 8 | A fresh batch of 50+ shopper questions (the first is now used), collected the same way, to measure the fixes honestly | teammate + friends | G10 |
 
 If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
