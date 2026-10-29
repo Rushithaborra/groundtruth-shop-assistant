@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from functools import lru_cache
 
 from .config import get_settings
 
@@ -35,6 +36,7 @@ def stem(tok: str) -> str:
     return tok
 
 
+@lru_cache(maxsize=65536)  # the same few thousand words recur across products and queries; bounded for any input
 def normalise_word(word: str) -> str:
     """Lower-case, map synonyms and stem; function words are left as they are."""
     word = word.lower()

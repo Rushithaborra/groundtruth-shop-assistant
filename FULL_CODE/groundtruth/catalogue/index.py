@@ -92,6 +92,7 @@ class CatalogueIndex:
         self.attr_keys: dict[str, str] = {}  # normalised key token -> key
         self.attr_key_groups: dict[str, list[str]] = {}  # key token -> every key containing it ("water" -> 2 keys)
         self.attr_key_phrases: dict[tuple, str] = {}  # multi-word key names: ("shoe", "compartment") -> key
+        self._named_keys: set[str] = set()  # attribute names already made askable
         self.name_pairs: set[tuple[str, str]] = set()  # adjacent words in product names: ("hair", "dryer")
         self._text_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title/category/attrs -> pids
         self._title_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title -> pids
@@ -119,7 +120,9 @@ class CatalogueIndex:
                     self.attr_values.setdefault(key, {})[toks] = val
                     self._attr_token_postings[(key, toks)].add(p.id)
                     text.update(toks)
-            self._index_key_name(key)
+            if key not in self._named_keys:  # each attribute name is indexed once, not once per product
+                self._named_keys.add(key)
+                self._index_key_name(key)
         desc = frozenset(tokenize(p.description))
         self.title_tokens[p.id], self.desc_tokens[p.id], self.attr_lower[p.id] = title, desc, lowered
         for tok in text:
@@ -194,6 +197,7 @@ class CatalogueIndex:
         return set.intersection(*sets)
 
     def _matches(self, p: Product, spec: Spec, use_desc: bool) -> bool:
+        """Whether a product meets every hard constraint: budget, exclusions, size, stock, units, filters."""
         if (spec.price_max is not None and p.price > spec.price_max) or (
             spec.price_min is not None and p.price < spec.price_min
         ):
@@ -289,6 +293,7 @@ def _unit_values(p: Product, unit: str) -> list:
 
 
 def _numeric(value: object) -> float | None:
+    """A measurement as a number ("65" -> 65.0); booleans and text that isn't a number give None."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
