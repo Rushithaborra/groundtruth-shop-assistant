@@ -259,7 +259,10 @@ class ShoppingAssistant:
         no_ref = not (s.type_tokens or s.filters or s.size or s.price_min is not None or s.price_max is not None)
         if session.last_product and no_ref and (p.intents & FACTS or p.unknown or s.desc_tokens):
             return products[session.last_product], Spec()
-        if s.type_tokens or session.spec.is_empty() or not (p.has_constraint or s.sort or s.desc_tokens):
+        # a different kind of product ("cotton kurti" after "blue running shoes") is a new search, whether it was
+        # named by product words or read as a category, so the earlier colour or type doesn't carry over
+        new_kind = any(k in s.filters and s.filters[k] != session.spec.filters.get(k) for k in KIND_FILTERS)
+        if s.type_tokens or new_kind or session.spec.is_empty() or not (p.has_constraint or s.sort or s.desc_tokens):
             return None, s.copy()
         merged = session.spec.copy()  # a refinement of the previous search
         merged.filters.update(s.filters)
@@ -307,6 +310,7 @@ def _names_products(p: Parsed) -> bool:
 
 ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
 _AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
+KIND_FILTERS = ("category", "sub_category")  # filters that name the kind of product itself
 
 
 def _treat_description_words_as_unknown(p: Parsed, spec: Spec, session: Session) -> None:

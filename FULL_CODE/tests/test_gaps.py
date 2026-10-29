@@ -49,6 +49,20 @@ CATALOGUE = [
     product(
         "SKU-BG1", "Yatrik Vega Duffel Bag - Brown", "Duffel Bags", 1899, {"luggage_size": "cabin", "colour": "brown"}
     ),
+    product(
+        "SKU-KU1",
+        "Threadcraft Roshni Women's Cotton Solid Kurti - Lavender",
+        "Kurtas",
+        409,
+        {"gender": "women", "material": "cotton", "colour": "lavender"},
+    ),
+    product(
+        "SKU-KU2",
+        "Threadcraft Ruhaani Women's Cotton Embroidered Kurti - Purple",
+        "Kurtas",
+        539,
+        {"gender": "women", "material": "cotton", "colour": "purple"},
+    ),
 ]
 
 POLICY = """# Policy
@@ -108,6 +122,14 @@ class GapTests(unittest.TestCase):
                 self.assertEqual(r.action, REFUSE)
                 self.assertIn("doesn't say anything about", r.text)
                 self.assertEqual(r.claims.sections, ["2.2"])  # delivery timelines, not the refund timeline
+
+    def test_a_different_kind_of_product_starts_a_new_search(self):
+        # the demo script's order: "kurti" is read as a category here, and must not keep the shoes' colour or type
+        r = self.ask("white running shoes ka price", "cotton kurti for women")
+        self.assertEqual(r.action, ANSWER)
+        self.assertEqual(set(r.claims.products), {"SKU-KU1", "SKU-KU2"})
+        r = self.ask("white running shoes ka price", "cotton kurti for women", "sabse sasti")
+        self.assertEqual(r.claims.products, ["SKU-KU1"])
 
     def test_a_question_the_policy_answers_is_still_answered(self):
         r = self.ask("free delivery kitne ke order pe")
