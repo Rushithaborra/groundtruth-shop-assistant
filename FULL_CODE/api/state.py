@@ -14,6 +14,7 @@ from datetime import datetime
 from groundtruth.answering import CLARIFY, REFUSE, Response, Session, ShoppingAssistant
 from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
+from groundtruth.metrics import percentile
 from groundtruth.models.semantic import type_words
 from groundtruth.text import format_inr
 from groundtruth.understanding import Parsed, understand
@@ -66,13 +67,15 @@ class Insights:
         with self.lock:
             n = sum(self.actions.values())
             lat = sorted(self.latency)
-            pct = lambda q: round(lat[min(len(lat) - 1, int(q * len(lat)))], 3) if lat else None  # noqa: E731
             return {
                 "since": datetime.fromtimestamp(self.started).isoformat(timespec="seconds"),
                 "questions": n,
                 "actions": {a: self.actions.get(a, 0) for a in ("answer", "clarify", "refuse")},
                 "paths": {p: self.paths.get(p, 0) for p in ("rules", "semantic", "llm")},
-                "latency_ms": {"median": round(statistics.median(lat), 3) if lat else None, "p95": pct(0.95)},
+                "latency_ms": {
+                    "median": round(statistics.median(lat), 3) if lat else None,
+                    "p95": round(percentile(lat, 0.95), 3) if lat else None,
+                },
                 "llm_tokens": self.llm_tokens,
                 "failed_checks": self.failed_checks,
                 "not_stocked": self.gaps.most_common(15),

@@ -29,8 +29,15 @@ ALLOWED_TOP = {"README.md", ".gitignore", "LICENSE", "submission", "FULL_CODE", 
 FORBIDDEN_NAMES = {".env", ".venv", "venv", "node_modules", "__pycache__", ".DS_Store", ".pytest_cache", ".ruff_cache"}
 FORBIDDEN_SUFFIXES = {".zip", ".db", ".sqlite", ".gguf", ".safetensors", ".pt", ".bin", ".pkl"}
 FORBIDDEN_DIRS = ("FULL_CODE/data/pack", "FULL_CODE/models", "FULL_CODE/output", "FULL_CODE/data/scale")
-README_SECTIONS = ("What it does", "How to run", "How to run the tests", "Architecture", "AI usage",
-                   "Pre-built and third-party code", "Limitations")  # fmt: skip
+README_SECTIONS = (
+    "What it does",
+    "How to run",
+    "How to run the tests",
+    "Architecture",
+    "AI usage",
+    "Pre-built and third-party code",
+    "Limitations",
+)
 REQUIRED_FILES = ("FULL_CODE/main.py", "FULL_CODE/uv.lock", "FULL_CODE/.env.example", "FULL_CODE/pyproject.toml")
 
 
@@ -83,8 +90,9 @@ def zip_folder(folder: Path, zip_path: Path) -> Path:
 def _fresh_clone(repo: Path, dest: Path) -> None:
     """Clone the repository, so that only committed work is packaged."""
     try:
-        subprocess.run(["git", "clone", "--quiet", str(repo), str(dest)], check=True, capture_output=True,
-                       text=True, timeout=300)  # fmt: skip
+        subprocess.run(
+            ["git", "clone", "--quiet", str(repo), str(dest)], check=True, capture_output=True, text=True, timeout=300
+        )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         raise PackagingError(f"git clone of {repo} failed: {getattr(exc, 'stderr', '') or exc}") from exc
 

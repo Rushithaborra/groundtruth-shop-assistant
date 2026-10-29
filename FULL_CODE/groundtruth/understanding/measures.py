@@ -10,13 +10,38 @@ import re
 
 # shopper spellings -> the unit suffix used in attribute names
 _UNITS = {
-    "w": "w", "watt": "w", "watts": "w",
-    "mm": "mm", "cm": "cm",
-    "l": "l", "ltr": "l", "ltrs": "l", "litre": "l", "litres": "l", "liter": "l", "liters": "l",
-    "ml": "ml", "mah": "mah", "kg": "kg", "g": "g", "gm": "g", "gram": "g", "grams": "g",
-    "inch": "in", "inches": "in", "m": "m", "metre": "m", "metres": "m", "meter": "m", "meters": "m",
-    "ft": "ft", "feet": "ft", "pcs": "pieces", "piece": "pieces", "pieces": "pieces",
-}  # fmt: skip
+    "w": "w",
+    "watt": "w",
+    "watts": "w",
+    "mm": "mm",
+    "cm": "cm",
+    "l": "l",
+    "ltr": "l",
+    "ltrs": "l",
+    "litre": "l",
+    "litres": "l",
+    "liter": "l",
+    "liters": "l",
+    "ml": "ml",
+    "mah": "mah",
+    "kg": "kg",
+    "g": "g",
+    "gm": "g",
+    "gram": "g",
+    "grams": "g",
+    "inch": "in",
+    "inches": "in",
+    "m": "m",
+    "metre": "m",
+    "metres": "m",
+    "meter": "m",
+    "meters": "m",
+    "ft": "ft",
+    "feet": "ft",
+    "pcs": "pieces",
+    "piece": "pieces",
+    "pieces": "pieces",
+}
 _MEASURE = re.compile(
     r"\b(\d+(?:\.\d+)?)\s*(" + "|".join(sorted(_UNITS, key=len, reverse=True)) + r")\b", re.IGNORECASE
 )

@@ -12,26 +12,48 @@ from groundtruth.builder import build_assistant
 
 def product(pid, title, sub, price, attrs, stock="in_stock"):
     return {
-        "product_id": pid, "title": title, "brand": title.split()[0], "category": "Test", "sub_category": sub,
-        "description": f"{title}.", "attributes": attrs, "price_inr": price, "mrp_inr": price,
-        "stock_status": stock, "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": title,
+        "brand": title.split()[0],
+        "category": "Test",
+        "sub_category": sub,
+        "description": f"{title}.",
+        "attributes": attrs,
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": stock,
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 CATALOGUE = [
     product("SKU-SB1", "Trekora NimbusAir Kids' School Bag 26 L - Red", "School Bags", 899, {"colour": "red"}),
-    product("SKU-HD1", "Herbique AmberAir 1000 W Hair Dryer - White", "Hair Dryers", 1199,
-            {"wattage_w": 1000, "colour": "white"}),
+    product(
+        "SKU-HD1",
+        "Herbique AmberAir 1000 W Hair Dryer - White",
+        "Hair Dryers",
+        1199,
+        {"wattage_w": 1000, "colour": "white"},
+    ),
     product("SKU-SH1", "Herbique SilkLeaf Shampoo 200 ml", "Shampoos", 299, {"hair_type": "oily", "volume_ml": 200}),
     product("SKU-SP1", "Wavefin Tide Bluetooth Speaker - Green", "Bluetooth Speakers", 2199, {"water_resistant": True}),
-    product("SKU-CS3", "Sanchayo NimbusMax Steel Container Set of 3", "Containers", 899, {"containers": 3},
-            stock="out_of_stock"),
+    product(
+        "SKU-CS3",
+        "Sanchayo NimbusMax Steel Container Set of 3",
+        "Containers",
+        899,
+        {"containers": 3},
+        stock="out_of_stock",
+    ),
     product("SKU-CS12", "Sanchayo NimbusMax Steel Container Set of 12", "Containers", 1979, {"containers": 12}),
     product("SKU-FB4", "Kridaa IonFlex Football Size 4 - Black", "Footballs", 499, {"ball_size": 4}),
     product("SKU-FB5", "Kridaa IonFlex Football Size 5 - Black", "Footballs", 599, {"ball_size": 5}),
-    *[product(f"SKU-BP{i}", f"Yatrik Trail{i} Backpack 30 L - Grey", "Backpacks", 900 + i, {"colour": "grey"})
-      for i in range(7)],
-]  # fmt: skip
+    *[
+        product(f"SKU-BP{i}", f"Yatrik Trail{i} Backpack 30 L - Grey", "Backpacks", 900 + i, {"colour": "grey"})
+        for i in range(7)
+    ],
+]
 
 
 class NameHandlingTests(unittest.TestCase):

@@ -73,11 +73,15 @@ def score_file(predictions: Path, report: Path, details: bool = False, truth: Pa
     paths, evaluation = get_settings().paths, get_settings().evaluation
     args = [
         str(paths.official_scorer),
-        "--submission", str(predictions),
-        "--truth", str(truth or paths.dev_truth),
-        "--out", str(report),
-        "--data-dir", str(paths.dev_questions.parent),
-    ]  # fmt: skip
+        "--submission",
+        str(predictions),
+        "--truth",
+        str(truth or paths.dev_truth),
+        "--out",
+        str(report),
+        "--data-dir",
+        str(paths.dev_questions.parent),
+    ]
     return _run_pack_script(args + (["--details"] if details else []), evaluation.scorer_timeout_s)
 
 

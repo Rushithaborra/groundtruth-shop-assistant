@@ -7,8 +7,9 @@ from pathlib import Path
 
 from groundtruth.builder import build_assistant
 from groundtruth.config import get_settings
-from groundtruth.evaluation.cost_report import FIELDS, _percentile, measure, summarise, write_report
+from groundtruth.evaluation.cost_report import FIELDS, measure, summarise, write_report
 from groundtruth.evaluation.questions import Question
+from groundtruth.metrics import percentile
 from groundtruth.paths import ROOT
 
 QUESTIONS = {
@@ -48,8 +49,8 @@ class CostReportTests(unittest.TestCase):
 
     def test_percentiles_on_known_values(self):
         values = [float(v) for v in range(1, 101)]
-        self.assertEqual((_percentile(values, 0.5), _percentile(values, 0.95)), (50.0, 95.0))
-        self.assertEqual(_percentile([7.0], 0.95), 7.0)
+        self.assertEqual((percentile(values, 0.5), percentile(values, 0.95)), (50.0, 95.0))
+        self.assertEqual(percentile([7.0], 0.95), 7.0)
 
     def test_report_files_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:

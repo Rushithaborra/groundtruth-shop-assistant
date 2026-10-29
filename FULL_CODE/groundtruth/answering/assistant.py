@@ -319,9 +319,14 @@ def _treat_description_words_as_unknown(p: Parsed, spec: Spec, session: Session)
 def _asks_for_nothing(spec: Spec) -> bool:
     """No product, filter, budget or size: the message says what isn't wanted, or nothing at all."""
     only_exclusions = not (
-        spec.type_tokens or spec.filters or spec.desc_tokens or spec.size or spec.sort
-        or spec.price_min is not None or spec.price_max is not None
-    )  # fmt: skip
+        spec.type_tokens
+        or spec.filters
+        or spec.desc_tokens
+        or spec.size
+        or spec.sort
+        or spec.price_min is not None
+        or spec.price_max is not None
+    )
     return (spec.is_empty() or only_exclusions) and not spec.sort
 
 

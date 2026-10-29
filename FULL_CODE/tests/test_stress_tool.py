@@ -5,18 +5,34 @@ import unittest
 
 from tools.stress import _drop_letter, _split_line, build
 
-REQUIRED = {"question_id", "expected_action", "acceptable_product_ids", "required_facts", "clarify_candidate_ids",
-            "policy_sections", "question_text", "part"}  # fmt: skip
+REQUIRED = {
+    "question_id",
+    "expected_action",
+    "acceptable_product_ids",
+    "required_facts",
+    "clarify_candidate_ids",
+    "policy_sections",
+    "question_text",
+    "part",
+}
 
 
 def product(pid, line, colour, price, sub="Running Shoes", **attrs):
-    return {"product_id": pid, "title": f"Runvex {line} Men's Running Shoes - {colour.title()}", "brand": "Runvex",
-            "sub_category": sub, "price_inr": price, "stock_status": "in_stock",
-            "attributes": {"colour": colour, **attrs}}  # fmt: skip
+    return {
+        "product_id": pid,
+        "title": f"Runvex {line} Men's Running Shoes - {colour.title()}",
+        "brand": "Runvex",
+        "sub_category": sub,
+        "price_inr": price,
+        "stock_status": "in_stock",
+        "attributes": {"colour": colour, **attrs},
+    }
 
 
-CATALOGUE = [product(f"SKU-{i}", f"Line{i % 7}Flex", colour, 1000 + 37 * i, material="mesh")
-             for i, colour in enumerate(["red", "blue", "green", "black", "white", "grey"] * 8)]  # fmt: skip
+CATALOGUE = [
+    product(f"SKU-{i}", f"Line{i % 7}Flex", colour, 1000 + 37 * i, material="mesh")
+    for i, colour in enumerate(["red", "blue", "green", "black", "white", "grey"] * 8)
+]
 
 
 class StressToolTests(unittest.TestCase):

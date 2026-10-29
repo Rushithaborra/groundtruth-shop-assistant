@@ -17,34 +17,75 @@ from groundtruth.understanding.measures import extract_measures
 
 def product(pid, title, sub, price, attrs, stock="in_stock", brand=None):
     return {
-        "product_id": pid, "title": title, "brand": brand or title.split()[0], "category": "Test", "sub_category": sub,
-        "description": f"{title}.", "attributes": attrs, "price_inr": price, "mrp_inr": price,
-        "stock_status": stock, "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": title,
+        "brand": brand or title.split()[0],
+        "category": "Test",
+        "sub_category": sub,
+        "description": f"{title}.",
+        "attributes": attrs,
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": stock,
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 CATALOGUE = [
     product("SKU-C65A", "Voltix Rapid 65 W Charger - White", "Chargers", 1299, {"output_w": 65, "colour": "white"}),
     product("SKU-C65B", "Voltix Rapid 65 W Charger - Black", "Chargers", 1349, {"output_w": 65, "colour": "black"}),
     product("SKU-C30A", "Voltix Rapid 30 W Charger - White", "Chargers", 699, {"output_w": 30, "colour": "white"}),
-    product("SKU-BK1", "Sootli Frost Cotton King Bedsheet - Pink", "Bedsheets", 439,
-            {"material": "cotton", "bed_size": "king", "colour": "pink"}, stock="out_of_stock"),
-    product("SKU-BK2", "Sootli Frost Cotton King Bedsheet - Blue", "Bedsheets", 759,
-            {"material": "cotton", "bed_size": "king", "colour": "blue"}),
-    product("SKU-BK3", "Sootli Frost Cotton King Bedsheet - Grey", "Bedsheets", 899,
-            {"material": "cotton", "bed_size": "king", "colour": "grey"}),
-    product("SKU-BD1", "Sootli Frost Cotton Double Bedsheet - Pink", "Bedsheets", 359,
-            {"material": "cotton", "bed_size": "double", "colour": "pink"}),
+    product(
+        "SKU-BK1",
+        "Sootli Frost Cotton King Bedsheet - Pink",
+        "Bedsheets",
+        439,
+        {"material": "cotton", "bed_size": "king", "colour": "pink"},
+        stock="out_of_stock",
+    ),
+    product(
+        "SKU-BK2",
+        "Sootli Frost Cotton King Bedsheet - Blue",
+        "Bedsheets",
+        759,
+        {"material": "cotton", "bed_size": "king", "colour": "blue"},
+    ),
+    product(
+        "SKU-BK3",
+        "Sootli Frost Cotton King Bedsheet - Grey",
+        "Bedsheets",
+        899,
+        {"material": "cotton", "bed_size": "king", "colour": "grey"},
+    ),
+    product(
+        "SKU-BD1",
+        "Sootli Frost Cotton Double Bedsheet - Pink",
+        "Bedsheets",
+        359,
+        {"material": "cotton", "bed_size": "double", "colour": "pink"},
+    ),
     product("SKU-SP1", "Wavefin Sage X2 Speaker - Purple", "Bluetooth Speakers", 1699, {"colour": "purple"}),
-    product("SKU-SP2", "Wavefin Tide X3 Speaker - Green", "Bluetooth Speakers", 2199,
-            {"colour": "green", "water_resistant": True}),
-    product("SKU-YM1", "Strikeforce Vista PVC Yoga Mat - Teal", "Yoga Mats", 719,
-            {"thickness_mm": 10, "colour": "teal"}),
-    product("SKU-DF1", "Yatrik Vega Duffel Bag - Brown", "Duffel Bags", 1899,
-            {"shoe_compartment": True, "colour": "brown", "material": "polyester"}),
+    product(
+        "SKU-SP2",
+        "Wavefin Tide X3 Speaker - Green",
+        "Bluetooth Speakers",
+        2199,
+        {"colour": "green", "water_resistant": True},
+    ),
+    product(
+        "SKU-YM1", "Strikeforce Vista PVC Yoga Mat - Teal", "Yoga Mats", 719, {"thickness_mm": 10, "colour": "teal"}
+    ),
+    product(
+        "SKU-DF1",
+        "Yatrik Vega Duffel Bag - Brown",
+        "Duffel Bags",
+        1899,
+        {"shoe_compartment": True, "colour": "brown", "material": "polyester"},
+    ),
     product("SKU-KT1", "Threadcraft Chandni Cotton Kurti - Olive", "Kurtis", 599, {"colour": "olive"}),
     product("SKU-KT2", "Saanjh Chandni Silk Kurta - Grey", "Kurtas", 1099, {"colour": "grey"}),
-]  # fmt: skip
+]
 
 POLICY = """# Policy
 

@@ -12,24 +12,44 @@ from groundtruth.builder import build_assistant
 
 def product(pid, title, sub, price, attrs):
     return {
-        "product_id": pid, "title": title, "brand": title.split()[0], "category": "Test", "sub_category": sub,
-        "description": f"{title}.", "attributes": attrs, "price_inr": price, "mrp_inr": price,
-        "stock_status": "in_stock", "rating": 4.0, "review_count": 10,
-    }  # fmt: skip
+        "product_id": pid,
+        "title": title,
+        "brand": title.split()[0],
+        "category": "Test",
+        "sub_category": sub,
+        "description": f"{title}.",
+        "attributes": attrs,
+        "price_inr": price,
+        "mrp_inr": price,
+        "stock_status": "in_stock",
+        "rating": 4.0,
+        "review_count": 10,
+    }
 
 
 CATALOGUE = [
-    product("SKU-RS1", "Runvex Zen Men's Running Shoes - White", "Running Shoes", 1999,
-            {"gender": "men", "sizes": ["UK 7", "UK 8"], "colour": "white"}),
-    product("SKU-RS2", "Kadambh Breeze Men's Running Shoes - Tan", "Running Shoes", 2499,
-            {"gender": "men", "sizes": ["UK 9", "UK 10"], "colour": "tan"}),
+    product(
+        "SKU-RS1",
+        "Runvex Zen Men's Running Shoes - White",
+        "Running Shoes",
+        1999,
+        {"gender": "men", "sizes": ["UK 7", "UK 8"], "colour": "white"},
+    ),
+    product(
+        "SKU-RS2",
+        "Kadambh Breeze Men's Running Shoes - Tan",
+        "Running Shoes",
+        2499,
+        {"gender": "men", "sizes": ["UK 9", "UK 10"], "colour": "tan"},
+    ),
     product("SKU-TS1", "Northline Aero Men's Cotton T-Shirt - Beige", "T-Shirts", 349, {"colour": "beige"}),
     product("SKU-SH1", "Tanvika Zen Men's Cotton Formal Shirt - Blue", "Shirts", 899, {"colour": "blue"}),
     product("SKU-EB1", "Wavefin Ripple Wireless Earbuds - Purple", "Wireless Earbuds", 339, {"colour": "purple"}),
     product("SKU-EB2", "Wavefin Ripple Wireless Earbuds - Teal", "Wireless Earbuds", 359, {"colour": "teal"}),
-    product("SKU-BG1", "Yatrik Vega Duffel Bag - Brown", "Duffel Bags", 1899,
-            {"luggage_size": "cabin", "colour": "brown"}),
-]  # fmt: skip
+    product(
+        "SKU-BG1", "Yatrik Vega Duffel Bag - Brown", "Duffel Bags", 1899, {"luggage_size": "cabin", "colour": "brown"}
+    ),
+]
 
 POLICY = """# Policy
 

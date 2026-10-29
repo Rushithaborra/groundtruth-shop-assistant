@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import statistics
 from pathlib import Path
 
@@ -23,19 +22,25 @@ from ..arguments import add_model_arguments
 from ..builder import build_assistant
 from ..config import get_settings
 from ..console import write_out
+from ..metrics import percentile
 from ..text import approx_tokens
 from .questions import Question, conversations, load_questions
 
 FIELDS = (
-    "question_id", "split", "conversation_id", "turn", "action", "path", "latency_ms", "model_tokens_in",
-    "model_tokens_out", "est_context_tokens", "est_reply_tokens", "llm_baseline_tokens_in", "llm_baseline_seconds",
-)  # fmt: skip
-
-
-def _percentile(values: list[float], q: float) -> float:
-    """Nearest-rank percentile: the smallest value with at least a share q of the values at or below it."""
-    ordered = sorted(values)
-    return ordered[max(0, math.ceil(q * len(ordered)) - 1)]
+    "question_id",
+    "split",
+    "conversation_id",
+    "turn",
+    "action",
+    "path",
+    "latency_ms",
+    "model_tokens_in",
+    "model_tokens_out",
+    "est_context_tokens",
+    "est_reply_tokens",
+    "llm_baseline_tokens_in",
+    "llm_baseline_seconds",
+)
 
 
 def measure(assistant: ShoppingAssistant, questions_by_split: dict[str, list[Question]]) -> list[dict]:
@@ -47,15 +52,24 @@ def measure(assistant: ShoppingAssistant, questions_by_split: dict[str, list[Que
             session = Session()
             for q in turns:
                 r = assistant.ask(q.text, session)
-                rows.append({
-                    "question_id": q.question_id, "split": split, "conversation_id": q.conversation_id,
-                    "turn": q.turn, "action": r.action, "path": r.path, "latency_ms": round(r.latency_ms, 3),
-                    "model_tokens_in": r.llm_input_tokens, "model_tokens_out": r.llm_output_tokens,
-                    "est_context_tokens": r.context_tokens, "est_reply_tokens": r.output_tokens,
-                    # an LLM writing this reply: the measured grounded prompt plus this query, one call
-                    "llm_baseline_tokens_in": baseline.llm_prompt_tokens + approx_tokens(q.text),
-                    "llm_baseline_seconds": baseline.llm_seconds_per_call,
-                })  # fmt: skip
+                rows.append(
+                    {
+                        "question_id": q.question_id,
+                        "split": split,
+                        "conversation_id": q.conversation_id,
+                        "turn": q.turn,
+                        "action": r.action,
+                        "path": r.path,
+                        "latency_ms": round(r.latency_ms, 3),
+                        "model_tokens_in": r.llm_input_tokens,
+                        "model_tokens_out": r.llm_output_tokens,
+                        "est_context_tokens": r.context_tokens,
+                        "est_reply_tokens": r.output_tokens,
+                        # an LLM writing this reply: the measured grounded prompt plus this query, one call
+                        "llm_baseline_tokens_in": baseline.llm_prompt_tokens + approx_tokens(q.text),
+                        "llm_baseline_seconds": baseline.llm_seconds_per_call,
+                    }
+                )
     return rows
 
 
@@ -72,8 +86,11 @@ def summarise(rows: list[dict]) -> dict:
         "by_split": {s: sum(r["split"] == s for r in rows) for s in sorted({r["split"] for r in rows})},
         "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
         "latency_ms": {
-            "mean": round(statistics.mean(lat), 3), "p50": round(_percentile(lat, 0.5), 3),
-            "p95": round(_percentile(lat, 0.95), 3), "max": round(max(lat), 3), "total": round(sum(lat), 1),
+            "mean": round(statistics.mean(lat), 3),
+            "p50": round(percentile(lat, 0.5), 3),
+            "p95": round(percentile(lat, 0.95), 3),
+            "max": round(max(lat), 3),
+            "total": round(sum(lat), 1),
         },
         "model_tokens_measured": {"in": model_in, "out": model_out, "per_query": round((model_in + model_out) / n, 1)},
         "context_tokens_estimated": {
@@ -82,12 +99,14 @@ def summarise(rows: list[dict]) -> dict:
             "note": "about 4 characters per token; what a reply cites and says, not tokens sent to any model",
         },
         "llm_every_query_ESTIMATE": {
-            "tokens_in": base_in, "tokens_out": base_out, "seconds": round(base_seconds, 1),
+            "tokens_in": base_in,
+            "tokens_out": base_out,
+            "seconds": round(base_seconds, 1),
             "note": "estimate: one measured call of the provided 0.5B model (prompt holding the catalogue's "
-                    "allowed values) times the number of queries, on a laptop CPU; not run for every query",
+            "allowed values) times the number of queries, on a laptop CPU; not run for every query",
         },
         "budget": "the pack does not state a token or cost budget; GroundTruth uses 0 model tokens per query",
-    }  # fmt: skip
+    }
 
 
 def write_report(rows: list[dict], summary: dict, out_dir: Path) -> tuple[Path, Path]:

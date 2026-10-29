@@ -9,21 +9,33 @@ from pathlib import Path
 from tools.make_submission_zip import README_SECTIONS, check_project, zip_folder
 
 PREDICTION = {
-    "question_id": "Q-1", "action": "refuse", "answer_text": "I don't have that.", "cited_product_ids": [],
-    "cited_policy_sections": [], "stated_prices": [], "stated_facts": [], "latency_ms": 1.0, "tokens_in": 0,
+    "question_id": "Q-1",
+    "action": "refuse",
+    "answer_text": "I don't have that.",
+    "cited_product_ids": [],
+    "cited_policy_sections": [],
+    "stated_prices": [],
+    "stated_facts": [],
+    "latency_ms": 1.0,
+    "tokens_in": 0,
     "tokens_out": 0,
-}  # fmt: skip
+}
 
 
 def make_project(root: Path) -> Path:
     """A minimal project that passes every check."""
     readme = "# Team\n\n" + "".join(f"## {s}\n\ntext\n\n" for s in README_SECTIONS)
     files = {
-        "README.md": readme, ".gitignore": ".env\n", "LICENSE": "MIT\n",
+        "README.md": readme,
+        ".gitignore": ".env\n",
+        "LICENSE": "MIT\n",
         "submission/R3_predictions.jsonl": json.dumps(PREDICTION) + "\n",
-        "FULL_CODE/main.py": "", "FULL_CODE/uv.lock": "", "FULL_CODE/.env.example": "", "FULL_CODE/pyproject.toml": "",
+        "FULL_CODE/main.py": "",
+        "FULL_CODE/uv.lock": "",
+        "FULL_CODE/.env.example": "",
+        "FULL_CODE/pyproject.toml": "",
         "questions_test.csv": "question_id,conversation_id,turn,question_text\nQ-1,C-1,1,iphone price\n",
-    }  # fmt: skip
+    }
     for rel, text in files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,8 +61,14 @@ class ChecklistTests(unittest.TestCase):
         self.assertEqual(check_project(self.root, self.questions), [])
 
     def test_secrets_data_models_and_junk_are_caught(self):
-        for rel in (".env", "FULL_CODE/.venv/bin/python", "FULL_CODE/data/pack/catalogue.csv",
-                    "FULL_CODE/models/qwen.gguf", "FULL_CODE/output/old.zip", ".DS_Store"):  # fmt: skip
+        for rel in (
+            ".env",
+            "FULL_CODE/.venv/bin/python",
+            "FULL_CODE/data/pack/catalogue.csv",
+            "FULL_CODE/models/qwen.gguf",
+            "FULL_CODE/output/old.zip",
+            ".DS_Store",
+        ):
             self.add(rel)
         problems = "\n".join(check_project(self.root, self.questions))
         for rel in (".env", ".venv", "data/pack", "FULL_CODE/models", "old.zip", ".DS_Store"):

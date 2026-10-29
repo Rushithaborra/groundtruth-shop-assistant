@@ -45,10 +45,14 @@ class ValidationTests(unittest.TestCase):
     def test_chat_fields(self):
         self.assertEqual(chat_request({"message": " hi ", "session_id": None}, 50).message, "hi")
         bad = [
-            ({"message": 5}, 400), ({"message": "   "}, 400), ({"message": "x" * 51}, 413),
-            ({"message": "hi\x00"}, 400), ({"message": "hi", "admin": True}, 400),
-            ({"message": "hi", "session_id": "../etc"}, 400), ({"message": "hi", "session_id": 7}, 400),
-        ]  # fmt: skip
+            ({"message": 5}, 400),
+            ({"message": "   "}, 400),
+            ({"message": "x" * 51}, 413),
+            ({"message": "hi\x00"}, 400),
+            ({"message": "hi", "admin": True}, 400),
+            ({"message": "hi", "session_id": "../etc"}, 400),
+            ({"message": "hi", "session_id": 7}, 400),
+        ]
         for data, code in bad:
             with self.subTest(data=data):
                 self.assertEqual(self.status(lambda d=data: chat_request(d, 50)), code)
@@ -103,8 +107,9 @@ class ServerSecurityTests(unittest.TestCase):
 
     def request(self, path, body=None, method=None, headers=None):
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data, {"Content-Type": "application/json", **(headers or {})},
-                                     method=method)  # fmt: skip
+        req = urllib.request.Request(
+            self.base + path, data, {"Content-Type": "application/json", **(headers or {})}, method=method
+        )
         try:
             with urllib.request.urlopen(req, timeout=5) as r:
                 return r.status, dict(r.headers), r.read()

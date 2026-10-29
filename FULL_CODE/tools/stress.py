@@ -33,9 +33,22 @@ STOCK_ASKS = ("{name} stock me hai?", "is {name} in stock", "{name} available ha
 MATERIAL_ASKS = ("{name} kis material ka hai?", "what is the material of {name}?")
 WATER_ASKS = ("{name} paani me chalega?", "is {name} waterproof?")
 VAGUE_ASKS = ("{colour} {kind} kitne ka", "price of the {colour} {kind}")
-NOT_SOLD = ("iphone 15", "redmi note 13 pro", "samsung tv 43 inch", "dell laptop", "aashirvaad atta 5kg",
-            "dolo 650 strip", "gold chain", "silver payal", "honda activa", "maggi noodles", "hp printer ink",
-            "nike air max", "boat airdopes", "playstation 5")  # fmt: skip
+NOT_SOLD = (
+    "iphone 15",
+    "redmi note 13 pro",
+    "samsung tv 43 inch",
+    "dell laptop",
+    "aashirvaad atta 5kg",
+    "dolo 650 strip",
+    "gold chain",
+    "silver payal",
+    "honda activa",
+    "maggi noodles",
+    "hp printer ink",
+    "nike air max",
+    "boat airdopes",
+    "playstation 5",
+)
 NOT_SOLD_ASKS = ("{item} hai kya", "{item} price", "do you sell {item}", "{item} milega?")
 
 
@@ -86,12 +99,21 @@ def build(catalogue: list[dict], n_products: int = 120, seed: int = SEED) -> lis
 
     def add(text: str, action: str, qtype: str, part: str, products=(), facts=(), candidates=()) -> None:
         """Add one stress question with its expected action, type, part and the products and facts it needs."""
-        rows.append({
-            "question_id": f"S-{len(rows):04d}", "conversation_id": f"SC-{len(rows):04d}", "turn": 1,
-            "question_text": text, "expected_action": action, "question_type": qtype, "part": part,
-            "acceptable_product_ids": list(products), "required_facts": list(facts),
-            "clarify_candidate_ids": list(candidates), "policy_sections": [],
-        })  # fmt: skip
+        rows.append(
+            {
+                "question_id": f"S-{len(rows):04d}",
+                "conversation_id": f"SC-{len(rows):04d}",
+                "turn": 1,
+                "question_text": text,
+                "expected_action": action,
+                "question_type": qtype,
+                "part": part,
+                "acceptable_product_ids": list(products),
+                "required_facts": list(facts),
+                "clarify_candidate_ids": list(candidates),
+                "policy_sections": [],
+            }
+        )
 
     for p in rng.sample(catalogue, n_products):
         part, matches = _part_of(p["product_id"]), by_identity[_identity(p)]
@@ -134,8 +156,11 @@ def _vague_groups(catalogue: list[dict], rng: random.Random, n: int = 16) -> lis
         colour = p["attributes"].get("colour")
         if colour and colour != "assorted":
             groups.setdefault((colour, p["sub_category"]), []).append(p)
-    vague = [(k, [p["product_id"] for p in v]) for k, v in sorted(groups.items())
-             if 2 <= len(v) <= 10 and len({p["price_inr"] for p in v}) > 1]  # fmt: skip
+    vague = [
+        (k, [p["product_id"] for p in v])
+        for k, v in sorted(groups.items())
+        if 2 <= len(v) <= 10 and len({p["price_inr"] for p in v}) > 1
+    ]
     return rng.sample(vague, min(n, len(vague)))
 
 
