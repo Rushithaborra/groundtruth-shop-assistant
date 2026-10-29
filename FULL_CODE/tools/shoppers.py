@@ -22,6 +22,7 @@ import hashlib
 import json
 import math
 import random
+from collections.abc import Iterable
 
 from groundtruth.builder import build_assistant
 from groundtruth.config import get_settings
@@ -144,6 +145,7 @@ NOT_SOLD_ASKS = {"tune": ("{item} hai kya", "{item} dikhao"), "holdout": ("{item
 
 
 def _hashed_part(key: str) -> str:
+    """Assign a question to the tune or holdout part by hashing its key, so the split is stable."""
     return "tune" if int(hashlib.sha256(key.encode()).hexdigest(), 16) % 2 == 0 else "holdout"
 
 
@@ -179,7 +181,16 @@ def _budget(products: list[dict]) -> int | None:
 class _Rows(list):
     """Truth rows in the official scorer's format."""
 
-    def add(self, text: str, action: str, qtype: str, part: str, products=(), facts=(), sections=()) -> None:
+    def add(
+        self,
+        text: str,
+        action: str,
+        qtype: str,
+        part: str,
+        products: Iterable[str] = (),
+        facts: Iterable[dict] = (),
+        sections: Iterable[str] = (),
+    ) -> None:
         """Add one question with its expected action and the products, facts and sections that answer it."""
         self.append(
             {
@@ -264,11 +275,13 @@ def _lookup_questions(rows: _Rows, catalogue: list[dict], rng: random.Random, n:
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """The shoppers command's options: which part to score, and per-question details."""
     ap.add_argument("--part", choices=("tune", "holdout", "all"), default="tune")
     ap.add_argument("--details", action="store_true", help="also write per-question results (score_details.jsonl)")
 
 
 def run(args: argparse.Namespace) -> None:
+    """Build the shopper-language questions, answer them and score them with the official scorer."""
     _require_scorer_dependencies()
     paths = get_settings().paths
     catalogue = [json.loads(line) for line in paths.pack_catalogue.read_text(encoding="utf-8").splitlines() if line]

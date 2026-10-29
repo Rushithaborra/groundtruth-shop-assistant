@@ -7,6 +7,8 @@
     python main.py score      score the dev questions with the pack's official scorer (needs `uv sync`)
     python main.py report     per-query latency and token-cost report over the pack's questions
     python main.py package    build teamID_R3.zip from a fresh clone, after the submission checklist
+    python main.py stress     catalogue-built stress set, scored by the official scorer
+    python main.py shoppers   shopper-language set (Hinglish, Telugu-English, own words), official scorer
     python main.py bench      throughput and latency benchmark
     python main.py calibrate  pick the embedding-fallback thresholds with the provided model
     python main.py generate   write the synthetic catalogues and question sets into data/
@@ -31,6 +33,7 @@ GENERATORS = ("synthetic", "hard", "scale", "independent", "heldout", "heldout2"
 
 
 def _generate(args: argparse.Namespace) -> None:
+    """Run the chosen data generators, each in its own process."""
     names = GENERATORS if args.which == "all" else (args.which,)
     for name in names:
         # each generator runs in its own process: the question-set generators share module-level state
@@ -38,6 +41,7 @@ def _generate(args: argparse.Namespace) -> None:
 
 
 def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:
+    """The generate command's option: which data set to write."""
     ap.add_argument(
         "which", nargs="?", default="all", choices=("all", *GENERATORS), help="which data set to write (default: all)"
     )
