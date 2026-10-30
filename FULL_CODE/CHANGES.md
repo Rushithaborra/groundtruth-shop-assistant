@@ -1011,6 +1011,17 @@ Nothing that answers a question changed: all seven score sets are identical (dev
 `latency_ms`. Tests: 263 (Python 3.12 with the voice extra; 261 pass and 2 skip on 3.9 without it). Now 0 functions
 over 40 lines and 0 top-level functions, classes or methods without a docstring.
 
+## The Speak button shows what it is doing, 30 October
+
+The button said "Stop" while recording and "Listening…" while the recording was being turned into text, which is
+the wrong word for that step. It now has three looks, all set in one place (`setMic`): **Speak** with a mic icon;
+**Listening…** in red with a pulsing dot and a stop square inside the button (clicking anywhere on it stops); and
+**Transcribing…** with a small spinner, disabled, while the server turns the speech into text. The text box hint
+follows ("Listening… say your question, then press ■ to stop.", "Turning your speech into text…") and goes back to
+normal afterwards, unless it is showing an error. Animations stop for people who ask for reduced motion; on phones
+only the icons show. Checked in headless Chrome: ready → listening → transcribing → ready, with the right labels for
+screen readers at each step. Page only; tests 263.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

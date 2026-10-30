@@ -206,8 +206,19 @@ form.ask button:hover { background: var(--btn-hover); }
 form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; font-size: 16.5px; }
 form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
-form.ask button.mic { background: var(--card); color: var(--btn-ink); border: 2px solid var(--btn); padding: 0 14px; }
-form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; }
+form.ask button.mic { display: inline-flex; align-items: center; gap: 7px; background: var(--card); color: var(--btn-ink); border: 2px solid var(--btn); padding: 0 14px; white-space: nowrap; }
+form.ask button.mic svg { width: 16px; height: 16px; flex: none; }
+form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; padding-right: 6px; }
+form.ask button.mic.rec:hover { background: #9a1f18; }
+form.ask button.mic.busy:disabled { opacity: 1; cursor: progress; }
+.mic .dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: mic-pulse 1.1s ease-in-out infinite; }
+.mic .stop { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 2px; border-radius: 7px; background: rgba(255, 255, 255, .22); }
+.mic .stop svg { width: 11px; height: 11px; }
+.mic .spin { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: mic-spin .8s linear infinite; }
+@keyframes mic-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.65); } }
+@keyframes mic-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mic .dot, .mic .spin { animation: none; } }
+@media (max-width: 520px) { .mic .label { display: none; } }
 .speak-toggle { display: flex; align-items: center; gap: 6px; margin: 8px 4px 0; font-size: 14px; color: var(--muted, #6b5a48); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -293,7 +304,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       <form class="ask" id="ask">
         <label for="q" class="sr">Your question</label>
         <input id="q" autocomplete="off" maxlength="500" placeholder="Search or ask: “cotton kurta 1500 ke andar”" required>
-        <button type="button" id="mic" class="mic" hidden aria-label="Ask by voice" title="Ask by voice (works offline)">Speak</button>
+        <button type="button" id="mic" class="mic" hidden aria-label="Ask by voice" title="Ask by voice (works offline)"></button>
         <button type="submit" id="send">Ask</button>
       </form>
       <label class="speak-toggle" id="speak-wrap" hidden><input type="checkbox" id="speak"> Read replies aloud</label>
@@ -655,16 +666,36 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   /* ---------- voice, offline: record with the browser, send the recording to this machine's server to transcribe ---------- */
   const mic = $("mic");
   let rec = null;  // the recording in progress: { recorder, chunks, started, timer }
+  // The button's three looks: ready to speak, listening (with a stop square inside), and turning speech into text
+  const MIC_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  const STOP_ICON = '<svg viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="1.5" fill="currentColor"/></svg>';
+  const MIC_LOOKS = {
+    idle: { html: `${MIC_ICON}<span class="label">Speak</span>`, label: "Ask by voice", hint: null },
+    listening: { html: `<span class="dot" aria-hidden="true"></span><span class="label">Listening…</span><span class="stop">${STOP_ICON}</span>`, label: "Stop listening", hint: "Listening… say your question, then press ■ to stop." },
+    transcribing: { html: `<span class="spin" aria-hidden="true"></span><span class="label">Transcribing…</span>`, label: "Turning your speech into text", hint: "Turning your speech into text…" },
+  };
+  let idleHint = input.placeholder;
+  function setMic(state) {
+    const look = MIC_LOOKS[state];
+    if (state === "listening") idleHint = input.placeholder;
+    mic.innerHTML = look.html;  // fixed markup above; nothing typed or transcribed goes in here
+    mic.setAttribute("aria-label", look.label); mic.title = look.label;
+    mic.classList.toggle("rec", state === "listening"); mic.classList.toggle("busy", state === "transcribing");
+    mic.disabled = state === "transcribing";
+    if (look.hint) input.placeholder = look.hint;
+    else if (input.placeholder === MIC_LOOKS.listening.hint || input.placeholder === MIC_LOOKS.transcribing.hint) input.placeholder = idleHint;
+  }
+  setMic("idle");
   async function transcribe(blob) {
-    mic.disabled = true; mic.textContent = "Listening…";
+    setMic("transcribing");
     try {
       // the server decodes the browser's own format (WebM, Ogg or MP4); decoding here failed for some recordings
       const res = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not understand that recording");
+      setMic("idle");
       if (data.text) ask(data.text); else input.placeholder = "Didn’t catch that. Try again, or type your question.";
-    } catch (err) { input.placeholder = err.message; }
-    finally { mic.disabled = false; mic.textContent = "Speak"; mic.classList.remove("rec"); }
+    } catch (err) { setMic("idle"); input.placeholder = err.message; }
   }
   function stopRecording() { clearTimeout(rec.timer); if (rec.recorder.state === "recording") rec.recorder.stop(); }
   mic.addEventListener("click", async () => {
@@ -678,14 +709,14 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
         stream.getTracks().forEach((t) => t.stop()); rec = null;
         const blob = new Blob(r.chunks, { type: (recorder.mimeType || "audio/webm").split(";")[0] });
         if (Date.now() - r.started < 500 || !blob.size) {
-          mic.textContent = "Speak"; mic.classList.remove("rec");
-          input.placeholder = "That was too short. Press Speak, say your question, then press Stop.";
+          setMic("idle");
+          input.placeholder = "That was too short. Press Speak, say your question, then press ■ to stop.";
         } else transcribe(blob);
       };
       recorder.start(250);  // a chunk every 250 ms, so a recording stopped early still has its audio
       r.timer = setTimeout(stopRecording, (maxSeconds - 1) * 1000);
-      rec = r; mic.classList.add("rec"); mic.textContent = "Stop";
-    } catch (e) { rec = null; input.placeholder = "The microphone isn’t available (allow it in the browser, on this computer)."; }
+      rec = r; setMic("listening");
+    } catch (e) { rec = null; setMic("idle"); input.placeholder = "The microphone isn’t available (allow it in the browser, on this computer)."; }
   });
   function speakReply(text) {
     if (!$("speak").checked || !("speechSynthesis" in window) || !text) return;
