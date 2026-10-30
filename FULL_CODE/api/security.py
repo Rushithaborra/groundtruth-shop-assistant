@@ -18,7 +18,7 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Permissions-Policy": "camera=(), microphone=(self), geolocation=()",  # the mic for our own page only
     "Cache-Control": "no-store",
 }
 _INLINE_SCRIPT = re.compile(rb"<script>(.*?)</script>", re.S)

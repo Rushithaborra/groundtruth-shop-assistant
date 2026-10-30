@@ -200,6 +200,9 @@ form.ask button:hover { background: var(--btn-hover); }
 form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; font-size: 16.5px; }
 form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
+form.ask button.mic { background: var(--card); color: var(--btn); border: 2px solid #e2cfb8; padding: 0 14px; }
+form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; }
+.speak-toggle { display: flex; align-items: center; gap: 6px; margin: 8px 4px 0; font-size: 14px; color: var(--muted, #6b5a48); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- side panel ---------- */
@@ -284,8 +287,10 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       <form class="ask" id="ask">
         <label for="q" class="sr">Your question</label>
         <input id="q" autocomplete="off" maxlength="500" placeholder="Search or ask: “cotton kurta 1500 ke andar”" required>
+        <button type="button" id="mic" class="mic" hidden aria-label="Ask by voice" title="Ask by voice (works offline)">Speak</button>
         <button type="submit" id="send">Ask</button>
       </form>
+      <label class="speak-toggle" id="speak-wrap" hidden><input type="checkbox" id="speak"> Read replies aloud</label>
     </div>
   </main>
 
@@ -339,9 +344,13 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html) n.innerHTML = html; return n; };
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
+  let maxSeconds = 15;  // the longest recording; the server says its own limit in /api/info
   fetch("/api/info").then((r) => r.json()).then((info) => {
     snapshot = info.snapshot ? new Date(info.snapshot + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
     $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? ` · prices as of ${snapshot}` : ""}`;
+    const canRecord = !!(navigator.mediaDevices && window.MediaRecorder && window.OfflineAudioContext);
+    if (info.voice && canRecord) { $("mic").hidden = false; maxSeconds = info.voice_max_seconds || maxSeconds; }
+    if ("speechSynthesis" in window) $("speak-wrap").hidden = false;
     if (info.examples && info.examples.length) {
       $("examples").innerHTML = info.examples.map((e) => `<button type="button" data-q="${esc(e.q)}"><span class="ex-label">${esc(e.label)}</span>${esc(e.q)}</button>`).join("");
     }
@@ -611,6 +620,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       try { sessionStorage.setItem("gt-session", sessionId); } catch (e) {}
       const card = addReply(data);
       updatePanel(data);
+      speakReply(data.text);
       card.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch (err) {
       typing.remove();
@@ -618,6 +628,58 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       card.innerHTML = `<div class="reply-in"><div class="face front"><div class="status"><span class="badge refuse">Not sent</span></div><div class="lead"><p>${esc(err.message === "Failed to fetch" ? "Can’t reach the assistant. Check that the server (python main.py serve) is still running, then try again." : err.message)}</p></div></div></div>`;
       messages.append(card);
     } finally { send.disabled = false; if (matchMedia("(pointer: fine)").matches) input.focus(); }
+  }
+
+  /* ---------- voice, offline: record, turn into 16 kHz mono WAV here, transcribe on this machine's server ---------- */
+  const mic = $("mic");
+  let recorder = null, chunks = [], stopTimer = null;
+  function wavFrom(samples, rate) {
+    const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
+    const text = (at, s) => { for (let i = 0; i < s.length; i++) view.setUint8(at + i, s.charCodeAt(i)); };
+    text(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); text(8, "WAVE"); text(12, "fmt ");
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, "data");
+    view.setUint32(40, samples.length * 2, true);
+    samples.forEach((x, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 0x7fff, true));
+    return new Blob([view], { type: "audio/wav" });
+  }
+  async function toWav16k(blob) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    ctx.close();
+    const seconds = Math.min(decoded.duration, maxSeconds - 0.5);
+    const off = new OfflineAudioContext(1, Math.max(1, Math.floor(seconds * 16000)), 16000);
+    const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+    return wavFrom((await off.startRendering()).getChannelData(0), 16000);
+  }
+  async function transcribe(blob) {
+    mic.disabled = true; mic.textContent = "Listening…";
+    try {
+      const res = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: await toWav16k(blob) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not understand that recording");
+      if (data.text) ask(data.text); else input.placeholder = "Didn’t catch that. Try again, or type your question.";
+    } catch (err) { input.placeholder = err.message; }
+    finally { mic.disabled = false; mic.textContent = "Speak"; mic.classList.remove("rec"); }
+  }
+  mic.addEventListener("click", async () => {
+    if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream); chunks = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => { clearTimeout(stopTimer); stream.getTracks().forEach((t) => t.stop()); transcribe(new Blob(chunks, { type: recorder.mimeType })); };
+      recorder.start(); mic.classList.add("rec"); mic.textContent = "Stop";
+      stopTimer = setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, (maxSeconds - 1) * 1000);
+    } catch (e) { input.placeholder = "The microphone isn’t available (allow it in the browser, on this computer)."; }
+  });
+  function speakReply(text) {
+    if (!$("speak").checked || !("speechSynthesis" in window) || !text) return;
+    const words = text.replace(/\[[^\]]*\]/g, "").replace(/₹/g, " rupees ").replace(/\s+/g, " ").trim();  // no citation tags
+    const say = new SpeechSynthesisUtterance(words);
+    const local = speechSynthesis.getVoices().filter((v) => v.localService);  // the computer's own voices: offline
+    say.voice = local.find((v) => v.lang === "en-IN") || local.find((v) => v.lang.startsWith("en")) || null;
+    speechSynthesis.cancel(); speechSynthesis.speak(say);
   }
 
   form.addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; ask(t); });

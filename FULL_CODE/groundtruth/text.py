@@ -81,6 +81,7 @@ NEEDS: list[tuple[frozenset[str], list[str]]] = [
     (frozenset(normalise_word(w) for w in need["words"]), need["kinds"]) for need in _VOCAB["needs"].values()
 ]
 GIFT_WORDS = frozenset(normalise_word(w) for w in _VOCAB["gift_words"])
+VOICE_WORDS: list[str] = _VOCAB["voice_words"]  # told to the speech model, so it expects shoppers' Hinglish
 GIFT_SERVICES = frozenset(normalise_word(w) for w in _VOCAB["gift_services"])  # "gift wrap": a service
 GENERAL_ASK_WORDS = frozenset(normalise_word(w) for w in _VOCAB["general_ask_words"])  # "kuch", "kya kya"
 

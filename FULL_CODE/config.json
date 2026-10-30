@@ -81,6 +81,12 @@
     "llm_output_tokens": 120,
     "llm_seconds_per_call": 13.4
   },
+  "voice": {
+    "model_dir": "models/whisper-base",
+    "language": "en",
+    "max_seconds": 15,
+    "max_audio_bytes": 600000
+  },
   "logging": {
     "level": "INFO"
   }

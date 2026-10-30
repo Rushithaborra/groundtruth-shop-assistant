@@ -11,6 +11,7 @@
     python main.py shoppers   shopper-language set (Hinglish, Telugu-English, own words), official scorer
     python main.py bench      throughput and latency benchmark
     python main.py calibrate  pick the embedding-fallback thresholds with the provided model
+    python main.py voice-model  download the offline speech model for the mic button (needs `uv sync --extra voice`)
     python main.py generate   write the synthetic catalogues and question sets into data/
 
 Run `python main.py <command> --help` for a command's options.
@@ -53,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     from api import server
     from groundtruth import cli
     from groundtruth.evaluation import cost_report, official, scoring, submission
-    from tools import bench, calibrate_semantic, make_submission_zip, shoppers, stress
+    from tools import bench, calibrate_semantic, download_voice_model, make_submission_zip, shoppers, stress
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -69,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("shoppers", shoppers.add_arguments, shoppers.run, "score a shopper-language set with the official scorer"),
         ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
         ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
+        ("voice-model", download_voice_model.add_arguments, download_voice_model.run, "get the offline speech model"),
         ("generate", _add_generate_arguments, _generate, "write synthetic data and question sets"),
     ):
         sub = commands.add_parser(name, help=help_text)

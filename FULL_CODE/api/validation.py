@@ -13,6 +13,7 @@ from dataclasses import dataclass
 # session ids are minted by the server (secrets.token_urlsafe); anything else is rejected, not trusted
 SESSION_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 JSON_TYPES = ("application/json",)
+AUDIO_TYPES = ("audio/wav", "audio/x-wav", "audio/wave")
 
 
 class RequestError(ValueError):
@@ -29,11 +30,13 @@ class ChatRequest:
     session_id: str | None
 
 
-def read_json_body(content_type: str | None, content_length: str | None, body: bytes, max_bytes: int) -> dict:
-    """Check the declared type and size, then parse the body as a JSON object."""
+def _check_body(
+    content_type: str | None, content_length: str | None, body: bytes, max_bytes: int, types: tuple
+) -> None:
+    """The declared media type is one of `types` and the declared and actual sizes are within `max_bytes`."""
     media_type = (content_type or "").split(";")[0].strip().lower()
-    if media_type not in JSON_TYPES:
-        raise RequestError(415, "Send the request as JSON (Content-Type: application/json)")
+    if media_type not in types:
+        raise RequestError(415, f"Send the request as {types[0]} (Content-Type: {types[0]})")
     try:
         length = int(content_length or "")
     except ValueError as exc:
@@ -42,6 +45,19 @@ def read_json_body(content_type: str | None, content_length: str | None, body: b
         raise RequestError(400, "Invalid Content-Length")
     if length > max_bytes or len(body) > max_bytes:
         raise RequestError(413, f"The request is too large (at most {max_bytes} bytes)")
+
+
+def read_audio_body(content_type: str | None, content_length: str | None, body: bytes, max_bytes: int) -> bytes:
+    """Check the declared type (WAV) and size of a voice recording; the audio itself is checked by its reader."""
+    _check_body(content_type, content_length, body, max_bytes, AUDIO_TYPES)
+    if not body:
+        raise RequestError(400, "The recording is empty")
+    return body
+
+
+def read_json_body(content_type: str | None, content_length: str | None, body: bytes, max_bytes: int) -> dict:
+    """Check the declared type and size, then parse the body as a JSON object."""
+    _check_body(content_type, content_length, body, max_bytes, JSON_TYPES)
     try:
         data = json.loads(body.decode("utf-8")) if body else None
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:

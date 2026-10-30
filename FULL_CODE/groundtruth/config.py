@@ -136,6 +136,14 @@ class CostReportSettings:
 
 
 @dataclass(frozen=True)
+class VoiceSettings:
+    model_dir: Path  # an offline speech-to-text model (faster-whisper); the mic button shows only when it is there
+    language: str  # "en": Indian English and Hinglish come out in the Latin script the assistant reads
+    max_seconds: float  # the longest recording accepted
+    max_audio_bytes: int  # the largest upload accepted (16 kHz mono 16-bit WAV is 32,000 bytes a second)
+
+
+@dataclass(frozen=True)
 class LoggingSettings:
     level: str
 
@@ -153,6 +161,7 @@ class Settings:
     calibration: CalibrationSettings
     evaluation: EvaluationSettings
     cost_report: CostReportSettings
+    voice: VoiceSettings
     logging: LoggingSettings
 
 
@@ -352,6 +361,16 @@ def _cost_report(cr: dict) -> CostReportSettings:
     )
 
 
+def _voice(v: dict) -> VoiceSettings:
+    """The offline speech model's folder, language and recording limits."""
+    return VoiceSettings(
+        model_dir=_path("voice.model_dir", v["model_dir"]),
+        language=_text("voice.language", v["language"]),
+        max_seconds=_float("voice.max_seconds", v["max_seconds"], 1, 60),
+        max_audio_bytes=_int("voice.max_audio_bytes", v["max_audio_bytes"], 10_000, 5_000_000),
+    )
+
+
 def _logging(lg: dict) -> LoggingSettings:
     """The log level."""
     return LoggingSettings(level=_text("logging.level", lg["level"], LOG_LEVELS))
@@ -373,6 +392,7 @@ def parse_settings(raw: dict) -> Settings:
             ("calibration", CalibrationSettings),
             ("evaluation", EvaluationSettings),
             ("cost_report", CostReportSettings),
+            ("voice", VoiceSettings),
             ("logging", LoggingSettings),
         )
     }
@@ -389,6 +409,7 @@ def parse_settings(raw: dict) -> Settings:
         calibration=_calibration(sections["calibration"]),
         evaluation=evaluation,
         cost_report=_cost_report(sections["cost_report"]),
+        voice=_voice(sections["voice"]),
         logging=_logging(sections["logging"]),
     )
 

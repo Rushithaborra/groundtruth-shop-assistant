@@ -25,15 +25,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from groundtruth.answering import ShoppingAssistant
 from groundtruth.arguments import add_model_arguments
 from groundtruth.builder import build_assistant
-from groundtruth.config import ServerSettings, get_settings
+from groundtruth.catalogue import KIND_KEY
+from groundtruth.config import ServerSettings, VoiceSettings, get_settings
+from groundtruth.models.speech import AudioError, Transcriber, shopping_prompt
 from groundtruth.paths import ROOT, WEB_DIR
 
 from .ratelimit import RateLimiter
 from .security import SECURITY_HEADERS, content_security_policy, same_origin
 from .state import State
-from .validation import ChatRequest, RequestError, chat_request, read_json_body, reset_request
+from .validation import ChatRequest, RequestError, chat_request, read_audio_body, read_json_body, reset_request
 from .views import build_examples
 
 logger = logging.getLogger(__name__)
@@ -66,6 +69,8 @@ class Handler(BaseHTTPRequestHandler):
     limits: ServerSettings
     per_session: RateLimiter
     per_address: RateLimiter
+    voice: VoiceSettings
+    transcriber: Transcriber | None
 
     def log_message(self, fmt: str, *args: object) -> None:  # access log only at debug level
         """Route the standard library's access log to our logger, at debug level only."""
@@ -106,13 +111,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
-        """Handle /api/chat and /api/reset: same-site only, validated JSON, rate-limited; errors as JSON."""
-        declared, body = self._read_body()  # always consume the body, even when about to refuse (see _read_body)
+        """Handle /api/chat, /api/reset and /api/transcribe: same-site only, validated, rate-limited; errors as JSON."""
         path = self._route()
-        if path not in ("/api/chat", "/api/reset"):
+        cap = self.voice.max_audio_bytes if path == "/api/transcribe" else self.limits.max_body_bytes
+        declared, body = self._read_body(cap)  # always consume the body, even when about to refuse (see _read_body)
+        if path not in ("/api/chat", "/api/reset", "/api/transcribe"):
             return self._json(404, {"error": "Not found"})
         if not same_origin(self.headers.get("Origin"), self.headers.get("Host")):
             return self._json(403, {"error": "Requests from other sites are not accepted"})
+        if path == "/api/transcribe":
+            return self._transcribe(declared, body)
         try:
             data = read_json_body(self.headers.get("Content-Type"), declared, body, self.limits.max_body_bytes)
             if path == "/api/reset":
@@ -141,13 +149,33 @@ class Handler(BaseHTTPRequestHandler):
             logger.exception("assistant error on a %d-character message", len(request.message))
             self._json(500, {"error": "The assistant hit an error on that message"})
 
-    def _read_body(self) -> tuple[str | None, bytes]:
+    def _transcribe(self, declared: str | None, body: bytes) -> None:
+        """Turn a voice recording into text on this machine; the audio is never stored or logged."""
+        if self.transcriber is None:
+            return self._json(503, {"error": "Voice input is not installed on this server"})
+        try:
+            audio = read_audio_body(self.headers.get("Content-Type"), declared, body, self.voice.max_audio_bytes)
+            wait = self.per_address.check(self.client_address[0])
+            if wait:
+                retry = {"Retry-After": RateLimiter.retry_after_header(wait)}
+                return self._json(429, {"error": "Too many requests at once; please wait a moment"}, retry)
+            text = self.transcriber.transcribe(audio)
+        except RequestError as exc:
+            return self._json(exc.status, {"error": str(exc)})
+        except AudioError as exc:
+            return self._json(400, {"error": str(exc)})
+        except Exception:  # boundary: a failing recording must not stop the server
+            logger.exception("speech-to-text failed on a %d-byte recording", len(body))
+            return self._json(500, {"error": "Could not understand that recording"})
+        self._json(200, {"text": text[: self.limits.max_message_chars]})
+
+    def _read_body(self, cap: int | None = None) -> tuple[str | None, bytes]:
         """Read the request body (never more than the cap). It is read before every reply, including early
         refusals: closing a socket that still holds unread request data makes Windows reset the connection, and
         the client then loses the reply (ConnectionAbortedError) instead of seeing the 403/404/405."""
         declared = self.headers.get("Content-Length")
         try:
-            to_read = min(max(int(declared or 0), 0), self.limits.max_body_bytes + 1)
+            to_read = min(max(int(declared or 0), 0), (cap or self.limits.max_body_bytes) + 1)
         except ValueError:
             to_read = 0
         return declared, (self.rfile.read(to_read) if to_read else b"")
@@ -166,8 +194,10 @@ def make_handler(
     info: dict,
     insights_page: bytes = b"",
     limiters: tuple[RateLimiter, RateLimiter] | None = None,
+    transcriber: Transcriber | None = None,
 ) -> type[Handler]:
-    """The request handler class; `limiters` (per session, per address) default to the configured rate limits."""
+    """The request handler class; `limiters` (per session, per address) default to the configured rate limits, and
+    `transcriber` (offline speech-to-text) is None when voice input isn't installed."""
     limits = get_settings().server
     per_session, per_address = limiters or (
         RateLimiter(limits.rate_limit_per_minute, 60),
@@ -182,8 +212,15 @@ def make_handler(
         "limits": limits,
         "per_session": per_session,
         "per_address": per_address,
+        "voice": get_settings().voice,
+        "transcriber": transcriber,
     }
     return type("BoundHandler", (Handler,), bound)
+
+
+def _kinds(assistant: ShoppingAssistant) -> list[str]:
+    """The catalogue's kinds of product, for the speech model's prompt."""
+    return sorted(set(assistant.index.attr_values.get(KIND_KEY, {}).values()))
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:
@@ -198,6 +235,20 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
         "--snapshot",
         help="date the catalogue prices were taken, e.g. 2026-10-01 (default: the catalogue file's last-modified date)",
     )
+
+
+def _voice_input(assistant: ShoppingAssistant, info: dict) -> Transcriber | None:
+    """The offline speech model if it is installed (else None); tells the page whether to show the Speak button."""
+    voice = get_settings().voice
+    transcriber = (
+        Transcriber(voice.model_dir, voice.language, voice.max_seconds, shopping_prompt(_kinds(assistant)))
+        if Transcriber.installed(voice.model_dir)
+        else None
+    )
+    info["voice"], info["voice_max_seconds"] = transcriber is not None, voice.max_seconds
+    if transcriber is None:
+        logger.info("Voice input is off (install with `uv sync --extra voice` and `python main.py voice-model`)")
+    return transcriber
 
 
 def run(args: argparse.Namespace) -> None:
@@ -216,9 +267,11 @@ def run(args: argparse.Namespace) -> None:
         "snapshot_source": source,
         "examples": build_examples(assistant),
     }
+    transcriber = _voice_input(assistant, info)
     page = (WEB_DIR / "index.html").read_bytes()
     insights_page = (WEB_DIR / "insights.html").read_bytes()
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(State(assistant), page, info, insights_page))
+    handler = make_handler(State(assistant), page, info, insights_page, transcriber=transcriber)
+    server = ThreadingHTTPServer((args.host, args.port), handler)
     logger.info(
         "GroundTruth is running at http://%s:%d (%d products, prices as of %s). "
         "Retailer view: http://%s:%d/insights  Ctrl+C to stop.",

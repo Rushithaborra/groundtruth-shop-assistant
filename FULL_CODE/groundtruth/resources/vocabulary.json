@@ -1026,5 +1026,32 @@
     "voucher",
     "receipt",
     "packing"
+  ],
+  "voice_words": [
+    "kitne ka hai",
+    "kitni",
+    "sabse sasta",
+    "sasti",
+    "chahiye",
+    "dikhao",
+    "milega",
+    "kab",
+    "kya",
+    "hai",
+    "ke andar",
+    "wala",
+    "wapas",
+    "refund",
+    "return",
+    "exchange",
+    "delivery",
+    "cash on delivery",
+    "kurti",
+    "kurta",
+    "saree",
+    "earbuds",
+    "yoga mat",
+    "power bank",
+    "watt"
   ]
 }
