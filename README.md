@@ -228,8 +228,12 @@ came before Day 1 (`git log` has the full history):
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),
 pytest (MIT), pip-audit (Apache-2.0), and numpy and pandas (BSD-3-Clause), which only the organisers' scorer and
 baseline need. The optional model fallbacks, off by default and not in the lockfile, use sentence-transformers
-(Apache-2.0), PyTorch (BSD-3-Clause) and llama-cpp-python (MIT). The problem pack's data is the organisers'
-(CC BY 4.0) and stays out of the repository.
+(Apache-2.0), PyTorch (BSD-3-Clause) and llama-cpp-python (MIT). The optional voice input (the `voice` extra, pinned
+in `FULL_CODE/uv.lock`, not needed for anything else) uses faster-whisper (MIT) and, through it, CTranslate2 (MIT),
+PyAV (BSD-3-Clause), ONNX Runtime (MIT), huggingface-hub and tokenizers (Apache-2.0). Its speech model is OpenAI's
+Whisper "base" (MIT), in the CTranslate2 conversion `Systran/faster-whisper-base` (MIT), downloaded by
+`main.py voice-model` and kept out of the repository. The problem pack's data is the organisers' (CC BY 4.0) and
+stays out of the repository.
 
 ## Limitations
 
