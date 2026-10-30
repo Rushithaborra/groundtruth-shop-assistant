@@ -406,7 +406,7 @@ def _drop_unlisted_filters(index: CatalogueIndex, spec: Spec, p: Parsed) -> list
         return []
     base = spec.copy()
     base.filters, base.price_min, base.price_max, base.size = {}, None, None, None
-    pool, _ = index.search(base, p.all_tokens)
+    pool, _ = index.matching(base)
     dropped = [k for k in spec.filters if pool and not any(x.attr_values(k) for x in pool)]
     for k in dropped:
         del spec.filters[k]

@@ -5,11 +5,15 @@ Everything is built once at start-up and is read-only afterwards, so one index c
 
 from __future__ import annotations
 
+import bisect
 import difflib
+import heapq
 import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
+from collections.abc import Sequence
+from typing import Callable
 
 from ..config import get_settings
 from ..text import STOPWORDS, normalise_word, tokenize
@@ -68,6 +72,47 @@ class Spec:
             or self.price_min is not None
             or self.price_max is not None
         )
+
+
+class RankedHits(Sequence):
+    """Search matches in rank order, sorted only as far as the caller looks. A listing needs the count and the top
+    few, which cost one pass over the matches; the full order is built the first time something walks all of them,
+    and is then exactly the order a plain sort gives."""
+
+    def __init__(self, hits: list[Product], key: Callable[[Product], tuple]) -> None:
+        self._hits, self._key = hits, key
+        self._top: list[Product] = []
+        self._full: list[Product] | None = None
+
+    def __len__(self) -> int:
+        return len(self._hits)
+
+    def _ordered(self) -> list[Product]:
+        if self._full is None:
+            self._full = sorted(self._hits, key=self._key)
+        return self._full
+
+    def __getitem__(self, i):  # type: ignore[no-untyped-def]
+        """A product by rank, or a slice of ranks; a short prefix is found without sorting every match."""
+        if self._full is None and isinstance(i, slice) and i.start in (None, 0) and i.step is None:
+            wanted = i.stop if i.stop is not None and i.stop >= 0 else None
+            if wanted is not None and wanted * 4 < len(self._hits):
+                if len(self._top) < wanted:
+                    self._top = heapq.nsmallest(wanted, self._hits, key=self._key)
+                return self._top[:wanted]
+        if self._full is None and isinstance(i, int) and i == 0 and self._hits:
+            if not self._top:
+                self._top = heapq.nsmallest(1, self._hits, key=self._key)
+            return self._top[0]
+        return self._ordered()[i]
+
+    def __iter__(self):  # type: ignore[no-untyped-def]
+        return iter(self._ordered())
+
+    def __eq__(self, other: object) -> bool:
+        return list(self) == list(other) if isinstance(other, (list, tuple, RankedHits)) else NotImplemented
+
+    __hash__ = None  # type: ignore[assignment]
 
 
 class CatalogueIndex:
@@ -154,6 +199,30 @@ class CatalogueIndex:
         # word (saree_length_m, cable_type)
         self.kind_nouns = frozenset(toks[-1] for toks in self.attr_values.get(KIND_KEY, {}))
         self._build_kind_tables()
+        self._build_title_anchors()
+        self._build_price_index()
+
+    def _build_price_index(self) -> None:
+        """Products in price order, so a budget is two binary searches instead of a check on every product."""
+        ordered = sorted(self.products.values(), key=lambda p: p.price)
+        self._prices = [p.price for p in ordered]
+        self._price_ids = [p.id for p in ordered]
+
+    def _ids_in_budget(self, low: float | None, high: float | None) -> set[str]:
+        """Ids of the products priced within [low, high] (either end may be open)."""
+        start = bisect.bisect_left(self._prices, low) if low is not None else 0
+        end = bisect.bisect_right(self._prices, high) if high is not None else len(self._prices)
+        return set(self._price_ids[start:end])
+
+    def _build_title_anchors(self) -> None:
+        """File each product (of two or more title words) under its rarest title word. A title can only appear in a
+        query if all its words do, so the query's own words find every candidate without walking the long postings
+        of common words like "shoes"."""
+        anchors: defaultdict[str, list[str]] = defaultdict(list)
+        for pid, title in self.title_tokens.items():
+            if len(title) >= 2:
+                anchors[min(title, key=lambda t: (len(self._title_postings[t]), t))].append(pid)
+        self._title_anchors = dict(anchors)
 
     def _build_kind_tables(self) -> None:
         """For each kind of product: the attributes its products have and the words in their titles and values.
@@ -231,70 +300,103 @@ class CatalogueIndex:
                 if k == GENDER_KEY and value.lower() in ("men", "women"):  # unisex items suit everyone
                     hit |= self._attr_postings.get((k, "unisex"), set())
             sets.append(hit)
+        if spec.price_min is not None or spec.price_max is not None:
+            sets.append(self._ids_in_budget(spec.price_min, spec.price_max))
         if not sets:
             return set(self.products)
         sets.sort(key=len)
         return set.intersection(*sets)
 
+    def _matcher(self, spec: Spec, use_desc: bool) -> Callable[[Product], bool]:
+        """A test for "meets every hard constraint" with everything that depends only on the spec worked out once,
+        not once per product (the per-product call is what dominates a search over a large catalogue)."""
+        price_min, price_max = spec.price_min, spec.price_max
+        banned = [(k, {b.lower() for b in values}) for k, values in spec.exclude.items()]
+        size = spec.size.lower() if spec.size else None
+        in_stock_only, measures = spec.in_stock_only, spec.measures
+        desc_tokens = spec.desc_tokens if use_desc else []
+        attr_lower, desc_index, postings = self.attr_lower, self.desc_tokens, self._text_postings
+        empty: frozenset = frozenset()
+
+        def matches(p: Product) -> bool:
+            """Whether one product meets the constraints."""
+            if (price_max is not None and p.price > price_max) or (price_min is not None and p.price < price_min):
+                return False
+            attrs = attr_lower[p.id]
+            if any(attrs.get(k, empty) & values for k, values in banned):
+                return False
+            if size and size not in attrs.get(SIZE_KEY, ()):
+                return False
+            if in_stock_only and p.in_stock is not True:
+                return False
+            if any(not any(_numeric(v) == value for v in _unit_values(p, unit)) for unit, value in measures):
+                return False
+            if desc_tokens:
+                text_hit = desc_index[p.id]
+                return all(t in text_hit or p.id in postings.get(t, ()) for t in desc_tokens)
+            return True
+
+        return matches
+
     def _matches(self, p: Product, spec: Spec, use_desc: bool) -> bool:
         """Whether a product meets every hard constraint: budget, exclusions, size, stock, units, filters."""
-        if (spec.price_max is not None and p.price > spec.price_max) or (
-            spec.price_min is not None and p.price < spec.price_min
-        ):
-            return False
-        attrs = self.attr_lower[p.id]
-        if any(attrs.get(k, frozenset()) & {b.lower() for b in banned} for k, banned in spec.exclude.items()):
-            return False
-        if spec.size and spec.size.lower() not in attrs.get(SIZE_KEY, ()):
-            return False
-        if spec.in_stock_only and p.in_stock is not True:
-            return False
-        if any(not any(_numeric(v) == value for v in _unit_values(p, unit)) for unit, value in spec.measures):
-            return False
-        if use_desc:
-            text_hit = self.desc_tokens[p.id]
-            return all(t in text_hit or p.id in self._text_postings.get(t, ()) for t in spec.desc_tokens)
-        return True
+        return self._matcher(spec, use_desc)(p)
 
-    def search(self, spec: Spec, query_tokens: set[str] | frozenset[str] = frozenset()) -> tuple[list[Product], bool]:
-        """Return (ranked matches, description_tokens_were_relaxed)."""
+    def matching(self, spec: Spec) -> tuple[list[Product], bool]:
+        """(every product that meets the spec, in no particular order; description words were relaxed). Cheaper than
+        `search` when only the set matters, because nothing is ranked."""
         pool = [self.products[i] for i in self._candidate_ids(spec)]
         usable = [m for m in spec.measures if any(_unit_values(p, m[0]) for p in pool)]
         if usable != spec.measures:  # "65W kettle" when kettles list no wattage: the number can't be checked, drop it
             spec = spec.copy()
             spec.measures = usable
-        hits = [p for p in pool if self._matches(p, spec, use_desc=True)]
+        hits = self._apply(spec, pool, True)
         relaxed = False
         if not hits and spec.desc_tokens:
-            hits = [p for p in pool if self._matches(p, spec, use_desc=False)]
+            hits = self._apply(spec, pool, False)
             relaxed = bool(hits)
-        if (
-            not hits
-            and spec.size
-            and spec.size_soft
-            and pool
-            and not any(self.attr_lower[p.id].get(SIZE_KEY) for p in pool)
-        ):
-            # "large water bottle": bottles have no sizes at all, so the size word was descriptive, not a filter
-            unsized = spec.copy()
-            unsized.size = None
-            return self.search(unsized, query_tokens)
+        return hits, relaxed
+
+    def _apply(self, spec: Spec, pool: list[Product], use_desc: bool) -> list[Product]:
+        """The pool's products that meet the spec. The postings and the budget index have already enforced the
+        type words, filters and price, so with nothing else to check the whole pool qualifies."""
+        nothing_left = not (
+            spec.exclude or spec.size or spec.in_stock_only or spec.measures or (use_desc and spec.desc_tokens)
+        )
+        return pool if nothing_left else list(filter(self._matcher(spec, use_desc), pool))
+
+    def search(self, spec: Spec, query_tokens: set[str] | frozenset[str] = frozenset()) -> tuple[Sequence[Product], bool]:
+        """Return (ranked matches, description_tokens_were_relaxed)."""
+        hits, relaxed = self.matching(spec)
+        if not hits and spec.size and spec.size_soft:
+            pool = [self.products[i] for i in self._candidate_ids(spec)]
+            if pool and not any(self.attr_lower[p.id].get(SIZE_KEY) for p in pool):
+                # "large water bottle": bottles have no sizes at all, so the size word was descriptive, not a filter
+                unsized = spec.copy()
+                unsized.size = None
+                return self.search(unsized, query_tokens)
         return self.rank(hits, spec, query_tokens), relaxed
 
-    def rank(self, hits: list[Product], spec: Spec, query_tokens: set[str] | frozenset[str]) -> list[Product]:
+    def rank(self, hits: list[Product], spec: Spec, query_tokens: set[str] | frozenset[str]) -> Sequence[Product]:
         """Order matches: by the requested sort, else in stock first, then query-word relevance and rating."""
         if spec.sort == "price_asc":
-            return sorted(hits, key=lambda p: (p.price, -(p.rating or 0), p.id))
+            return RankedHits(hits, lambda p: (p.price, -(p.rating or 0), p.id))
         if spec.sort == "price_desc":
-            return sorted(hits, key=lambda p: (-p.price, -(p.rating or 0), p.id))
+            return RankedHits(hits, lambda p: (-p.price, -(p.rating or 0), p.id))
         if spec.sort == "rating_desc":
-            return sorted(hits, key=lambda p: (-(p.rating or 0), -(p.rating_count or 0), p.price, p.id))
+            return RankedHits(hits, lambda p: (-(p.rating or 0), -(p.rating_count or 0), p.price, p.id))
+        relevance = self._relevance(query_tokens)
+        return RankedHits(hits, lambda p: (not p.in_stock, -relevance.get(p.id, 0.0), -(p.rating or 0), p.price, p.id))
 
-        def score(p: Product) -> tuple[bool, float, float, float, str]:
-            rel = sum(self.idf.get(t, 1.0) for t in query_tokens & self.title_tokens[p.id])
-            return (not p.in_stock, -rel, -(p.rating or 0), p.price, p.id)
-
-        return sorted(hits, key=score)
+    def _relevance(self, query_tokens: set[str] | frozenset[str]) -> dict[str, float]:
+        """Product id -> summed weight of the query words in its title; products with none are left out. Built from
+        the title postings, so it costs the number of products that share a word with the query, not the catalogue."""
+        scores: dict[str, float] = {}
+        for t in sorted(query_tokens):  # a fixed order, so equal sums are bit-for-bit equal
+            weight = self.idf.get(t, 1.0)
+            for pid in self._title_postings.get(t, ()):
+                scores[pid] = scores.get(pid, 0.0) + weight
+        return scores
 
     def has_text_token(self, pid: str, token: str) -> bool:
         """Whether a token appears in this product's title, category or attribute values."""
@@ -306,8 +408,8 @@ class CatalogueIndex:
         first_at: dict[str, int] = {}
         for i, t in enumerate(query_tokens):
             first_at.setdefault(t, i)
-        seen = Counter(pid for t in first_at for pid in self._title_postings.get(t, ()))
-        found = [pid for pid, n in seen.items() if n == len(self.title_tokens[pid]) >= 2]
+        words = first_at.keys()
+        found = [pid for t in first_at for pid in self._title_anchors.get(t, ()) if self.title_tokens[pid] <= words]
         found = [pid for pid in found if not any(self.title_tokens[pid] < self.title_tokens[o] for o in found)]
         return sorted(found, key=lambda pid: (min(first_at[t] for t in self.title_tokens[pid]), pid))
 
