@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 294 tests (2 need the voice extra)
+uv run pytest        # 308 tests (2 need the voice extra)
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -273,8 +273,7 @@ documentation. The team reviewed every change and can explain the code.
 
 **Written for this hackathon, mostly before Day 1 (30 October 2026).** All the code in this repository was written for
 this hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit in the
-table below came before Day 1 except the last row, which was made on Day 1 itself (30 to 31 October 2026, during the
-event). `git log` has the full history with dates:
+table below came before Day 1 except the last two rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
 
 | Dates | Commits | Author | What |
 |---|---|---|---|
