@@ -28,6 +28,7 @@ from groundtruth.builder import build_assistant
 from groundtruth.config import ServerSettings, VoiceSettings, get_settings
 from groundtruth.models.speech import AudioError, Transcriber, shopping_prompt
 from groundtruth.paths import WEB_DIR
+from groundtruth.storage import open_backend
 from tools import run_generator
 
 from .ratelimit import RateLimiter
@@ -224,6 +225,11 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--policy", help="policy file (default: the one that goes with the catalogue)")
     server = get_settings().server
     add_model_arguments(ap)
+    ap.add_argument(
+        "--sessions",
+        choices=("memory", "sqlite"),
+        help="where chats are kept: this process (default from config.json) or a SQLite file shared by processes",
+    )
     ap.add_argument("--host", default=server.host)
     ap.add_argument("--port", type=int, default=server.port)
     ap.add_argument(
@@ -267,7 +273,10 @@ def run(args: argparse.Namespace) -> None:
     transcriber = _voice_input(info)
     page = (WEB_DIR / "index.html").read_bytes()
     insights_page = (WEB_DIR / "insights.html").read_bytes()
-    handler = make_handler(State(assistant), page, info, insights_page, transcriber=transcriber)
+    settings = get_settings()
+    store = open_backend(settings.sessions, settings.server.max_sessions, args.sessions)
+    info["sessions"] = type(store).__name__.replace("Backend", "").lower()
+    handler = make_handler(State(assistant, store), page, info, insights_page, transcriber=transcriber)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     logger.info(
         "GroundTruth is running at http://%s:%d (%d products, prices as of %s). "

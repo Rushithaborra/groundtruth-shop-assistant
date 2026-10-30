@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 284 tests (2 need the voice extra)
+uv run pytest        # 294 tests (2 need the voice extra)
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -207,6 +207,19 @@ matches at most (`SCAN_LIMIT`; identical to before whenever there are fewer). `S
 and removals on a running assistant without a rebuild; questions wait while it runs (a reader-writer lock), and the
 tests check the result equals a fresh build. Not done yet: RAM still grows with the catalogue (every product is a Python
 object), and past about a million products the index belongs in a database.
+
+**Where chats are kept.** A visitor's chat state (the current search, the last product and listing, the last 30
+messages) is about 450 bytes of JSON behind a small `SessionBackend` interface (`groundtruth/storage/`). Two backends
+ship: `memory` (this process; the default) and `sqlite` (one file, standard library only, write-ahead logging), chosen
+with `python3 main.py serve --sessions sqlite` or `sessions.backend` in `config.json` (file: `sessions.sqlite_path`,
+or `GROUNDTRUTH_SESSION_DB`). With SQLite a chat survives a restart, and any number of server processes can share the
+file, so a follow-up ("under 2500") may land on a different process and still works (checked with two real server
+processes on ports 8101 and 8102, and by a four-process test that writes 600 sessions at once). Both backends keep at
+most `server.max_sessions` chats (least recently used first) and forget a chat idle for `sessions.ttl_seconds`.
+Measured on one core: a chat turn (load and save) costs about 12 µs in memory and about 69 µs with SQLite, against
+0.3 to 7 ms to answer; 100,000 stored sessions take about 70 MB and a random load takes about 23 µs. A shared store
+for many machines (Redis, say) needs only the four methods of the interface; it is not built. The retailer-view counters
+and the learned-synonym file are still per process.
 
 **Model cost.** The rules answer every pack question with 0 tokens. For the words they can't place, the optional
 instruct model is now asked with `ShortlistNormaliser` (`--llm-resolver shortlist`, the default when `--llm-model` is

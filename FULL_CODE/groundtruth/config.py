@@ -8,6 +8,7 @@ Environment overrides (see .env.example):
     GROUNDTRUTH_CATALOGUE    catalogue file           GROUNDTRUTH_POLICY      policy file
     GROUNDTRUTH_EMBED_MODEL  embedding model folder   GROUNDTRUTH_LLM_MODEL   instruct model folder
     GROUNDTRUTH_HOST, GROUNDTRUTH_PORT                GROUNDTRUTH_LOG_LEVEL
+    GROUNDTRUTH_SESSION_BACKEND (memory | sqlite)     GROUNDTRUTH_SESSION_DB  the SQLite file
 """
 
 from __future__ import annotations
@@ -109,6 +110,8 @@ class SessionSettings:
 
     max_sessions: int
     ttl_seconds: float
+    backend: str  # "memory" (this process only) or "sqlite" (a file shared by processes, kept across restarts)
+    sqlite_path: Path
 
 
 @dataclass(frozen=True)
@@ -239,6 +242,13 @@ def _path(name: str, value: Any) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
+def _choice(name: str, value: Any, allowed: tuple[str, ...]) -> str:
+    """A setting that must be one of a few words."""
+    if value not in allowed:
+        raise ConfigError(f"{name} must be one of {list(allowed)}, got {value!r}")
+    return value
+
+
 def _section(raw: dict, name: str, fields: tuple[str, ...]) -> dict:
     """One config section, which must have exactly the expected fields."""
     section = raw.get(name)
@@ -259,6 +269,8 @@ def _apply_env(raw: dict) -> None:
         "GROUNDTRUTH_LLM_MODEL": ("models", "llm_model", str),
         "GROUNDTRUTH_HOST": ("server", "host", str),
         "GROUNDTRUTH_PORT": ("server", "port", int),
+        "GROUNDTRUTH_SESSION_BACKEND": ("sessions", "backend", str.lower),
+        "GROUNDTRUTH_SESSION_DB": ("sessions", "sqlite_path", str),
         "GROUNDTRUTH_LOG_LEVEL": ("logging", "level", str.upper),
     }
     for var, (section, key, convert) in overrides.items():
@@ -332,6 +344,8 @@ def _sessions(ss: dict) -> SessionSettings:
     return SessionSettings(
         max_sessions=_int("sessions.max_sessions", ss["max_sessions"], 1, 10_000_000),
         ttl_seconds=_float("sessions.ttl_seconds", ss["ttl_seconds"], 0, 7 * 24 * 3600),
+        backend=_choice("sessions.backend", ss["backend"], ("memory", "sqlite")),
+        sqlite_path=_path("sessions.sqlite_path", ss["sqlite_path"]),
     )
 
 

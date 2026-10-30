@@ -51,7 +51,9 @@
   },
   "sessions": {
     "max_sessions": 10000,
-    "ttl_seconds": 1800
+    "ttl_seconds": 1800,
+    "backend": "memory",
+    "sqlite_path": "output/sessions.sqlite"
   },
   "models": {
     "embed_model": null,

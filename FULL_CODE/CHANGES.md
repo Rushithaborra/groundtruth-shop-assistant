@@ -1061,3 +1061,9 @@ a second click hides it. Page only (the card comes from the cited record the rep
   result ("do these all give the same answer", which attributes tell them apart) look at the first 2,000 matches
   (`SCAN_LIMIT`), so a result larger than that could in theory be worded differently; none is on the 5,000-product pack.
   200,000 products: mean query 100 ms before the branch, about 7 ms now (target was under 5 ms; not reached).
+* **Session storage** (`groundtruth/storage/`): `SessionBackend` with `MemoryBackend` (default, behaviour as before, now
+  with the `sessions.ttl_seconds` expiry) and `SqliteBackend` (shared by processes, survives restarts).
+  `api/state.py` loads a visitor's chat from the store and saves it after each message; `serve --sessions sqlite`,
+  `sessions.backend` / `sessions.sqlite_path` in `config.json`, `GROUNDTRUTH_SESSION_BACKEND` / `GROUNDTRUTH_SESSION_DB`.
+  Tested with two State objects on one file, a restart, and four processes writing at once. Ran two real `serve`
+  processes on one file: a chat begun on one continued on the other. The default (`memory`) changes no answer.

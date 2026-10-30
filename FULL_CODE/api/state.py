@@ -9,13 +9,16 @@ import statistics
 import threading
 import time
 from collections import Counter, OrderedDict, deque
+from dataclasses import asdict
 from datetime import datetime
 
 from groundtruth.answering import CLARIFY, REFUSE, Response, Session, ShoppingAssistant
+from groundtruth.catalogue import Spec
 from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
 from groundtruth.metrics import percentile
 from groundtruth.models.semantic import type_words
+from groundtruth.storage import SessionBackend, open_backend
 from groundtruth.text import EXTERNAL_DISPLAY, format_inr
 from groundtruth.understanding import Parsed, understand
 
@@ -98,31 +101,37 @@ class Insights:
 class State:
     """Shared by every request: the assistant, the grounding checker that re-checks each reply, and chat sessions."""
 
-    def __init__(self, assistant: ShoppingAssistant) -> None:
+    def __init__(self, assistant: ShoppingAssistant, store: SessionBackend | None = None) -> None:
         self.assistant = assistant
         self.grounding = Grounding(assistant.index, assistant.sections)
-        self.sessions: OrderedDict[str, dict] = OrderedDict()
         self.lock = threading.Lock()
         self.insights = Insights()
         self.kinds = frozenset(type_words(assistant.index))
-        self.max_sessions = get_settings().server.max_sessions
+        settings = get_settings()
+        self.max_sessions = settings.server.max_sessions
+        # where chats are kept: this process, or a shared file (settings.sessions.backend)
+        self.store = store if store is not None else open_backend(settings.sessions, self.max_sessions)
+        self._locks: OrderedDict[str, threading.Lock] = OrderedDict()  # one chat at a time per visitor, in this process
+
+    def _lock_for(self, sid: str) -> threading.Lock:
+        """The lock that keeps one visitor's messages in order within this process (least recently used are dropped)."""
+        with self.lock:
+            lock = self._locks.setdefault(sid, threading.Lock())
+            self._locks.move_to_end(sid)
+            while len(self._locks) > self.max_sessions:
+                self._locks.popitem(last=False)
+            return lock
 
     def session(self, sid: str | None) -> tuple[str, dict]:
-        """The visitor's session, creating one for a missing or unknown id; least recently used are dropped."""
-        with self.lock:
-            if not sid or sid not in self.sessions:
-                sid = secrets.token_urlsafe(12)
-                self.sessions[sid] = {
-                    "session": Session(),
-                    "lock": threading.Lock(),
-                    "gaps": Counter(),
-                    "said": deque(maxlen=30),
-                    "totals": {"queries": 0, "ms": 0.0, "llm_tokens": 0},
-                }
-                while len(self.sessions) > self.max_sessions:
-                    self.sessions.popitem(last=False)
-            self.sessions.move_to_end(sid)
-            return sid, self.sessions[sid]
+        """The visitor's chat state, read from the store; a missing, unknown or expired id starts a fresh chat."""
+        data = self.store.load(sid) if sid else None
+        if data is None:
+            sid = secrets.token_urlsafe(12)
+        return sid, _inflate(data, self._lock_for(sid))  # type: ignore[arg-type]
+
+    def _save(self, sid: str, entry: dict) -> None:
+        """Write the chat state back to the store."""
+        self.store.save(sid, _deflate(entry))
 
     def chat(self, sid: str | None, message: str) -> dict:
         """Answer one message in a visitor's session; returns the reply with its sources, check and metrics."""
@@ -137,6 +146,7 @@ class State:
             total_ms = (time.perf_counter() - start) * 1000
             self._record(resp, parsed, entry, message, check_ok=not check["problems"])
             t = entry["totals"]
+            self._save(sid, entry)
             return {
                 "session_id": sid,
                 "text": resp.text,
@@ -222,4 +232,41 @@ class State:
         with entry["lock"]:
             entry["session"].clear()
             entry["said"].clear()
+            self._save(sid, entry)
         return {"session_id": sid, "remembered": remembered(entry["session"])}
+
+
+def _inflate(data: dict | None, lock: threading.Lock) -> dict:
+    """A chat entry from stored JSON (or a fresh one when there is none): live Session, counters and a lock."""
+    data = data or {}
+    return {
+        "session": session_from_dict(data.get("session")),
+        "lock": lock,
+        "gaps": Counter(data.get("gaps", {})),
+        "said": deque(data.get("said", []), maxlen=30),
+        "totals": data.get("totals") or {"queries": 0, "ms": 0.0, "llm_tokens": 0},
+    }
+
+
+def _deflate(entry: dict) -> dict:
+    """What is stored of a chat entry: everything but its lock."""
+    return {
+        "session": session_to_dict(entry["session"]),
+        "gaps": dict(entry["gaps"]),
+        "said": list(entry["said"]),
+        "totals": entry["totals"],
+    }
+
+
+def session_to_dict(session: Session) -> dict:
+    """A Session as plain JSON data."""
+    return {"spec": asdict(session.spec), "last_product": session.last_product, "shown": list(session.shown)}
+
+
+def session_from_dict(data: dict | None) -> Session:
+    """A Session from `session_to_dict`'s data (a fresh one for None); measurements go back to (unit, number) pairs."""
+    if not data:
+        return Session()
+    fields = dict(data["spec"])
+    fields["measures"] = [tuple(m) for m in fields.get("measures", [])]
+    return Session(spec=Spec(**fields), last_product=data.get("last_product"), shown=list(data.get("shown", [])))
