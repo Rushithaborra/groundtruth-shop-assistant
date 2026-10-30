@@ -75,6 +75,9 @@ class Claims:
 
 @dataclass
 class Response:
+    """One reply: its text with [ID] citations, the action (answer, clarify or refuse), the claims it makes, and how it
+    was produced (path, time, tokens)."""
+
     text: str
     action: str
     latency_ms: float = 0.0
@@ -93,6 +96,9 @@ class Response:
 
 @dataclass
 class Session:
+    """What a chat remembers between messages: the current search (filters, budget), the last product talked about
+    and the last listing."""
+
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
     shown: list[str] = field(default_factory=list)  # products in the last listing, for "which sizes?"

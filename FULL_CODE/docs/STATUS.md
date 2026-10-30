@@ -53,7 +53,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G5 | **Done 28 Oct.** Was 37 parameters and 15 return types without type hints in product code; now 0 and 0 | rule 1: type hints | AST count; 182 tests; ruff clean | Sushanth with Claude Code | done |
 | G6 | **Done 28 Oct.** Was 48 functions in `tools/` without docstrings; now 0. Only docstrings changed: the code is identical once they are ignored | rule 12: docstrings on key functions | AST count and AST comparison with the committed files | Sushanth with Claude Code | done |
 | G7 | Web demo at phone width | brief task 7 | **Checked 29 Oct in Chrome's phone emulation** (390×844 and 360×740): the whole demo script, a card flip, compare, a citation and `/insights`, 15 states each, 0 with horizontal overflow. Found and fixed a raw `sub_category: Kurtas` chip. On 30 Oct Sushanth opened the page from a desktop browser at the laptop's Wi-Fi address (a layout look, not a phone); a look on a real phone is still open | Sushanth: one look on a real phone | P2 |
-| G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? Is `.gitattributes` allowed at the top level? | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
+| G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? (`.gitattributes` moved into `FULL_CODE/` on 30 Oct, so the top level now matches the guidelines exactly) | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
 | G9 | Round-1 deck showed old synthetic numbers (0.987, 88 tests, 0.8 ms) and "Rushita Bora" | honest reporting | deck text | Claude Code; Rushitha uses it | done: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`) shows 0 hallucinated prices, 0.900, ~1 ms, 240 tests, 0.635 → 0.900, stress 0.885 → 1.000; outside the repo; original untouched. Check the 60-second recording slides 3 and 7 mention exists |
 | G10 | Task 4: no independent held-out set | brief rule 4, task 4 | | Sushanth collects from real people | **open**: the 64 scored on 29 Oct were AI-written (0.556 on those); a real set with a record of who typed each is needed |
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. **30 Oct, Sushanth's Windows laptop, real pack:** strict loading accepted 5,000 products; the demo script's typed steps (1 to 7 and 9) gave the replies it promises, each passing the grounding check; Sushanth then ran the server with Wi-Fi off at `http://127.0.0.1:8000` and reported it working (his report, not checked by Claude). Whether that laptop is the event laptop is not recorded | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
@@ -73,7 +73,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 
 | # | What | Who | Gap |
 |---|---|---|---|
-| 1 | Send the organisers the three questions (zip name, `.gitattributes`, deadline and upload place) | Rushitha | G8 |
+| 1 | Ask the organisers the zip name, the deadline and the upload place | Rushitha | G8 |
 | 2 | Check the 60-second recording the deck mentions exists and plays | Rushitha | G9 |
 | 3 | Learn to explain the code: `docs/code_tour.md` together | Rushitha + Sushanth | G12 |
 | 4 | `git pull --rebase origin main`; on the event laptop: fresh clone, copy the pack into `FULL_CODE/data/pack/`, Wi-Fi off, `python3 main.py serve`, go through `docs/demo_script.md`; write down anything that fails | Sushanth | G11 |
@@ -89,7 +89,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 
 **Future scope: a public voice demo.** Voice input runs only where the optional speech library and the Whisper small model (about 480 MB) are installed, and it needs roughly 1 GB or more of RAM. The free Render demo (https://groundtruth-shop-assistant.onrender.com, synthetic catalogue, 512 MB) therefore has no Speak button; the live site deployed on 30 Oct showed "Voice input is off" in its log. Voice is demonstrated on `http://127.0.0.1:8000` with the real pack. Hosting it publicly would need a host with more memory (a paid Render plan of 2 GB, or a free Hugging Face Space with a Dockerfile) or a tunnel from the laptop; none of these has been set up.
 
-If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
+If the organisers ask for `000802_R3.zip`, change the name in `tools/make_submission_zip.py`.
 
 ## 5. Habits
 

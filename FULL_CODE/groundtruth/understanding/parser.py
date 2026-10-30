@@ -47,14 +47,9 @@ from .tokens import join_split_names, repair_tokens
 COMMON_WORD_PRODUCTS = 20
 
 
-def understand(query: str, index: CatalogueIndex) -> Parsed:
-    """Read one shopper message into intents and a search spec, using only the catalogue's own vocabulary."""
-    parsed = Parsed(raw=query)
-    low, account, helpq = _normalise(query, index)
-    if any(phrase in low for phrase in RESET_PHRASES):
-        parsed.intents.add("reset")
-        return parsed
-
+def _names_sizes_and_budget(parsed: Parsed, low: str, index: CatalogueIndex) -> tuple[str, list[str]]:
+    """Take product ids, named products, size, measurements and budget out of the message; return what is left and
+    its tokens."""
     ids, low = _extract_ids(low, index)
     if len(ids) == 1:
         parsed.product_id = ids[0]
@@ -67,11 +62,22 @@ def understand(query: str, index: CatalogueIndex) -> Parsed:
 
     tokens = repair_tokens(tokenize(join_split_names(low, index)), index)
     parsed.all_tokens = set(tokens)
-    token_set = set(tokens)
     parsed.mentioned = ids + [m for m in named if m not in ids] if len(ids) > 1 else named
     if parsed.mentioned:
         parsed.spec.measures = []  # they were part of the named products' names
+    return low, tokens
 
+
+def understand(query: str, index: CatalogueIndex) -> Parsed:
+    """Read one shopper message into intents and a search spec, using only the catalogue's own vocabulary."""
+    parsed = Parsed(raw=query)
+    low, account, helpq = _normalise(query, index)
+    if any(phrase in low for phrase in RESET_PHRASES):
+        parsed.intents.add("reset")
+        return parsed
+
+    low, tokens = _names_sizes_and_budget(parsed, low, index)
+    token_set = set(tokens)
     asks = bool(token_set & (WH_W | QUESTION_W)) or "?" in query or bool(parsed.product_id)
     parsed.is_question = asks
     consumed = _match_attribute_names(parsed, tokens, index, asks)

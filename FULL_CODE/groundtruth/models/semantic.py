@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 
 class Embedder(Protocol):
+    """Anything that turns texts into vectors: the local embedding model, or a fake one in tests."""
     name: str
 
     def encode(self, texts: Sequence[str]) -> list[list[float]]:
@@ -48,6 +49,7 @@ def dot(a: Sequence[float], b: Sequence[float]) -> float:
 
 @dataclass
 class Match:
+    """A word the shopper used, the catalogue term it was matched to, and how similar the two are."""
     word: str
     target: str
     score: float
@@ -71,6 +73,8 @@ def type_words(index: CatalogueIndex) -> list[str]:
 
 
 class SemanticFallback:
+    """Optional: matches words the rules couldn't place to catalogue terms or policy sections by embedding
+    similarity. Off by default: measured, it lowered the dev score."""
     def __init__(self, index: CatalogueIndex, policy: list[Section], embedder: Embedder, map_threshold: float,
                  alt_threshold: float | None = None, policy_threshold: float | None = None,
                  cache_dir: str | Path | None = None) -> None:

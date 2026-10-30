@@ -95,6 +95,8 @@ class Insights:
 
 
 class State:
+    """Shared by every request: the assistant, the grounding checker that re-checks each reply, and chat sessions."""
+
     def __init__(self, assistant: ShoppingAssistant) -> None:
         self.assistant = assistant
         self.grounding = Grounding(assistant.index, assistant.sections)

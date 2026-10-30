@@ -34,6 +34,8 @@ Generate = Callable[[str, str], tuple[str, int, int]]  # (system, user) -> (text
 
 
 class LLMNormaliser:
+    """Optional: asks a local instruct model to map words the rules couldn't place onto catalogue values (JSON,
+    validated). Off by default: measured, it was slower and didn't help."""
     def __init__(self, generate: Generate, max_values_per_attribute: int | None = None) -> None:
         self.generate = generate
         self.max_values = (max_values_per_attribute if max_values_per_attribute is not None

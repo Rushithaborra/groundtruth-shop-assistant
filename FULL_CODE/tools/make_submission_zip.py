@@ -24,8 +24,8 @@ from groundtruth.evaluation.submission import validate_predictions
 from groundtruth.paths import ROOT
 
 # Top level of the zipped project (guidelines, rule 2): README, .gitignore, submission/, FULL_CODE/, optional LICENSE.
-# .gitattributes only fixes line endings, and .git comes with a fresh clone.
-ALLOWED_TOP = {"README.md", ".gitignore", "LICENSE", "submission", "FULL_CODE", ".git", ".gitattributes"}
+# .git comes with a fresh clone; the line-ending rules (.gitattributes) live in FULL_CODE/ so nothing else is on top.
+ALLOWED_TOP = {"README.md", ".gitignore", "LICENSE", "submission", "FULL_CODE", ".git"}
 FORBIDDEN_NAMES = {".env", ".venv", "venv", "node_modules", "__pycache__", ".DS_Store", ".pytest_cache", ".ruff_cache"}
 FORBIDDEN_SUFFIXES = {".zip", ".db", ".sqlite", ".gguf", ".safetensors", ".pt", ".bin", ".pkl"}
 FORBIDDEN_DIRS = ("FULL_CODE/data/pack", "FULL_CODE/models", "FULL_CODE/output", "FULL_CODE/data/scale")

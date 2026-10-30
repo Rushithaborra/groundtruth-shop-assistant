@@ -9,6 +9,9 @@ from ..catalogue import Spec
 
 @dataclass
 class Parsed:
+    """What the parser read from one message: intents, a product id if one was named, the search spec, and the words
+    it couldn't place."""
+
     raw: str
     intents: set[str] = field(default_factory=set)
     product_id: str | None = None

@@ -31,6 +31,8 @@ class ConfigError(ValueError):
 
 @dataclass(frozen=True)
 class PathSettings:
+    """The "paths" section of config.json."""
+
     data_dir: Path
     scale_dir: Path
     catalogue: Path
@@ -56,18 +58,24 @@ class PathSettings:
 
 @dataclass(frozen=True)
 class SubmissionSettings:
+    """The "submission" section of config.json."""
+
     team_id: str  # the zip is named f"{team_id}_{problem_id}.zip"
     problem_id: str
 
 
 @dataclass(frozen=True)
 class CatalogueSettings:
+    """The "catalogue" section of config.json."""
+
     pack_strict: bool  # the organisers' catalogue: a bad row or duplicate id stops the run instead of being skipped
     pack_expected_products: int | None  # how many products it must hold (None: don't check the count)
 
 
 @dataclass(frozen=True)
 class AssistantSettings:
+    """The "assistant" section of config.json."""
+
     list_limit: int
     clarify_limit: int
     policy_max_sentences: int
@@ -75,12 +83,16 @@ class AssistantSettings:
 
 @dataclass(frozen=True)
 class SearchSettings:
+    """The "search" section of config.json."""
+
     typo_cutoff: float
     typo_cache_size: int
 
 
 @dataclass(frozen=True)
 class ServerSettings:
+    """The "server" section of config.json."""
+
     host: str
     port: int
     max_sessions: int
@@ -92,12 +104,16 @@ class ServerSettings:
 
 @dataclass(frozen=True)
 class SessionSettings:
+    """The "sessions" section of config.json."""
+
     max_sessions: int
     ttl_seconds: float
 
 
 @dataclass(frozen=True)
 class ModelSettings:
+    """The "models" section of config.json."""
+
     embed_model: str | None
     llm_model: str | None
     embed_max_length: int
@@ -113,12 +129,16 @@ class ModelSettings:
 
 @dataclass(frozen=True)
 class CalibrationSettings:
+    """The "calibration" section of config.json."""
+
     margin: float
     alt_gap: float
 
 
 @dataclass(frozen=True)
 class EvaluationSettings:
+    """The "evaluation" section of config.json."""
+
     weight_groundedness: float
     weight_helpfulness: float
     weight_refusal: float
@@ -137,6 +157,8 @@ class CostReportSettings:
 
 @dataclass(frozen=True)
 class VoiceSettings:
+    """The "voice" section of config.json."""
+
     model_dir: Path  # an offline speech-to-text model (faster-whisper); the mic button shows only when it is there
     language: str  # "en": Indian English and Hinglish come out in the Latin script the assistant reads
     max_seconds: float  # the longest recording accepted
@@ -145,11 +167,15 @@ class VoiceSettings:
 
 @dataclass(frozen=True)
 class LoggingSettings:
+    """The "logging" section of config.json."""
+
     level: str
 
 
 @dataclass(frozen=True)
 class Settings:
+    """All settings, read once from config.json; GROUNDTRUTH_* environment variables override paths, port and models."""
+
     paths: PathSettings
     submission: SubmissionSettings
     catalogue: CatalogueSettings

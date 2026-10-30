@@ -21,13 +21,12 @@ from __future__ import annotations
 
 import argparse
 import logging
-import subprocess
 import sys
 
 from groundtruth.config import ConfigError, get_settings
 from groundtruth.console import configure_console
 from groundtruth.errors import GroundTruthError
-from groundtruth.paths import ROOT
+from tools import run_generator
 
 # Generators in the order their inputs need them (the scale and question sets read the catalogues written before).
 GENERATORS = ("synthetic", "hard", "scale", "independent", "heldout", "heldout2")
@@ -37,8 +36,7 @@ def _generate(args: argparse.Namespace) -> None:
     """Run the chosen data generators, each in its own process."""
     names = GENERATORS if args.which == "all" else (args.which,)
     for name in names:
-        # each generator runs in its own process: the question-set generators share module-level state
-        subprocess.run([sys.executable, "-m", f"tools.generate_{name}"], check=True, cwd=ROOT)
+        run_generator(name)
 
 
 def _add_generate_arguments(ap: argparse.ArgumentParser) -> None:

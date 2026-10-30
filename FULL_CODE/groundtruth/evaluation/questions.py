@@ -16,6 +16,8 @@ QUESTION_COLUMNS = ("question_id", "conversation_id", "turn", "question_text")
 
 @dataclass(frozen=True)
 class Question:
+    """One question from the pack's question file, with its conversation id and turn number."""
+
     question_id: str
     conversation_id: str
     turn: int

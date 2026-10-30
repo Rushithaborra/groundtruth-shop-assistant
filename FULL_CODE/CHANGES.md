@@ -984,6 +984,33 @@ numpy in the normal way and found them in the user's `pip install --user` folder
 (`-I`), which ignores that folder. The check now imports them the same isolated way, so it gives the clear message
 ("needs pandas and numpy; run `uv sync` ..."). With `uv run`, the score is unchanged (dev check 0.900). Tests: 262.
 
+## Checked against the Participant Coding Guidelines v1.1, 30 October
+
+Every rule, on the files that go into the zip. Already fine: layout and one entry point (`main.py`), settings in
+`config.json`, no secrets or absolute paths, `.env` ignored and `.env.example` committed, no junk, no `print`, no
+`eval`/`exec`/`pickle`/`shell=True`, restricted origins and security headers, lockfile, `pip-audit` clean (voice
+extra included), tests with mocked model calls, model JSON validated, prompts in files, models loaded without
+`trust_remote_code`, fixed seeds (the generators rewrite the committed data byte for byte), and all eight README
+sections in the skeleton's order. Fixed:
+
+* **Top level of the zip (rule 2, page 2).** `.gitattributes` sat next to README.md; the guidelines allow only
+  README.md, .gitignore, submission/, FULL_CODE/ and LICENSE. It moved to `FULL_CODE/.gitattributes`, where its
+  line-ending rules still cover all the code, and `package` now rejects it at the top (new test).
+* **`.gitignore` lists `node_modules/`**, as page 2 asks (the project has no JavaScript packages).
+* **Errors swallowed in the page (rule 8: "never ... an empty catch {}").** Three empty catches: the page now says
+  when the server can't be reached at start-up and when "Start over" fails; blocked browser storage is logged.
+* **Timeouts and repeated code (rules 8 and 1).** The demo-catalogue generation in `serve` and `main.py generate`
+  ran the same `subprocess.run` with no timeout; both use `tools.run_generator` now (600 s stop, clear message).
+* **A function over 40 lines (rule 1).** `understand` (43 lines, from the Task 4 commit) moved its "names, sizes,
+  measures and budget" step into `_names_sizes_and_budget`, unchanged.
+* **Docstrings (rule 12).** 30 classes and methods had none, including `ShoppingAssistant` and `CatalogueIndex`.
+* **AI usage (rule 12)** did not list the Whisper speech model; it does now.
+
+Nothing that answers a question changed: all seven score sets are identical (dev check 0.900, all 0.950, tune
+1.000; stress 0.9996 / 1.000; shoppers 0.9761 / 0.7332), 0 hallucinated prices, the submission differs only in
+`latency_ms`. Tests: 263 (Python 3.12 with the voice extra; 261 pass and 2 skip on 3.9 without it). Now 0 functions
+over 40 lines and 0 top-level functions, classes or methods without a docstring.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

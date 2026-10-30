@@ -18,8 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import subprocess
-import sys
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,7 +27,8 @@ from groundtruth.arguments import add_model_arguments
 from groundtruth.builder import build_assistant
 from groundtruth.config import ServerSettings, VoiceSettings, get_settings
 from groundtruth.models.speech import AudioError, Transcriber, shopping_prompt
-from groundtruth.paths import ROOT, WEB_DIR
+from groundtruth.paths import WEB_DIR
+from tools import run_generator
 
 from .ratelimit import RateLimiter
 from .security import SECURITY_HEADERS, content_security_policy, same_origin
@@ -50,7 +49,7 @@ def pick_data(catalogue: str | None, policy: str | None) -> tuple[str, str]:
         return str(paths.pack_catalogue), policy or str(paths.pack_policy)
     if not paths.demo_catalogue.exists():
         logger.info("Generating the 5,000-product demo catalogue (first run only)...")
-        subprocess.run([sys.executable, "-m", "tools.generate_scale"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+        run_generator("scale", quiet=True)
     return str(paths.demo_catalogue), policy or str(paths.demo_policy)
 
 

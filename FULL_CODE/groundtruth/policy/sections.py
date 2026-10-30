@@ -18,6 +18,8 @@ from ..text import content_tokens, split_sentences, tokenize
 
 @dataclass
 class Section:
+    """One policy section (for example 1.1, the return window): heading, text and sentences, cited as policy:<id>."""
+
     id: str
     heading: str
     body: str
@@ -25,6 +27,7 @@ class Section:
     heading_tokens: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
+        """Split the text into sentences once, each with its content words, for matching questions to sentences."""
         self.sentences = [(s, frozenset(content_tokens(s))) for s in split_sentences(self.body)]
         self.heading_tokens = frozenset(tokenize(self.heading))
 

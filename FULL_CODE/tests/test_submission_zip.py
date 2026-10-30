@@ -81,6 +81,13 @@ class ChecklistTests(unittest.TestCase):
         self.assertIn("unexpected top-level item: notes.txt", problems)
         self.assertIn("missing FULL_CODE/uv.lock", problems)
 
+    def test_only_the_guidelines_items_may_sit_at_the_top(self):
+        # page 2 of the guidelines: README.md, .gitignore, submission/, FULL_CODE/ and an optional LICENSE
+        self.add(".gitattributes")
+        self.add("FULL_CODE/.gitattributes")  # inside FULL_CODE it is fine
+        problems = check_project(self.root, self.questions)
+        self.assertEqual([p for p in problems if "gitattributes" in p], ["unexpected top-level item: .gitattributes"])
+
     def test_a_readme_without_a_required_section_is_caught(self):
         self.add("README.md", "# Team\n\n## What it does\n")
         problems = check_project(self.root, self.questions)

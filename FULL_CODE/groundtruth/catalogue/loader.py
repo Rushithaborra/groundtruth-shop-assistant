@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Product:
+    """One catalogue record as loaded: the only source for anything said about a product."""
+
     id: str
     title: str
     description: str

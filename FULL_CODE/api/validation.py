@@ -28,6 +28,8 @@ class RequestError(ValueError):
 
 @dataclass(frozen=True)
 class ChatRequest:
+    """A validated /api/chat request: the shopper's message and their session id, if they have one."""
+
     message: str
     session_id: str | None
 

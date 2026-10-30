@@ -360,7 +360,9 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     if (info.examples && info.examples.length) {
       $("examples").innerHTML = info.examples.map((e) => `<button type="button" data-q="${esc(e.q)}"><span class="ex-label">${esc(e.label)}</span>${esc(e.q)}</button>`).join("");
     }
-  }).catch(() => {});
+  }).catch(() => {
+    $("catalogue-size").textContent = "Can’t reach the assistant: check that python main.py serve is running, then reload.";
+  });
 
   /* ---------- helpers ---------- */
   const kindOf = (src) => src.noun || src.category || "Product";
@@ -637,7 +639,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       typing.remove();
       if (!res.ok) throw new Error(data.error || "Request failed");
       sessionId = data.session_id;
-      try { sessionStorage.setItem("gt-session", sessionId); } catch (e) {}
+      try { sessionStorage.setItem("gt-session", sessionId); } catch (e) { console.debug("Session kept in memory only (storage blocked):", e.name); }
       const card = addReply(data);
       updatePanel(data);
       speakReply(data.text);
@@ -703,7 +705,9 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       sessionId = data.session_id;
       $("remembered").innerHTML = `<p class="empty">Cleared. Your next message starts fresh.</p>`;
       messages.append(Object.assign(el("p", "seal"), { textContent: "Started over: earlier filters and budget are forgotten." }));
-    } catch (e) {}
+    } catch (e) {
+      messages.append(Object.assign(el("p", "seal"), { textContent: "Couldn’t start over: check that the server is still running, then try again." }));
+    }
   });
   if (matchMedia("(max-width: 520px)").matches) input.placeholder = "Ask in English or Hinglish";  // the long example is cut off
   if (matchMedia("(pointer: fine)").matches) input.focus();  // don't pop up the keyboard on phones

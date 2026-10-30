@@ -203,6 +203,13 @@ laptop CPU, with its JSON cut off at the token limit. Neither helped, so the shi
 (0 tokens per query). The code stays, with timeouts, retries and fall-back to rules, for a larger model or a
 different catalogue.
 
+**Speech-to-text (optional voice input).** OpenAI's Whisper "small" model, run locally through faster-whisper
+(`groundtruth/models/speech.py`), turns a spoken question into text on this computer. It never answers anything: its
+text goes through the same rules as a typed question, so it can't add a claim, a price or a product. Its hint text
+(shoppers' Hinglish words) is in `vocabulary.json`; the model folder, language and limits are in `config.json`.
+Replies are read aloud by the browser's own voices. Without the optional extra, there is no Speak button and no
+model.
+
 **AI coding assistants.** Claude (chat) and Claude Code were used to write, refactor and review code, tests and
 documentation. The team reviewed every change and can explain the code.
 

@@ -71,6 +71,9 @@ class Spec:
 
 
 class CatalogueIndex:
+    """The catalogue made searchable: products by id, inverted indexes over words and attribute values, and typo
+    matching against the catalogue's own vocabulary."""
+
     def __init__(
         self, products: list[Product], typo_cutoff: float | None = None, typo_cache_size: int | None = None
     ) -> None:

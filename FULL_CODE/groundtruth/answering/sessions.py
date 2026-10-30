@@ -12,6 +12,8 @@ from .response import Response, Session
 
 
 class SessionStore:
+    """Chat sessions by id, with a cap on how many are kept and an expiry time, so memory stays bounded."""
+
     def __init__(self, max_sessions: int | None = None, ttl_seconds: float | None = None) -> None:
         limits = get_settings().sessions
         self.max_sessions = max_sessions if max_sessions is not None else limits.max_sessions
@@ -41,4 +43,5 @@ class SessionStore:
             return assistant.ask(query, session)
 
     def __len__(self) -> int:
+        """How many sessions are kept now."""
         return len(self._data)

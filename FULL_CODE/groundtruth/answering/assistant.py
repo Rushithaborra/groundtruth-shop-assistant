@@ -45,6 +45,9 @@ if TYPE_CHECKING:  # only for the annotations below: the model fallbacks are opt
 
 
 class ShoppingAssistant:
+    """Answers one shopper message at a time from the catalogue and the policy only: it answers with citations,
+    asks which one is meant, or says the catalogue doesn't have it."""
+
     def __init__(
         self,
         index: CatalogueIndex,
