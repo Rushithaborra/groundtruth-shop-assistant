@@ -18,7 +18,7 @@ from itertools import compress
 from typing import Callable
 
 from ..config import get_settings
-from ..text import STOPWORDS, normalise_word, tokenize
+from ..text import STOPWORDS, SYNONYMS, normalise_word, stem, tokenize
 from .loader import Product
 
 SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-text filter
@@ -26,6 +26,10 @@ SIZE_KEY = "size"  # looked up with an explicit "size X" pattern, not as a free-
 UNIT_WORDS = frozenset({"mm", "cm", "m", "ft", "in", "w", "l", "ml", "mah", "kg", "g", "c", "min", "hour", "hours"})
 GENDER_KEY = "gender"
 KIND_KEY = "sub_category"  # the attribute that names the kind of product ("Running Shoes")
+SHORT_TYPO_LENGTHS = range(3, 8)  # a word this long is also mended by one vowel slip, if exactly one product word fits
+VOWELS = frozenset("aeiou")
+SHORT_TARGET_MIN = 4  # ... and that product word has at least this many letters ("jen" -> "jean", never "jen" -> "pen")
+SUGGEST_CUTOFF = 0.8  # similarity for a "did you mean" offer; looser than the 0.85 of a correction, since it only asks
 
 
 @dataclass
@@ -170,6 +174,7 @@ class CatalogueIndex:
         self._unit_tables: dict[str, tuple] = {}  # per-unit measurement tables, built when first used
         self._filter_sets: dict[tuple, set[str]] = {}  # merged filter postings, reused between searches
         self.name_pairs: set[tuple[str, str]] = set()  # adjacent words in product names: ("hair", "dryer")
+        self._written: defaultdict[str, Counter] = defaultdict(Counter)  # word -> the spellings titles use
         self._text_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title/category/attrs -> pids
         self._title_postings: defaultdict[str, set[str]] = defaultdict(set)  # token in title -> pids
         self._attr_postings: defaultdict[tuple, set[str]] = defaultdict(set)  # (key, lower value) -> pids
@@ -179,6 +184,10 @@ class CatalogueIndex:
     def _index_product(self, p: Product) -> set[str]:
         """Add one product to every lookup table; returns its words, for the document frequencies."""
         title = frozenset(tokenize(p.title))
+        for raw in p.title.split():  # how the shop writes each word ("Jeans"), to quote a product word back
+            word = raw.strip("()-,.")
+            if word.isalpha() and len(word) >= 3:
+                self._written[normalise_word(word)][word] += 1
         for words in (tokenize(p.title), tokenize(str(p.attributes.get("sub_category", "")))):
             self.name_pairs.update(zip(words, words[1:]))
         text = set(title) | set(tokenize(p.category))
@@ -293,7 +302,27 @@ class CatalogueIndex:
         for word in self.type_vocab:
             by_len[len(word)].append(word)
         self._vocab_by_len = by_len
+        # product words only: not a colour, material, brand or gender word ("cases" must never become the brand Casa)
+        attr_words = {t for k, vals in self.attr_values.items() if k != KIND_KEY for toks in vals for t in toks}
+        by_first: defaultdict[str, list[str]] = defaultdict(list)
+        for word in self.type_vocab:
+            if len(word) >= SHORT_TARGET_MIN and word not in attr_words:
+                by_first[word[0]].append(word)
+        self._vocab_by_first = by_first
         self.closest = lru_cache(maxsize=cache_size)(self._closest)
+        self.closest_short = lru_cache(maxsize=cache_size)(self._closest_short)
+        self.suggest = lru_cache(maxsize=cache_size)(self._suggest)
+        # "did you mean" offers come from the same product words, and from the shopper words the synonym list knows
+        # ("sneakers" -> shoes)
+        offers = {w: w for w in self.type_vocab if len(w) >= 4 and w not in attr_words and w.isalpha()}
+        for word in SYNONYMS:
+            target = normalise_word(word)
+            if word.isalpha() and stem(word) not in offers and target in self.type_vocab and target not in attr_words:
+                offers[stem(word)] = target
+        offers_by_len: defaultdict[int, list[str]] = defaultdict(list)
+        for word in offers:
+            offers_by_len[len(word)].append(word)
+        self._offers, self._offers_by_len = offers, offers_by_len
 
     def _index_key_name(self, key: str) -> None:
         """Make an attribute's name askable: by any of its words, and by its full name when that has several."""
@@ -393,6 +422,38 @@ class CatalogueIndex:
         pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._vocab_by_len.get(n, ())]
         match = difflib.get_close_matches(token, pool, n=1, cutoff=self.typo_cutoff)
         return match[0] if match else None
+
+    def _closest_short(self, token: str) -> str | None:
+        """The one product word a short misspelling (3-7 letters after plurals are trimmed) can mean, or None.
+
+        "jeens" -> "jeen" and "jens" -> "jen" are too short for the similarity ratio (jeen/jean scores 0.75), and a
+        loose ratio on short words would turn real words into other products. So the rule is strict instead: the
+        product word must start with the same letter and differ by one vowel slip (a vowel swapped for another, added
+        or dropped, or two neighbours swapped), and it must be the only such word. A changed consonant is never
+        mended: "band" is a real word, not a slip for "bank". Two candidates mean it is a guess, so None.
+        """
+        if len(token) not in SHORT_TYPO_LENGTHS or not token.isalpha() or token in self.type_vocab:
+            return None  # not a slip: too short or long, not letters, or already a product word
+        pool = self._vocab_by_first.get(token[0], ())
+        found = [w for w in pool if abs(len(w) - len(token)) <= 1 and _vowel_slip(token, w)]
+        return found[0] if len(found) == 1 else None
+
+    def _suggest(self, token: str) -> list[str]:
+        """Up to two product words a word might have meant, as the shop writes them, for a "did you mean" offer.
+        It only ever asks; a suggestion is never searched for."""
+        if len(token) < 4 or not token.isalpha():
+            return []
+        pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._offers_by_len.get(n, ())]
+        near = difflib.get_close_matches(token, pool, n=2, cutoff=SUGGEST_CUTOFF)
+        return list(dict.fromkeys(self.display_word(self._offers[w]) for w in near))
+
+    def display_word(self, token: str) -> str:
+        """A product word as the shop writes it ("jean" -> "Jeans"), for replies."""
+        kind = self.attr_values.get(KIND_KEY, {}).get((token,))
+        if kind:
+            return str(kind)
+        written = self._written.get(token)
+        return written.most_common(1)[0][0] if written else token
 
     # -- constraint matching -------------------------------------------------------------------
     def _posting_ids(self, spec: Spec) -> set[str] | None:
@@ -751,6 +812,24 @@ def _discard(postings: dict, key: object, pid: str) -> None:
         ids.discard(pid)
         if not ids:
             del postings[key]
+
+
+def _vowel_slip(a: str, b: str) -> bool:
+    """Whether two different words differ by one vowel slip: a vowel swapped for another ("jeen"/"jean"), added or
+    dropped ("jen"/"jean"), or two neighbouring letters swapped. This is how short words are misspelt in practice;
+    a changed consonant ("band"/"bank") is a different word."""
+    if a == b:
+        return False
+    if len(a) == len(b):
+        diff = [i for i in range(len(a)) if a[i] != b[i]]
+        if len(diff) == 1:
+            return a[diff[0]] in VOWELS and b[diff[0]] in VOWELS
+        return len(diff) == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]]
+    short, long_ = (a, b) if len(a) < len(b) else (b, a)
+    if len(long_) - len(short) != 1:
+        return False
+    i = next((k for k in range(len(short)) if short[k] != long_[k]), len(short))
+    return short[i:] == long_[i + 1 :] and long_[i] in VOWELS
 
 
 def _slips(token: str) -> list[str]:

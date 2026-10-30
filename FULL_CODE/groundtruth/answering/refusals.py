@@ -119,6 +119,8 @@ def external_policy(p: Parsed, general: Response) -> Response:
 def unknown_refusal(index: CatalogueIndex, p: Parsed, list_limit: int) -> Response:
     """Product words the catalogue doesn't contain; offers a related type the shop does sell, if one is known."""
     lines, claims = [f'I don\'t have anything in the catalogue matching "{" ".join(p.unknown)}".'], Claims()
+    if p.suggestions:  # a near miss in spelling: ask, don't assume
+        lines.append("Did you mean " + " or ".join(f'"{shown}"' for _, shown in dict.fromkeys(p.suggestions)) + "?")
     for alt in dict.fromkeys(p.alternatives):
         header = "The closest products I do have:"
         lines += alternatives(index, Spec(type_tokens=[alt]), p, header, list_limit, claims)

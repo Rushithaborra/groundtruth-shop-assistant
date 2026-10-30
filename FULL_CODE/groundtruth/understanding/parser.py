@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 
 from ..catalogue import KIND_KEY, CatalogueIndex
-from ..text import ABROAD, ATTRIBUTE_WORDS, EXTERNAL_BRANDS, RELATED, STOPWORDS, tokenize
+from ..text import ABROAD, ATTRIBUTE_WORDS, EXTERNAL_BRANDS, RELATED, STOPWORDS, normalise_word, tokenize
 from .lexicon import (
     ACCOUNT_PHRASES,
     ACCOUNT_W,
@@ -328,8 +328,14 @@ def _classify_tokens(parsed: Parsed, tokens: list[str], consumed: list[bool], in
         named_attribute = tok in index.attr_keys and tok not in index.kind_nouns
         if consumed[i] or tok in IGNORE or named_attribute or tok.isdigit() or len(tok) < 2:
             continue
-        if tok not in index.type_vocab and tok not in index.desc_vocab and len(tok) >= 5:
-            tok = index.closest(tok) or tok  # typos: "runing"
+        if tok not in index.type_vocab and tok not in index.desc_vocab:
+            if len(tok) >= 5:
+                tok = index.closest(tok) or tok  # typos: "runing"
+            if tok not in index.type_vocab and tok not in EXTERNAL_BRANDS:
+                fixed = index.closest_short(tok)  # one vowel slip, exactly one product word fits: "jeens", "shert"
+                if fixed:
+                    parsed.corrected.append((_typed_form(tok, parsed.raw), index.display_word(fixed)))
+                    tok = fixed
         if tok in index.type_vocab:
             if tok not in parsed.spec.type_tokens:
                 parsed.spec.type_tokens.append(tok)
@@ -347,6 +353,17 @@ def _classify_tokens(parsed: Parsed, tokens: list[str], consumed: list[bool], in
                 parsed.external.append(tok)
             elif tok in RELATED and RELATED[tok] in index.type_vocab:
                 parsed.alternatives.append(RELATED[tok])
+            else:
+                for guess in index.suggest(tok)[:1]:  # only asked, never assumed: "sneker" -> did you mean "sneakers"
+                    parsed.suggestions.append((_typed_form(tok, parsed.raw), index.display_word(guess)))
+
+
+def _typed_form(token: str, raw: str) -> str:
+    """The word as the shopper typed it ("jeens"), for a reply; the parser only keeps its trimmed form ("jeen")."""
+    for word in re.findall(r"[a-z]+", raw.lower()):
+        if normalise_word(word) == token:
+            return word
+    return token
 
 
 def _detect_conversation_intents(parsed: Parsed, token_set: set[str], account: bool, helpq: bool) -> None:
