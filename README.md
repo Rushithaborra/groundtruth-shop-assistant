@@ -289,6 +289,7 @@ event). `git log` has the full history with dates:
 | 2026-10-28 | `3abaa8f` to `d000e83` | Sushanth Kilari | Type hints, shorter functions and `tools/` docstrings; a stricter grounding checker (prices bound to their citation, attribute words, policy quotes); strict pack loading; stock wording; retailer view split; handover |
 | 2026-10-29 | after `d000e83` | Rushitha Borra | Lint and README fixes; grounding checker no longer flags attribute names |
 | **2026-10-30 to 31 (Day 1)** | the five commits after `27c7368`, ending `d9f4762` | Sushanth Kilari with Claude Code | **Made during the event:** faster, set-based catalogue search; live catalogue updates; the low-token numbered-menu resolver and learned-synonym review (off by default, not run with a real model); a session store (memory or SQLite); tests and docs for these. Replies are identical to before on all 150 pack predictions and the dev score is unchanged at 0.9500 |
+| **2026-10-31 (during the event)** | the commit "Mend short vowel-slip typos, offer 'did you mean', keep a budget that found nothing" (pull request #1) | Sushanth Kilari with Claude | **Made during the event:** short-word typo repair by one vowel slip ("jeens" -> jeans) with the correction shown in the reply; "Did you mean" offers on refusals; a budget that found nothing stays in force on the next turn; 14 tests (`tests/test_typos_and_budget_memory.py`). Replies to every question in the repo's question sets are unchanged (428 compared before and after) |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),
@@ -332,10 +333,13 @@ stays out of the repository.
   refuse unusual synonyms); policy-silent questions are recognised only for delivery days and times (Sunday,
   weekend, same day, express, ...), from a word list in `vocabulary.json`; "which is better" between two kinds of
   product gets a clarifying question, because the catalogue has nothing to judge "better" by.
-  **Typos: a misspelt word is mended when it is one vowel slip from exactly one product word (“jeens” → jeans, “shert” → shirt) and the
-  reply says so. A changed consonant (“band” for “bank”), a brand, or two equally close words is never guessed: the reply refuses and may
-  ask “Did you mean …?”. Words two or more edits away are refused.
-  **Budgets: a budget that matches nothing stays in force for the next turn (“500 ke andar”, then “sabse sasti” still means under ₹500)
-  until the shopper gives a new one.
+* **Typos:** a misspelt word is mended when it is one vowel slip from exactly one product word ("jeens" -> jeans,
+  "shert" -> shirt), and the reply says so (`Showing results for "Jeans" (you typed "jeens")`). A changed consonant
+  ("band" for "bank"), a brand, a colour or two equally close words is never guessed: the reply refuses, and may ask
+  `Did you mean "Hoodie"?`. Words two or more edits away ("laptpo") are refused with no offer. The rule is strict on
+  purpose: a looser one turned "fitness band" into power banks when tried.
+* **Budgets:** a budget that matches nothing stays in force for the next turn ("500 ke andar", then "sabse sasti"
+  still means under 500) until the shopper gives a new one. Only a failure caused by the budget is remembered; an
+  unsold item ("laptop" after "black hoodie") leaves the earlier search as it was.
 * Latencies are from one laptop. Python threads share one interpreter lock, so serving many users means more
   processes, not more threads (`main.py bench`: about 2,300 queries/s per process on the synthetic catalogue).
