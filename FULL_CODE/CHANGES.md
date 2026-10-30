@@ -867,6 +867,13 @@ fake microphone sent silence, so the test fed the page a WAV through `getUserMed
 | Tests | 244 | 251 (7 in `tests/test_voice.py`, with a fake transcriber) |
 | Functions over 40 lines | 0 | 0 (the voice set-up moved out of `api/server.py: run` into `_voice_input`) |
 
+**Fix, 30 October: "Unable to decode audio data".** Pressing Stop in a real browser could fail with this error. The
+page recorded compressed audio (WebM/MP4) with MediaRecorder and asked the browser to decode it again, which fails
+for some recordings. The page now takes the microphone's raw samples with the Web Audio API and builds the 16 kHz WAV
+from them, with no decoding step. Checked in headless Chrome: 4 of 4 spoken questions transcribed and answered; a
+beep-only microphone gives "Didn't catch that"; a tap shorter than 0.3 s says "That was too short". No decode error
+in any case.
+
 Not done: voice on a phone. Browsers allow the microphone only on `localhost` or HTTPS, and the demo serves plain
 HTTP. Not tested with real human voices.
 
