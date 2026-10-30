@@ -1022,6 +1022,16 @@ normal afterwards, unless it is showing an error. Animations stop for people who
 only the icons show. Checked in headless Chrome: ready → listening → transcribing → ready, with the right labels for
 screen readers at each step. Page only; tests 263.
 
+## "Show product" for products named only in the text, 30 October
+
+When a product isn't stocked under the shopper's budget, the reply names the closest one ("No sneakers ... under
+₹500; the cheapest sneakers I have is Kadambh MiraGo ... at ₹549"), but the shopper could only open its record by
+its citation. Every product cited in the text that has no card of its own now gets a **Show product** button beside
+it in the Sources line; it opens the usual product card under the answer (price, stock, rating, Details, Compare,
+Ask about this) and turns into **Hide product**. Listings, which already show cards, get no button. Checked in
+headless Chrome on "synthetic leather sneakers size 10 under 500": one button, the card opens, Details flips it,
+a second click hides it. Page only (the card comes from the cited record the reply already carries); tests 263.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

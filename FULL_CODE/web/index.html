@@ -120,6 +120,9 @@ main.chat { display: flex; flex-direction: column; min-height: calc(100vh - 90px
 .sources .src { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
 .sources .src-n { font-weight: 800; color: var(--ink); }
 .sources .src-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.sources .show-prod { margin-left: 4px; padding: 3px 10px; border: 1.5px solid var(--btn); border-radius: 999px; background: var(--card); color: var(--btn-ink); font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.sources .show-prod:hover, .sources .show-prod[aria-expanded="true"] { background: var(--btn); }
+.grid.shown { margin-top: 0; }
 
 /* ---------- product cards ---------- */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin: 6px 0 10px; }
@@ -386,11 +389,15 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   // Each claim keeps a small numbered reference; the sources are listed once under the answer (a product cited four
   // times in two sentences no longer shows its ID four times). Both open the same catalogue record or policy section.
   const refBtn = (c, n) => `<button type="button" class="cite ref${c.startsWith("policy:") ? " policy" : ""}" data-cite="${esc(c)}" aria-label="Source ${n}">${n}</button>`;
-  function sourcesHTML(refs, data) {
+  function sourcesHTML(refs, data, carded) {
     if (!refs.size) return "";
     const items = [...refs].map(([c, n]) => {
-      const src = data.sources[c], title = src && !c.startsWith("policy:") ? `<span class="src-t">${esc(src.title)}</span>` : "";
-      return `<span class="src"><span class="src-n">${n}</span>${citeBtn(c, src)}${title}</span>`;
+      const src = data.sources[c], isProduct = src && src.kind === "product";
+      const title = isProduct ? `<span class="src-t">${esc(src.title)}</span>` : "";
+      // a product named only in the text (an alternative to what isn't stocked, "the cheapest is ...") can be opened
+      // as a card here; products already shown as cards don't need it
+      const show = isProduct && !carded.has(c) ? `<button type="button" class="show-prod" data-act="show-product" data-id="${esc(c)}" aria-expanded="false">Show product</button>` : "";
+      return `<span class="src"><span class="src-n">${n}</span>${citeBtn(c, src)}${title}${show}</span>`;
     });
     return `<div class="sources"><span class="src-head">Sources</span>${items.join("")}</div>`;
   }
@@ -448,7 +455,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     const html = textHTML(isCompare || !prods.length ? data.text.split("\n") : before, data, refs);
     const tail = !isCompare && prods.length ? textHTML(after, data, refs) : "";
     const grid = prods.length && !isCompare ? `<div class="grid">${prods.map((id) => productCard(data.sources[id], data.action)).join("")}</div>` : "";
-    return { html, grid, tail, isCompare, sources: sourcesHTML(refs, data) };
+    return { html, grid, tail, isCompare, sources: sourcesHTML(refs, data, new Set(isCompare ? [] : prods)) };
   }
 
   function textHTML(lines, data, refs) {
@@ -532,6 +539,20 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       setTimeout(() => { inner.style.height = ""; }, 400);
     };
 
+    const toggleShownProduct = (btn) => {
+      const id = btn.dataset.id, open = front.querySelector(`.grid.shown .pcard[data-id="${CSS.escape(id)}"]`);
+      if (open) {
+        open.remove();
+        if (!front.querySelector(".grid.shown .pcard")) front.querySelector(".grid.shown").remove();
+      } else {
+        let grid = front.querySelector(".grid.shown");
+        if (!grid) { front.querySelector(".sources").insertAdjacentHTML("afterend", `<div class="grid shown"></div>`); grid = front.querySelector(".grid.shown"); }
+        grid.insertAdjacentHTML("beforeend", productCard(data.sources[id], "answer"));
+        grid.lastElementChild.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      btn.setAttribute("aria-expanded", String(!open)); btn.textContent = open ? "Show product" : "Hide product";
+    };
+
     wrap.addEventListener("click", (e) => {
       const cite = e.target.closest(".cite");
       if (cite) {
@@ -545,6 +566,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       const card = btn.closest(".pcard");
       const act = btn.dataset.act;
       if (act === "reply-back") { unflipReply(); return; }
+      if (act === "show-product") { toggleShownProduct(btn); return; }
       if (!card) return;
       const id = card.dataset.id, title = card.dataset.title;
       if (act === "flip") { card.classList.add("flipped"); card.querySelector(".p-back").setAttribute("aria-hidden", "false"); card.querySelector("[data-act=unflip]").focus({ preventScroll: true }); }
