@@ -808,6 +808,54 @@ not a need, and "gift wrap" is a service, not a present.
 Still refused: needs outside the map ("daily routine thodi easy banani hai", "cute cheezein"). The map is written by
 hand, so it reaches only the needs it lists; the provided embedding model is the candidate for the rest.
 
+## Offline voice input, 30 October
+
+A **Speak** button in the web demo and a "Read replies aloud" option, both off unless installed. Approved by
+Rushitha on 29 October: the new optional dependency faster-whisper (MIT; pulls in ctranslate2) and the Whisper "base"
+model (about 145 MB, git-ignored in `models/whisper-base/`).
+
+* The page records with the browser, converts to 16 kHz mono 16-bit WAV itself, and POSTs it to `/api/transcribe`.
+  The route has the chat route's protections: same-origin check, per-address rate limit, a WAV content type, a
+  600 KB body cap and 15 seconds at most (`config.json`, `voice`). The audio is never stored or logged. Status codes:
+  503 if voice isn't installed, 400 for a bad recording.
+* The text goes into the normal chat path, so the reply is grounded and cited exactly as typed text is. Nothing new
+  can reach a reply.
+* `groundtruth/models/speech.py`: lazy load (int8, CPU), a lock, beam size 1, voice-activity filter, and an initial
+  prompt naming shoppers' Hinglish words (`vocabulary.json`, `voice_words`) and the catalogue's kinds of product.
+* Read-aloud uses the browser's local voices and drops the `[SKU-…]` tags.
+* `python main.py voice-model` downloads the model. It sets `HF_HUB_DISABLE_XET=1`, because Hugging Face's Xet
+  transfer stalled at 0 bytes on 29 October.
+* `Permissions-Policy` is now `microphone=(self)`.
+* `pip-audit` over the 72 packages: no known vulnerabilities.
+
+Measured with spoken questions made by macOS `say -v Aman` (en_IN, synthetic; real voices and real rooms will do
+worse). A question counts as correct if its spoken version gets the same answer as the typed version.
+
+| Measure | Before the prompt | After |
+|---|---|---|
+| Set 1 (12, used to write the prompt words) | 6/12 | 7/12 |
+| Set 2 (12, measured once before and once after, not tuned on) | 9/12 | 10/12 |
+| Transcription time | | about 0.3–0.5 s a question |
+
+Overall: **17 of 24**. The misses are Hindi words: "refund kab milega" → "Refan cab…", "saree kitne ki hai" → "How
+many are there?". With language "en", Whisper often translates Hinglish into English, which usually helps. Set 2 has
+now been looked at, so a new voice check needs new questions (rule 4).
+
+Checked in a real (headless) Chrome: the Speak button appears, says Stop while recording, and the spoken "pressure
+cooker under 2000" and "cheapest bluetooth speaker" were asked and answered with cited products. Chrome's built-in
+fake microphone sent silence, so the test fed the page a WAV through `getUserMedia`.
+
+| Measure | Before | After |
+|---|---|---|
+| Dev check / all / tune; stress tune / holdout; shopper tune / holdout2 | 0.900 / 0.950 / 1.000; 0.9996 / 1.000; 0.976 / 0.733 | unchanged |
+| Hallucinated prices | 0 | 0 |
+| `submission/R3_predictions.jsonl` | | unchanged (regenerated; only `latency_ms` differed, so the committed file was kept) |
+| Tests | 244 | 251 (7 in `tests/test_voice.py`, with a fake transcriber) |
+| Functions over 40 lines | 0 | 0 (the voice set-up moved out of `api/server.py: run` into `_voice_input`) |
+
+Not done: voice on a phone. Browsers allow the microphone only on `localhost` or HTTPS, and the demo serves plain
+HTTP. Not tested with real human voices.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

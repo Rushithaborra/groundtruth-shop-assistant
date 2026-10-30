@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 240 tests
+uv run pytest        # 251 tests
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -143,6 +143,26 @@ A tested 90-second walkthrough, with the questions to type and the numbers to qu
 The API (`api/`) validates every request (JSON only, size and length limits, allowed fields, server-minted session
 ids), refuses requests from other sites, rate-limits each session and client address, and sends security headers,
 including a Content-Security-Policy that lets only the page's own script run. It listens on 127.0.0.1 by default.
+
+**Asking by voice (optional, offline).** A **Speak** button turns a spoken question into text on this computer and
+asks it like a typed one; **Read replies aloud** speaks the answer with the computer's own voices, without the citation
+tags. Speech-to-text uses faster-whisper with the Whisper "base" model; set it up once, while online:
+
+```bash
+cd FULL_CODE
+uv sync --extra voice                 # the optional speech library (not needed for anything else)
+uv run python main.py voice-model     # the model, about 150 MB, into models/whisper-base/ (git-ignored)
+uv run python main.py serve           # the Speak button now appears; no internet needed from here on
+```
+
+The page records, converts the recording to 16 kHz mono WAV itself, and posts it to `/api/transcribe` on the same
+server; it is checked like any request (same site only, WAV only, at most 15 seconds and 600 KB, rate-limited) and
+never stored or logged. Without the extra or the model the button simply doesn't appear. Browsers allow the
+microphone only on `localhost` or HTTPS, so voice works on the laptop running the demo, not on a phone over Wi-Fi.
+Measured on 24 spoken questions (a synthetic Indian-English voice, not real shoppers): 17 gave the same answer as
+the typed question; transcription takes about 0.3–0.5 s. Hindi words are the weak point ("refund kab milega" was
+heard as "Refan cab"), so the transcript is shown in the chat before the answer and can be retyped.
+Spoken Hindi or Telugu comes out in Latin letters as Whisper hears it, so Hinglish works best.
 
 ### Latency and token cost per query
 

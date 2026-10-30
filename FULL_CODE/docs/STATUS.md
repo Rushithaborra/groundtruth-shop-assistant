@@ -15,7 +15,8 @@ below comes from a command that was run; "not done" means not done. L1 is on 30 
 | Need and occasion requests (50 from a teammate, half held back, judged by criteria written first) | held-back half **0.68** (0.06 before); tune half 0.92 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 240 pass on Python 3.9 and 3.12 |
+| Tests | 251 pass on Python 3.9 and 3.12 |
+| Voice input (optional, offline; 24 questions spoken by macOS's Indian-English voice) | 17 of 24 answered as when typed; 0.3–0.5 s to transcribe |
 | Lint, format, `pip-audit` | clean |
 | Latency / model tokens | mean 0.6 ms a query / 0 |
 | Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |
@@ -36,7 +37,7 @@ These scores are on small samples and on sets we wrote; the hidden test score ma
 | 7. Web demo and API security | done, one look left | phone width checked in Chrome's phone emulation (G7); one look on a real phone left |
 | 8. Hardening | done | product code: 0 functions over 40 lines, 0 untyped parameters, 0 missing return types, 0 dead code, docstrings on every top-level function, `pip-audit` clean, one documented catch-all at the server boundary; the dev tools meet the same rules (G19) |
 | 9. README and submission zip | done | rule-12 sections current; `package` builds the zip from a fresh clone and checks the guidelines' list |
-| Extra | done | `stress` and `shoppers` sets, `docs/demo_script.md`, `docs/code_tour.md`, retailer view |
+| Extra | done | offline voice input (`--extra voice`, `voice-model`; CHANGES); `stress` and `shoppers` sets, `docs/demo_script.md`, `docs/code_tour.md`, retailer view |
 
 ## 3. Gaps against the brief and the organisers' guidelines
 
