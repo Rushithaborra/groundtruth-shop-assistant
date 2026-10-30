@@ -113,14 +113,17 @@ All code is in `FULL_CODE/`, and `main.py` is the one entry point.
 | Folder | Responsibility |
 |---|---|
 | `groundtruth/understanding/` | Parse a message: budgets (`money`), sizes, word-boundary repair (`tokens`), word lists (`lexicon`), `parser` |
-| `groundtruth/catalogue/` | Tolerant catalogue `loader`, and the `index` (inverted postings, constraint filtering, ranking, typo matching) |
+| `groundtruth/catalogue/` | Tolerant catalogue `loader`, and the `index` (inverted postings, set-based filtering, price index, top-n ranking, live updates, typo matching) |
 | `groundtruth/policy/` | Policy sections and sentence retrieval |
 | `groundtruth/answering/` | `assistant` routing; reply builders for products, listings, refusals and policy; per-user `sessions` |
 | `groundtruth/grounding/` | The independent checker shared by the evaluator and the web demo's live check |
-| `groundtruth/models/` | Optional fallbacks using the provided models; the LLM prompt is in `models/prompts/` |
+| `groundtruth/models/` | Optional fallbacks using the provided models: embedding (`semantic`), whole-vocabulary prompt (`normaliser`, prompt in `models/prompts/`) and the low-token numbered-menu `resolver` |
+| `groundtruth/synonyms.py`, `synonyms_cli.py` | Words a model proposed, reviewed by a person (`main.py synonyms`), then answered with no model |
+| `groundtruth/storage/` | Session stores behind one interface: `memory` or a shared `sqlite` file |
+| `groundtruth/concurrency.py` | The reader-writer lock that lets the catalogue change while questions run |
 | `groundtruth/evaluation/` | Scoring and the latency / token report |
 | `groundtruth/config.py` | Loads and validates `config.json` and the environment overrides |
-| `api/` | Web server: routes (`server`), sessions and retailer insights (`state`), cards and examples (`views`) |
+| `api/` | Web server: routes (`server`), chat state kept through the session store and retailer insights (`state`), cards and examples (`views`) |
 | `web/` | Static UI (no external scripts or fonts) |
 | `tools/` | Data and question-set generators, benchmark, embedding calibration |
 | `tests/` | Unit and behaviour tests |
