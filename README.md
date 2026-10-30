@@ -332,5 +332,10 @@ stays out of the repository.
   refuse unusual synonyms); policy-silent questions are recognised only for delivery days and times (Sunday,
   weekend, same day, express, ...), from a word list in `vocabulary.json`; "which is better" between two kinds of
   product gets a clarifying question, because the catalogue has nothing to judge "better" by.
+  **Typos: a misspelt word is mended when it is one vowel slip from exactly one product word (“jeens” → jeans, “shert” → shirt) and the
+  reply says so. A changed consonant (“band” for “bank”), a brand, or two equally close words is never guessed: the reply refuses and may
+  ask “Did you mean …?”. Words two or more edits away are refused.
+  **Budgets: a budget that matches nothing stays in force for the next turn (“500 ke andar”, then “sabse sasti” still means under ₹500)
+  until the shopper gives a new one.
 * Latencies are from one laptop. Python threads share one interpreter lock, so serving many users means more
   processes, not more threads (`main.py bench`: about 2,300 queries/s per process on the synthetic catalogue).
