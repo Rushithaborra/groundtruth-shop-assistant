@@ -1067,3 +1067,23 @@ a second click hides it. Page only (the card comes from the cited record the rep
   `sessions.backend` / `sessions.sqlite_path` in `config.json`, `GROUNDTRUTH_SESSION_BACKEND` / `GROUNDTRUTH_SESSION_DB`.
   Tested with two State objects on one file, a restart, and four processes writing at once. Ran two real `serve`
   processes on one file: a chat begun on one continued on the other. The default (`memory`) changes no answer.
+
+## Short-word typos, "did you mean", and a budget that found nothing (later commit)
+
+Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
+
+* **"jeens", "jens", "shert" were refused** ("I don't have anything matching 'jeen'"). Typo repair only ran on words of
+  5+ letters and needed 85% similarity, and "jeen"/"jean" scores 0.75. A loose ratio on short words is not the fix: it
+  turned "band" into "bank" and "cases" into the brand Casa when tried. Instead `CatalogueIndex.closest_short` mends a
+  word only when it differs from **exactly one** product word by **one vowel slip** (a vowel swapped, added or dropped,
+  or two letters swapped), starts with the same letter, and the target is not a brand, colour, material or gender word.
+  Two candidates mean no guess. A mended word is said aloud: `Showing results for "Jeans" (you typed "jeens").`
+* **"Did you mean"**: an unplaced word that is close to a product word (or to a word in the synonym list, "sneker" ->
+  sneakers -> Shoes) adds `Did you mean "Shoes"?` to the refusal. It only asks; the suggestion is never searched for.
+* **A budget that found nothing is remembered.** After "cotton kurti for women", "500 ke andar" (nothing that cheap),
+  "sabse sasti" used to drop the budget and quote a ₹929 kurta as if the shopper had never said 500. It now keeps the
+  budget and says "No cotton women kurta under ₹500 ...". Only a failure caused by the budget is remembered (the search
+  without it finds products); an unsold item ("laptop" after "black hoodie") still leaves the earlier search intact.
+* Checked on all 364 replies of the repo's question sets before and after: 0 changed (so the same scores). Two
+  regressions of the first version of this fix ("fitness band", "phone cases") are tests now.
+  Tests: `tests/test_typos_and_budget_memory.py`.

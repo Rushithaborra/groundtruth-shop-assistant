@@ -126,6 +126,9 @@ class ShoppingAssistant:
                 path = "llm"
         self._learn(parsed, mapped_before, path)
         resp = self._route(parsed, session)
+        if parsed.corrected and resp.action != CLARIFY:  # a mended short word is said aloud, so a wrong guess shows
+            fixes = ", ".join(f'"{shown}" (you typed "{typed}")' for typed, shown in parsed.corrected)
+            resp.text = f"Showing results for {fixes}.\n{resp.text}"
         if resp.path == "rules":  # a policy answer found by the embedding fallback has already marked itself
             resp.path = path
         resp.llm_input_tokens, resp.llm_output_tokens = llm_usage
@@ -233,6 +236,14 @@ class ShoppingAssistant:
         if _asks_for_nothing(spec):  # "not nike" alone says what isn't wanted
             return Response(ASK_WHAT, CLARIFY)
         return self._search(p, spec, session)
+
+    def _budget_ruled_out(self, spec: Spec, p: Parsed) -> bool:
+        """Nothing fits the budget, but the same search without it finds products: the budget is what failed."""
+        if spec.price_min is None and spec.price_max is None:
+            return False
+        looser = spec.copy()
+        looser.price_min = looser.price_max = None
+        return bool(self.index.search(looser, p.all_tokens)[0])
 
     def _for_a_need(self, p: Parsed, spec: Spec, session: Session) -> Response | None:
         """A need or occasion and no product named: one well-rated product of each kind that serves it, within any
@@ -362,6 +373,8 @@ class ShoppingAssistant:
         unlisted = _drop_unlisted_filters(self.index, spec, p)
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
+            if self._budget_ruled_out(spec, p):  # "under 500" found nothing: the next turn is still under 500
+                session.spec = spec
             return refusals.no_match(self.index, spec, p, self.list_limit)
         if _off_topic_refinement(self.index, p, hits, relaxed):
             # "laptop" after "black hoodie": none of the products being discussed match, so don't re-show them

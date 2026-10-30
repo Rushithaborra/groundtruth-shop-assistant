@@ -23,6 +23,8 @@ class Parsed:
     external: list[str] = field(default_factory=list)  # well-known brands/products the catalogue doesn't contain
     alternatives: list[str] = field(default_factory=list)  # catalogue type words related to an unknown product word
     mapped: list[tuple[str, str]] = field(default_factory=list)  # (shopper word, catalogue word) from the fallback
+    corrected: list[tuple[str, str]] = field(default_factory=list)  # (typed, shown) short words mended by one edit
+    suggestions: list[tuple[str, str]] = field(default_factory=list)  # (typed, product word) "did you mean" offers
     refined: bool = False  # set by the assistant when this turn was merged into the previous search
     superlative: bool = False  # one product wanted ("sabse sasta"), not a list
     is_question: bool = False  # asked as a question ("?", "kya", "hai"), not a request to browse
