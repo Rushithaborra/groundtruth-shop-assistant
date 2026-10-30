@@ -892,6 +892,35 @@ a refusal); a charger card is labelled "Chargers". No reply, prediction or score
 page's examples and labels. Three tests in `tests/test_example_chips.py` fail on the previous code. 254 tests pass
 (Python 3.13 only; not re-run on 3.9 and 3.12); ruff clean, no suppressions.
 
+## "Clothes" was refused, 30 October
+
+Found in the live demo (a screenshot): `clothes under 1500` answered "I don't have anything in the catalogue matching
+'clothe'", and `5000 under clothes` after a product answer was read as a question about that product ("I don't have
+information about 'clothe' for the ... Shirt"). The shop sells hundreds of clothes: the catalogue's own word for them,
+"Apparel", worked (`apparel under 1500`), but the words shoppers use ("clothes", "clothing", "kapde") did not.
+
+Probing the other nine categories with their everyday umbrella words (bags, footwear, kitchen, toys, stationery,
+electronics, appliances, sports and similar) found them all working; only Apparel's were refused. Fix
+(`vocabulary.json`, `synonyms`): clothes, clothing, garment(s), outfit(s), kapde, kapda and battalu now read as
+"apparel". On the pack no product title or description uses these words, so the synonym cannot capture another
+product; the Apparel category is exactly the clothes (T-shirts, kurtis, kurtas, shirts, jeans, track pants, kids wear,
+jackets, sarees, hoodies and sweatshirts). The words come from the live demo and common usage, not from any held-out
+set, and none of our own question tools used them.
+
+| Measure | Before | After |
+|---|---|---|
+| `clothes under 1500`, `clothing`, `kapde 1500 ke andar`, `5000 under clothes` | refused | list apparel within the budget |
+| Dev all 40 / check half (official scorer) | 0.950 / 0.900 | unchanged |
+| Stress tune / holdout; shopper tune / holdout2 (measured again) | 0.9996 / 1.000; 0.976 / 0.733 | unchanged |
+| Hallucinated prices; pack replies flagged by the grounding checker | 0; 0 of 190 | 0; 0 of 190 |
+| `R3_predictions.jsonl` | | all 150 identical apart from timings |
+| Tests | 254 | 258 (4 in `tests/test_umbrella_words.py`; 3 fail without the synonyms) |
+
+Still refused, deliberately not patched: rarer words for a few categories ("skincare", "cosmetics", "makeup",
+"kitchenware", "utensils", "gadgets", "exercise", "office supplies", "boots"); whether the shop sells these needs the
+catalogue, not a guess. An unknown noun after a product answer ("5000 under gizmos") is still read as a question about
+that product. Tests ran on Python 3.13 only (not 3.9 and 3.12); ruff clean, no suppressions.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
