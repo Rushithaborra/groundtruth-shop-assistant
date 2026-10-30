@@ -10,10 +10,12 @@ import json
 import re
 from dataclasses import dataclass
 
+from groundtruth.models.speech import WAV_TYPES
+
 # session ids are minted by the server (secrets.token_urlsafe); anything else is rejected, not trusted
 SESSION_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 JSON_TYPES = ("application/json",)
-AUDIO_TYPES = ("audio/wav", "audio/x-wav", "audio/wave")
+AUDIO_TYPES = (*WAV_TYPES, "audio/webm", "audio/ogg", "audio/mp4")  # what browsers record, decoded by the server
 
 
 class RequestError(ValueError):
@@ -48,7 +50,7 @@ def _check_body(
 
 
 def read_audio_body(content_type: str | None, content_length: str | None, body: bytes, max_bytes: int) -> bytes:
-    """Check the declared type (WAV) and size of a voice recording; the audio itself is checked by its reader."""
+    """Check the declared type and size of a voice recording; the audio itself is checked when it is decoded."""
     _check_body(content_type, content_length, body, max_bytes, AUDIO_TYPES)
     if not body:
         raise RequestError(400, "The recording is empty")

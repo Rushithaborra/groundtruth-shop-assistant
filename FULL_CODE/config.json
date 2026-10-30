@@ -82,7 +82,7 @@
     "llm_seconds_per_call": 13.4
   },
   "voice": {
-    "model_dir": "models/whisper-base",
+    "model_dir": "models/whisper-small",
     "language": "en",
     "max_seconds": 15,
     "max_audio_bytes": 600000

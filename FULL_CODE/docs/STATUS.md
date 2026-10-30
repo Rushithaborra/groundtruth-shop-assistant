@@ -16,8 +16,8 @@ below comes from a command that was run; "not done" means not done. L1 is on 30 
 | Need and occasion requests (50, origin not recorded, treat as AI-written; half held back, judged by criteria written first) | held-back half **0.68** (0.06 before); tune half 0.92 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
-| Tests | 251 pass on Python 3.9 and 3.12 |
-| Voice input (optional, offline; 24 questions spoken by macOS's Indian-English voice) | 17 of 24 answered as when typed; 0.3–0.5 s to transcribe |
+| Tests | 257 pass on Python 3.12 with the voice extra; 255 pass and 2 skip on 3.9 without it |
+| Voice input (optional, offline; questions spoken by macOS's Indian-English voice, not real people) | 11 of 12 answered as when typed on a fresh set (Whisper small; base: 8); about 1 s to transcribe |
 | Lint, format, `pip-audit` | clean |
 | Latency / model tokens | mean 0.6 ms a query / 0 |
 | Grounding checker on all 190 pack replies (40 dev, 150 test) | 0 flagged |

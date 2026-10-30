@@ -1,7 +1,7 @@
 """Download the offline speech-to-text model for the web demo's mic button, once, while online.
 
     uv sync --extra voice                      # the optional speech library (faster-whisper)
-    uv run python main.py voice-model          # the "base" model, into the folder config.json names (~150 MB)
+    uv run python main.py voice-model          # the "small" model, into the folder config.json names (~480 MB)
 
 After this the mic button appears in `main.py serve`, and voice works with no internet.
 """
@@ -16,7 +16,7 @@ from groundtruth.config import get_settings
 from groundtruth.errors import GroundTruthError
 
 logger = logging.getLogger(__name__)
-MODEL = "Systran/faster-whisper-base"  # Whisper "base", converted for faster-whisper (MIT licence)
+MODEL = "Systran/faster-whisper-small"  # Whisper "small", converted for faster-whisper (MIT licence)
 
 
 def add_arguments(ap: argparse.ArgumentParser) -> None:

@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 251 tests
+uv run pytest        # 257 tests (2 need the voice extra)
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -146,22 +146,23 @@ including a Content-Security-Policy that lets only the page's own script run. It
 
 **Asking by voice (optional, offline).** A **Speak** button turns a spoken question into text on this computer and
 asks it like a typed one; **Read replies aloud** speaks the answer with the computer's own voices, without the citation
-tags. Speech-to-text uses faster-whisper with the Whisper "base" model; set it up once, while online:
+tags. Speech-to-text uses faster-whisper with the Whisper "small" model; set it up once, while online:
 
 ```bash
 cd FULL_CODE
 uv sync --extra voice                 # the optional speech library (not needed for anything else)
-uv run python main.py voice-model     # the model, about 150 MB, into models/whisper-base/ (git-ignored)
+uv run python main.py voice-model     # the model, about 480 MB, into models/whisper-small/ (git-ignored)
 uv run python main.py serve           # the Speak button now appears; no internet needed from here on
 ```
 
-The page records, converts the recording to 16 kHz mono WAV itself, and posts it to `/api/transcribe` on the same
-server; it is checked like any request (same site only, WAV only, at most 15 seconds and 600 KB, rate-limited) and
-never stored or logged. Without the extra or the model the button simply doesn't appear. Browsers allow the
+The page records with the browser's own recorder and posts the recording (WebM, Ogg or MP4, as the browser makes
+it) to `/api/transcribe` on the same server, which decodes it with PyAV and transcribes it; it is checked like any
+request (same site only, audio types only, at most 15 seconds and 600 KB, rate-limited) and never stored or logged. Without the extra or the model the button simply doesn't appear. Browsers allow the
 microphone only on `localhost` or HTTPS, so voice works on the laptop running the demo, not on a phone over Wi-Fi.
-Measured on 24 spoken questions (a synthetic Indian-English voice, not real shoppers): 17 gave the same answer as
-the typed question; transcription takes about 0.3–0.5 s. Hindi words are the weak point ("refund kab milega" was
-heard as "Refan cab"), so the transcript is shown in the chat before the answer and can be retyped.
+Measured with a synthetic Indian-English voice (macOS `say`, not real shoppers): on 12 spoken questions that no
+change was based on, 11 gave the same answer as the typed question (the smaller "base" model: 8); transcription takes
+about 1–1.5 s. Hindi words are still the weak point ("sabse" can come out as "Sabase"), so the transcript is shown in
+the chat before the answer and can be retyped.
 Spoken Hindi or Telugu comes out in Latin letters as Whisper hears it, so Hinglish works best.
 
 ### Latency and token cost per query
@@ -231,7 +232,7 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
 (Apache-2.0), PyTorch (BSD-3-Clause) and llama-cpp-python (MIT). The optional voice input (the `voice` extra, pinned
 in `FULL_CODE/uv.lock`, not needed for anything else) uses faster-whisper (MIT) and, through it, CTranslate2 (MIT),
 PyAV (BSD-3-Clause), ONNX Runtime (MIT), huggingface-hub and tokenizers (Apache-2.0). Its speech model is OpenAI's
-Whisper "base" (MIT), in the CTranslate2 conversion `Systran/faster-whisper-base` (MIT), downloaded by
+Whisper "small" (MIT), in the CTranslate2 conversion `Systran/faster-whisper-small` (MIT), downloaded by
 `main.py voice-model` and kept out of the repository. The problem pack's data is the organisers' (CC BY 4.0) and
 stays out of the repository.
 

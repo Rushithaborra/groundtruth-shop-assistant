@@ -348,7 +348,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   fetch("/api/info").then((r) => r.json()).then((info) => {
     snapshot = info.snapshot ? new Date(info.snapshot + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
     $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? ` · prices as of ${snapshot}` : ""}`;
-    const canRecord = !!(navigator.mediaDevices && (window.AudioContext || window.webkitAudioContext) && window.OfflineAudioContext && window.AudioBuffer);
+    const canRecord = !!(navigator.mediaDevices && window.MediaRecorder);
     if (info.voice && canRecord) { $("mic").hidden = false; maxSeconds = info.voice_max_seconds || maxSeconds; }
     if ("speechSynthesis" in window) $("speak-wrap").hidden = false;
     if (info.examples && info.examples.length) {
@@ -630,57 +630,39 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     } finally { send.disabled = false; if (matchMedia("(pointer: fine)").matches) input.focus(); }
   }
 
-  /* ---------- voice, offline: record, turn into 16 kHz mono WAV here, transcribe on this machine's server ---------- */
+  /* ---------- voice, offline: record with the browser, send the recording to this machine's server to transcribe ---------- */
   const mic = $("mic");
-  let rec = null;  // the recording in progress: { ctx, stream, node, parts, rate, timer }
-  function wavFrom(samples, rate) {
-    const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
-    const text = (at, s) => { for (let i = 0; i < s.length; i++) view.setUint8(at + i, s.charCodeAt(i)); };
-    text(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); text(8, "WAVE"); text(12, "fmt ");
-    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, rate, true);
-    view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, "data");
-    view.setUint32(40, samples.length * 2, true);
-    samples.forEach((x, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 0x7fff, true));
-    return new Blob([view], { type: "audio/wav" });
-  }
-  // The microphone's raw samples (no compressed recording to decode, which some browsers can't) -> 16 kHz WAV
-  async function toWav16k(parts, rate) {
-    const length = parts.reduce((n, p) => n + p.length, 0);
-    const seconds = Math.min(length / rate, maxSeconds - 0.5);
-    if (seconds < 0.3) throw new Error("That was too short. Press Speak, say your question, then press Stop.");
-    const buf = new AudioBuffer({ length, numberOfChannels: 1, sampleRate: rate });
-    let at = 0; for (const p of parts) { buf.copyToChannel(p, 0, at); at += p.length; }
-    const off = new OfflineAudioContext(1, Math.floor(seconds * 16000), 16000);
-    const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
-    return wavFrom((await off.startRendering()).getChannelData(0), 16000);
-  }
-  async function transcribe(parts, rate) {
+  let rec = null;  // the recording in progress: { recorder, chunks, started, timer }
+  async function transcribe(blob) {
     mic.disabled = true; mic.textContent = "Listening…";
     try {
-      const res = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: await toWav16k(parts, rate) });
+      // the server decodes the browser's own format (WebM, Ogg or MP4); decoding here failed for some recordings
+      const res = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not understand that recording");
       if (data.text) ask(data.text); else input.placeholder = "Didn’t catch that. Try again, or type your question.";
     } catch (err) { input.placeholder = err.message; }
     finally { mic.disabled = false; mic.textContent = "Speak"; mic.classList.remove("rec"); }
   }
-  function stopRecording() {
-    const r = rec; rec = null;
-    clearTimeout(r.timer); r.node.disconnect(); r.stream.getTracks().forEach((t) => t.stop()); r.ctx.close();
-    transcribe(r.parts, r.rate);
-  }
+  function stopRecording() { clearTimeout(rec.timer); if (rec.recorder.state === "recording") rec.recorder.stop(); }
   mic.addEventListener("click", async () => {
     if (rec) { stopRecording(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      await ctx.resume();
-      const node = ctx.createScriptProcessor(4096, 1, 1);
-      const parts = [];
-      node.onaudioprocess = (e) => { parts.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
-      ctx.createMediaStreamSource(stream).connect(node); node.connect(ctx.destination);  // outputs silence; needed to run
-      rec = { ctx, stream, node, parts, rate: ctx.sampleRate, timer: setTimeout(() => { if (rec) stopRecording(); }, (maxSeconds - 1) * 1000) };
-      mic.classList.add("rec"); mic.textContent = "Stop";
+      const recorder = new MediaRecorder(stream);
+      const r = { recorder, chunks: [], started: Date.now(), timer: null };
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) r.chunks.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop()); rec = null;
+        const blob = new Blob(r.chunks, { type: (recorder.mimeType || "audio/webm").split(";")[0] });
+        if (Date.now() - r.started < 500 || !blob.size) {
+          mic.textContent = "Speak"; mic.classList.remove("rec");
+          input.placeholder = "That was too short. Press Speak, say your question, then press Stop.";
+        } else transcribe(blob);
+      };
+      recorder.start(250);  // a chunk every 250 ms, so a recording stopped early still has its audio
+      r.timer = setTimeout(stopRecording, (maxSeconds - 1) * 1000);
+      rec = r; mic.classList.add("rec"); mic.textContent = "Stop";
     } catch (e) { rec = null; input.placeholder = "The microphone isn’t available (allow it in the browser, on this computer)."; }
   });
   function speakReply(text) {

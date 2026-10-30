@@ -91,6 +91,9 @@ BEST_W = {
     "achhi",
     "acha",
     "achi",
+    "achchi",
+    "achcha",
+    "achchha",
     "badhiya",
     "badiya",
     "behtareen",
@@ -206,7 +209,7 @@ QUESTION_W = {
 # Words that ask for the price itself; "kitna" alone may ask "how much" of something else ("kitni moti")
 EXPLICIT_PRICE_W = {"price", "rate"}
 # One product wanted, not a list: "sabse sasta", "cheapest", "the most expensive"
-SUPERLATIVE_W = {"sabse", "cheapest", "lowest", "costliest", "priciest", "highest", "most", "least"}
+SUPERLATIVE_W = {"sabse", "subse", "sabsey", "cheapest", "lowest", "costliest", "priciest", "highest", "most", "least"}
 # "tshirt or shirt, which is better": a choice between two kinds of product, not a product called "better"
 CHOICE_W = {"or", "ya", "vs", "versus"}
 # "grey or black", "lal ya kala", Telugu "leda": either value will do

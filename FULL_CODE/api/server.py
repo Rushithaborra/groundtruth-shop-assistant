@@ -25,10 +25,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from groundtruth.answering import ShoppingAssistant
 from groundtruth.arguments import add_model_arguments
 from groundtruth.builder import build_assistant
-from groundtruth.catalogue import KIND_KEY
 from groundtruth.config import ServerSettings, VoiceSettings, get_settings
 from groundtruth.models.speech import AudioError, Transcriber, shopping_prompt
 from groundtruth.paths import ROOT, WEB_DIR
@@ -159,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
             if wait:
                 retry = {"Retry-After": RateLimiter.retry_after_header(wait)}
                 return self._json(429, {"error": "Too many requests at once; please wait a moment"}, retry)
-            text = self.transcriber.transcribe(audio)
+            text = self.transcriber.transcribe(audio, self.headers.get("Content-Type") or "")
         except RequestError as exc:
             return self._json(exc.status, {"error": str(exc)})
         except AudioError as exc:
@@ -218,11 +216,6 @@ def make_handler(
     return type("BoundHandler", (Handler,), bound)
 
 
-def _kinds(assistant: ShoppingAssistant) -> list[str]:
-    """The catalogue's kinds of product, for the speech model's prompt."""
-    return sorted(set(assistant.index.attr_values.get(KIND_KEY, {}).values()))
-
-
 def add_arguments(ap: argparse.ArgumentParser) -> None:
     """The serve command's options: data files, models, host, port and the price snapshot date."""
     ap.add_argument("--catalogue", help="catalogue file (default: the pack's, else the synthetic 5,000-product demo)")
@@ -237,11 +230,11 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     )
 
 
-def _voice_input(assistant: ShoppingAssistant, info: dict) -> Transcriber | None:
+def _voice_input(info: dict) -> Transcriber | None:
     """The offline speech model if it is installed (else None); tells the page whether to show the Speak button."""
     voice = get_settings().voice
     transcriber = (
-        Transcriber(voice.model_dir, voice.language, voice.max_seconds, shopping_prompt(_kinds(assistant)))
+        Transcriber(voice.model_dir, voice.language, voice.max_seconds, shopping_prompt())
         if Transcriber.installed(voice.model_dir)
         else None
     )
@@ -267,7 +260,7 @@ def run(args: argparse.Namespace) -> None:
         "snapshot_source": source,
         "examples": build_examples(assistant),
     }
-    transcriber = _voice_input(assistant, info)
+    transcriber = _voice_input(info)
     page = (WEB_DIR / "index.html").read_bytes()
     insights_page = (WEB_DIR / "insights.html").read_bytes()
     handler = make_handler(State(assistant), page, info, insights_page, transcriber=transcriber)

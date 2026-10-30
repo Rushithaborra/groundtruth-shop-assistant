@@ -920,6 +920,44 @@ Still refused, deliberately not patched: rarer words for a few categories ("skin
 "kitchenware", "utensils", "gadgets", "exercise", "office supplies", "boots"); whether the shop sells these needs the
 catalogue, not a guess. An unknown noun after a product answer ("5000 under gizmos") is still read as a question about
 that product. Tests ran on Python 3.13 only (not 3.9 and 3.12); ruff clean, no suppressions.
+## Voice: a bigger model and a prompt Whisper can read in full, 30 October
+
+Three changes, each measured with the macOS `say -v Aman` voice (synthetic, not real people). A question counts as
+correct if its spoken version gets the same action and the same citations as the typed one.
+
+1. **A bug: Whisper never saw the Hinglish words.** Whisper keeps only the last 223 tokens of its prompt and silently
+   drops the rest. Our prompt (Hinglish words first, then all 90 kinds of product) was 408 tokens, so every Hinglish
+   word ("sabse sasta", "kitne ka hai", "dikhao") was cut. The prompt now holds only the Hinglish words (about 200
+   tokens), and a test fails if it grows past 700 characters. Adding kinds of product back made no difference on sets
+   1+2 (22 of 24 either way), so they are left out.
+2. **Hinglish spelling variants** that Whisper writes and people type: "subse" and "sabsey" (sabse); "achchi",
+   "achcha", "achchha" (acchi); "vala", "vaala", "waala", "vali", "vale" (wala). In `understanding/lexicon.py` and
+   `vocabulary.json`, so typed questions gain too.
+3. **Whisper "small" instead of "base"** (`config.json`, `main.py voice-model`): about 480 MB instead of 150 MB, about
+   1 s a question instead of 0.3 s, and Hinglish stays Hinglish ("Sunday delivery hogi") instead of being translated
+   into wrong English ("How many are there?" for "saree kitne ki hai"). Same MIT licence, SHA-256 checked.
+
+| Measure | Before (base, old prompt) | After (small, new prompt) |
+|---|---|---|
+| **Set 4: 12 new questions, written after the changes, scored once** | 8/12 (base with the new prompt) | **11/12** |
+| Set 3: 12 questions; its misses were read, so it is used | 6/12 | 8/12 |
+| Sets 1+2: 24 questions used to make the changes | 17/24 | 22/24 |
+| Transcription time per question | 0.3–0.4 s | 1.0–1.4 s (first recording, including loading: 1.25 s) |
+| Tests | 254 | 257 (see below) |
+
+**Recording, made robust.** The page first decoded the browser's recording itself, which failed for some
+recordings ("Unable to decode audio data"); the replacement captured raw samples in the browser, but those stop
+arriving when the computer's audio output stalls (seen on this Mac: the audio clock advanced 0.006 s in 1 s, and every
+recording was "too short"), which a projector's HDMI audio could also cause. Now the browser records with its own
+recorder and sends the file as it is; the server decodes WebM and Ogg (Chrome, Firefox) and MP4 (Safari) with PyAV,
+which comes with faster-whisper. faster-whisper's own `decode_audio` fails on PyAV 19 (`metadata_errors`), so the
+server calls PyAV directly. Checked: spoken questions encoded as WebM, Ogg and MP4 and sent to the live server were
+all transcribed and answered as when typed (4 of 4); the real page in headless Chrome recorded and uploaded WebM that
+the server decoded (4.86 s, no error). Two new tests decode all three formats; they are skipped without the extra.
+Tests: 257 with the voice extra (255 pass and 2 skip without it).
+
+Still missed: "sabse" heard as "Sabase", "Subsea" or "Subhase", "65 watt" as "Purity Watch", "refund kab" as "Rave fun
+car". All four sets have now been looked at; the next voice measure needs new questions, ideally spoken by real people.
 
 ## Before submitting
 
