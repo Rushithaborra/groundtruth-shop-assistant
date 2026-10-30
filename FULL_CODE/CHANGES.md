@@ -959,6 +959,21 @@ Tests: 257 with the voice extra (255 pass and 2 skip without it).
 Still missed: "sabse" heard as "Sabase", "Subsea" or "Subhase", "65 watt" as "Purity Watch", "refund kab" as "Rave fun
 car". All four sets have now been looked at; the next voice measure needs new questions, ideally spoken by real people.
 
+## Cleaner citations and small page fixes, 30 October
+
+From screenshots of the demo at laptop and phone width. Only `web/index.html` changes, so no reply, prediction or
+score can change; the text the evaluation scores (and the "Answer as text" panel) still has every `[ID]`.
+
+* **Citations as numbered references.** A one-product answer showed the same tag `SKU-OXGNFDEQ` four times in two
+  lines. Each claim now carries a small number, and the sources are listed once under the answer ("Sources 1
+  SKU-OXGNFDEQ Threadcraft Roshni ..."). Every claim is still cited; clicking a number or a source opens the same
+  catalogue record or policy section as before (checked: footnote 1 flips the card to the record).
+* The **Speak** button had pale text and looked disabled; it now uses the dark button text.
+* The row of example questions was cut off at the right edge; it now fades out, so it reads as scrollable.
+* On phones the long placeholder was cut off ("Search or ask: “cott"); it is "Ask in English or Hinglish" there.
+
+Tests: 261 (unchanged; the page has no unit tests of its own). No errors in the browser console.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

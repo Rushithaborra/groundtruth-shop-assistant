@@ -114,6 +114,12 @@ main.chat { display: flex; flex-direction: column; min-height: calc(100vh - 90px
 .cite { display: inline-flex; align-items: center; margin: 0 2px; padding: 1px 8px; border: 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent-dark); font-size: 12.5px; font-weight: 800; cursor: pointer; vertical-align: 1px; }
 .cite.policy { background: var(--green-soft); color: var(--green); }
 .cite:hover { text-decoration: underline; }
+.cite.ref { min-width: 19px; justify-content: center; margin: 0 1px; padding: 0 5px; border-radius: 5px; font-size: 11px; vertical-align: 6px; line-height: 16px; }
+.sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 2px 0 10px; padding-top: 10px; border-top: 1px solid rgba(120, 90, 60, .14); font-size: 13px; color: var(--ink-2); }
+.sources .src-head { font-weight: 800; color: var(--ink); }
+.sources .src { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.sources .src-n { font-weight: 800; color: var(--ink); }
+.sources .src-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 
 /* ---------- product cards ---------- */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin: 6px 0 10px; }
@@ -190,7 +196,7 @@ table.compare td.best { font-weight: 900; }
 .tray .pick button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
 .tray .go { margin-left: auto; border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 999px; padding: 6px 16px; font-weight: 800; cursor: pointer; }
 .tray .go:disabled { opacity: .45; cursor: default; }
-.examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: thin; }
+.examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: thin; -webkit-mask-image: linear-gradient(to right, #000 90%, transparent); mask-image: linear-gradient(to right, #000 90%, transparent); }
 .examples button { flex: none; border: 1px solid rgba(255, 250, 243, .9); background: rgba(255, 250, 243, .8); border-radius: 999px; padding: 6px 13px; font-size: 13.5px; cursor: pointer; color: var(--ink-2); }
 .examples button:hover { border-color: var(--ink); color: var(--ink); }
 .examples .ex-label { font-weight: 800; color: var(--ink); margin-right: 6px; }
@@ -200,7 +206,7 @@ form.ask button:hover { background: var(--btn-hover); }
 form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; outline: none; font-size: 16.5px; }
 form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
-form.ask button.mic { background: var(--card); color: var(--btn); border: 2px solid #e2cfb8; padding: 0 14px; }
+form.ask button.mic { background: var(--card); color: var(--btn-ink); border: 2px solid var(--btn); padding: 0 14px; }
 form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; }
 .speak-toggle { display: flex; align-items: center; gap: 6px; margin: 8px 4px 0; font-size: 14px; color: var(--muted, #6b5a48); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -364,6 +370,17 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     const label = isPolicy ? `${src ? src.title : c.slice(7)} policy` : c;
     return `<button type="button" class="cite${isPolicy ? " policy" : ""}" data-cite="${esc(c)}" aria-label="Show source ${esc(label)}">${esc(label)}</button>`;
   };
+  // Each claim keeps a small numbered reference; the sources are listed once under the answer (a product cited four
+  // times in two sentences no longer shows its ID four times). Both open the same catalogue record or policy section.
+  const refBtn = (c, n) => `<button type="button" class="cite ref${c.startsWith("policy:") ? " policy" : ""}" data-cite="${esc(c)}" aria-label="Source ${n}">${n}</button>`;
+  function sourcesHTML(refs, data) {
+    if (!refs.size) return "";
+    const items = [...refs].map(([c, n]) => {
+      const src = data.sources[c], title = src && !c.startsWith("policy:") ? `<span class="src-t">${esc(src.title)}</span>` : "";
+      return `<span class="src"><span class="src-n">${n}</span>${citeBtn(c, src)}${title}</span>`;
+    });
+    return `<div class="sources"><span class="src-head">Sources</span>${items.join("")}</div>`;
+  }
 
   function productCard(src, mode) {
     const colour = (src.attributes.color || src.attributes.colour || [])[0];
@@ -414,17 +431,19 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       else (prods.length ? after : before).push(raw);
     }
     const isCompare = /^Here is the comparison/.test(data.text);
-    const html = textHTML(isCompare || !prods.length ? data.text.split("\n") : before, data);
-    const tail = !isCompare && prods.length ? textHTML(after, data) : "";
+    const refs = new Map();  // cited id -> its number, shared by the text above and below the product cards
+    const html = textHTML(isCompare || !prods.length ? data.text.split("\n") : before, data, refs);
+    const tail = !isCompare && prods.length ? textHTML(after, data, refs) : "";
     const grid = prods.length && !isCompare ? `<div class="grid">${prods.map((id) => productCard(data.sources[id], data.action)).join("")}</div>` : "";
-    return { html, grid, tail, isCompare };
+    return { html, grid, tail, isCompare, sources: sourcesHTML(refs, data) };
   }
 
-  function textHTML(lines, data) {
+  function textHTML(lines, data, refs) {
     let html = "", list = false;
+    const ref = (c) => { if (!refs.has(c)) refs.set(c, refs.size + 1); return refBtn(c, refs.get(c)); };
     for (const raw of lines) {
       if (!raw.trim()) continue;
-      const body = esc(raw).replace(/\[([^\]]+)\]/g, (all, c) => (data.sources[c] ? citeBtn(c, data.sources[c]) : all));
+      const body = esc(raw).replace(/\[([^\]]+)\]/g, (all, c) => (data.sources[c] ? ref(c) : all));
       if (/^\s*-\s+/.test(raw)) { if (!list) { html += "<ul>"; list = true; } html += `<li>${body.replace(/^\s*-\s+/, "")}</li>`; continue; }
       if (list) { html += "</ul>"; list = false; }
       html += `<p${/^\(I read /.test(raw) || /^(There are more|You can tell me)/.test(raw) ? ' class="note"' : ""}>${body}</p>`;
@@ -477,6 +496,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
         <div class="lead">${r.html}</div>
         ${r.grid}
         ${r.tail ? `<div class="lead">${r.tail}</div>` : ""}
+        ${r.sources}
         ${r.isCompare ? compareTable(data) : ""}
         <details class="raw"><summary>Answer as text (what the evaluation scores)</summary><pre>${esc(data.text)}</pre></details>
       </div>
@@ -685,6 +705,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
       messages.append(Object.assign(el("p", "seal"), { textContent: "Started over: earlier filters and budget are forgotten." }));
     } catch (e) {}
   });
+  if (matchMedia("(max-width: 520px)").matches) input.placeholder = "Ask in English or Hinglish";  // the long example is cut off
   if (matchMedia("(pointer: fine)").matches) input.focus();  // don't pop up the keyboard on phones
 })();
 </script>
