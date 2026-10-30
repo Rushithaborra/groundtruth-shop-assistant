@@ -722,14 +722,15 @@ byte-identical. Measured once: **0.509**, 0 hallucinated prices. Its per-questio
 | Test predictions changed | | 4 refusal texts no longer quote filler words; 0 actions |
 | Tests | 225 | 229 |
 
-What this shows: word lists help the words they contain and nothing else. Real shoppers' questions (Task 4) are
-the honest next step; no more language rules will be written until they arrive, because anything written now would
+What this shows: word lists help the words they contain and nothing else. Real shoppers' questions (Task 4) were
+planned as the honest next step (the set that came was AI-written; see the 30 October correction); no more language rules will be written until they arrive, because anything written now would
 be shaped by our own holdouts.
 
-## Task 4: the first questions from real shoppers, 29 October
+## Task 4 attempt: 64 shopper-style questions, 29 October (AI-written, see the 30 October correction)
 
-64 messages (50 questions and 5 short conversations) from people who had never seen the code, collected by a
-teammate. Rules followed: saved word for word in `output/task4/` (git-ignored: other people's writing); every
+64 messages (50 questions and 5 short conversations), handed over as the Task 4 set. **They were not written by
+real shoppers**: the teammate who collected them found on 30 October that an AI wrote the list. Labelled "from
+people who had never seen the code" at first; that was wrong. Rules followed: saved word for word in `output/task4/` (git-ignored: other people's writing); every
 expected answer worked out from the catalogue and the policy by the pack's own rules (section 6) **before the
 assistant saw a question**; 53 judged by the official scorer, 11 open-ended ones ("gift ideas", "something for my
 morning workout") judged by hand against criteria written beforehand; scored once.
@@ -778,7 +779,7 @@ these fixes honestly. The labels were not changed after scoring, so three disagr
 ## Needs and occasions: a second batch of 50 shopper requests, 29 October
 
 50 Hinglish requests that name a need or an occasion, not a product ("gym jana start kiya hai, ghar pe workout ke
-liye kya kya chahiye?", "mummy ka birthday", "hostel shift ho rahi hu"), from a teammate. Saved word for word in
+liye kya kya chahiye?", "mummy ka birthday", "hostel shift ho rahi hu"); who wrote them was not recorded, so treat them as AI-written too. Saved word for word in
 `output/task4b/` (git-ignored) and split before anything else: odd numbers tune (25, read and fixed), even numbers
 holdout (25, never opened). The official scorer can't judge open requests fairly, so criteria were written for all
 50 before the assistant saw them: the kinds of product that would fit each, any budget, and a fixed rubric (a fitting
@@ -807,6 +808,19 @@ not a need, and "gift wrap" is a service, not a present.
 
 Still refused: needs outside the map ("daily routine thodi easy banani hai", "cute cheezein"). The map is written by
 hand, so it reaches only the needs it lists; the provided embedding model is the candidate for the rest.
+
+## Correction: the "real shopper" sets were AI-written, 30 October
+
+The 64-message Task 4 set (scored 0.556, then 0.953 after fixes) was described here, in the README and in STATUS as
+coming "from people who had never seen the code". On 30 October the teammate who collected it found that the list
+had been written by an AI. The 50 need requests (task4b) came the same way, with no record of who wrote them. Both
+arrived as pasted text with no author attached, and nothing in our working records shows a person typing them.
+
+What stays true: both sets were labelled before the assistant saw them and scored once, so 0.556 (and 0.06 → 0.68
+on the need half held back) are real measurements, of **AI-written shopper-style questions**. The fixes are general
+rules and still stand. What changes: none of this is evidence about real shoppers. **Task 4 is not done.** The
+wording is fixed in the README, STATUS, HANDOVER and the code tour. A set of questions typed by real people who
+haven't seen the code is still needed, with a record of who typed each one (a sheet or a saved chat).
 
 ## Offline voice input, 30 October
 

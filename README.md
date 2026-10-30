@@ -239,8 +239,9 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
   set built from the catalogue (`main.py stress`: split and misspelt product names, Hinglish, unsold items,
   unlisted facts) scores 1.000 on its held-back half; it was written by us, so it measures robustness to those
   phrasings, not general accuracy. The organisers' 150 test questions are only used to write the submission.
-* **Real shoppers: 0.556 on first contact.** 64 messages from people who had never seen the code (the brief's
-  Task 4: Hinglish, Telugu-English, vague and opinion questions) were labelled from the catalogue and policy before
+* **AI-written shopper-style questions: 0.556 on first contact.** 64 messages in shoppers' style (Hinglish,
+  Telugu-English, vague and opinion questions). They were meant to be the brief's Task 4 set from real people, but
+  an AI wrote them, so they are **not** a measure of real shoppers, and Task 4 is not done. They were labelled from the catalogue and policy before
   the assistant saw them and scored once: **0.556** on the 53 the official scorer can judge, 0 hallucinated prices.
   The patterns found there were fixed as general rules; a shopper-language part that was never inspected and
   shares no wording with our lists then went from 0.509 to **0.733**. The Task 4 set is now used (0.953 after the
@@ -248,7 +249,7 @@ baseline need. The optional model fallbacks, off by default and not in the lockf
 * **Needs and occasions are answered from a hand-written map.** "Ghar pe workout ke liye kya chahiye", "hostel
   shift ho rahi hu", "baarish ka season" name a need, not a product: a map from needs to kinds of product
   (`vocabulary.json`, `needs`) shows one well-rated product of each kind, and a gift with nothing else to go on asks
-  who it is for. On 50 such messages from a teammate, judged by criteria written beforehand, the half never used
+  who it is for. On 50 such messages (also likely AI-written), judged by criteria written beforehand, the half never used
   for fixing went from 0.06 to **0.68**. Needs outside the map ("daily life easy banani hai", "cute cheezein") are
   still refused.
 * **The synthetic sets are regression checks only.** They and the fixes were written by the same people, so their

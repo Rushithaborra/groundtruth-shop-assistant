@@ -9,7 +9,7 @@ command that was run; "not run" means not run.
 
 Sections 1–6 are Sushanth's handover of 28 October, kept as written. Everything in them has been pushed and run with
 the pack. Measured on 29 October (latest): 240 tests pass on Python 3.9 and 3.12; dev 0.950 (check half 0.900);
-stress holdout 1.000; real shoppers' first questions 0.556 (Task 4, now used); 0 hallucinated prices; the
+stress holdout 1.000; AI-written shopper-style questions 0.556 (meant as Task 4; not real shoppers, see CHANGES 30 Oct); 0 hallucinated prices; the
 grounding checker flags 0 of 190 pack replies.
 
 | Item | State |
@@ -29,7 +29,7 @@ grounding checker flags 0 of 190 pack replies.
 | 3C.4 synonyms, policy-silent topics | partly done (STATUS G14): shopper-language fixes; words nobody prepared for wait for Task 4 |
 | 4 phone check (G7) | checked in Chrome's phone emulation; one look on a real phone left (Sushanth) |
 | 4 offline dry run (G11) | checked on Rushitha's laptop with bare Python 3.9; the event laptop with Wi-Fi off is left (Sushanth) |
-| 4 Task 4 questions (G10) | done: 64 collected, scored once (0.556), fixed; the set is now used |
+| 4 Task 4 questions (G10) | not done: the 64 scored (0.556) were AI-written; real people's questions still needed |
 
 Also found and fixed on 29 October, beyond this page: demo step 2 failed when typed after step 1, and the retailer
 view filed iPhone as an unplaced word (STATUS G18). The full list of what is left is STATUS.md section 4.

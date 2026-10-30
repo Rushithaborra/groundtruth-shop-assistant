@@ -10,9 +10,10 @@ below comes from a command that was run; "not done" means not done. L1 is on 30 
 | Dev check half (20 questions, never tuned on) | **0.900** (shipped baseline 0.8275) |
 | All 40 dev questions (includes the half we tuned on) | 0.950 (baseline 0.7315) |
 | Stress set from the catalogue, held-back half (81, written by us) | 1.000 |
-| **Real shoppers (Task 4), first and only honest scoring** (53 officially scored, of 64) | **0.556**; after fixes 0.953 (set now used, not evidence) |
+| **AI-written shopper-style questions** (first Task 4 attempt; 53 officially scored, of 64; not real shoppers, see CHANGES 30 Oct) | **0.556**; after fixes 0.953 (set now used, not evidence) |
+| Real shoppers' questions | **not measured** (Task 4 not done) |
 | Shopper-language set, second holdout (310, never inspected) | **0.733** (0.509 before the Task 4 fixes; tune half 0.976) |
-| Need and occasion requests (50 from a teammate, half held back, judged by criteria written first) | held-back half **0.68** (0.06 before); tune half 0.92 |
+| Need and occasion requests (50, origin not recorded, treat as AI-written; half held back, judged by criteria written first) | held-back half **0.68** (0.06 before); tune half 0.92 |
 | Hallucinated prices, every run | 0 |
 | `submission/R3_predictions.jsonl` | 150 lines; **the pack's own validator accepts it** and it covers every test question |
 | Tests | 251 pass on Python 3.9 and 3.12 |
@@ -31,7 +32,7 @@ These scores are on small samples and on sets we wrote; the hidden test score ma
 | 1. Restructure to the guidelines layout | done | `FULL_CODE/`, `main.py`, config, logging, lockfile, ruff, LF, licence |
 | 2. The organisers' data and format | done | loads the pack strictly; `submit` (the pack's validator accepts it); official scorer via `score`, with the shipped baseline per question type (`--baseline`); tuned on half of dev only |
 | 3. The provided models | done | measured; both fallbacks hurt or were too slow, so they are off; every model call has a timeout, retries, a fall-back to rules, logging and mocked tests |
-| 4. A fresh held-out set from people who haven't seen the code | done | 64 messages collected by a teammate (29 Oct), labelled before the assistant saw them, scored once: 0.556; fixed as general rules; the set is now used (CHANGES) |
+| 4. A fresh held-out set from people who haven't seen the code | **not done** | the 64 messages scored on 29 Oct (0.556) turned out to be AI-written (found 30 Oct); the fixes stand as general rules, but real people's questions are still needed (CHANGES) |
 | 5. Known behaviour gaps | done, one part waits | "which sizes", "A or B", policy-silent: done. "Review the describing-word refusal rule" waits for Task 4 (G14) |
 | 6. Latency and token-cost report | done | `report`: mean 0.6 ms, 0 tokens; the LLM-every-query estimate is labelled as one |
 | 7. Web demo and API security | done, one look left | phone width checked in Chrome's phone emulation (G7); one look on a real phone left |
@@ -54,7 +55,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | G7 | Web demo at phone width | brief task 7 | **Checked 29 Oct in Chrome's phone emulation** (390×844 and 360×740): the whole demo script, a card flip, compare, a citation and `/insights`, 15 states each, 0 with horizontal overflow. Found and fixed a raw `sub_category: Kurtas` chip. Not yet tried on a real phone | Sushanth: one look on a real phone | P2 |
 | G8 | Zip name: `TEAM-000802_R3.zip` or `000802_R3.zip`? Is `.gitattributes` allowed at the top level? | submission rules | guidelines list only README, .gitignore, LICENSE, submission/, FULL_CODE/ | **Rushitha** (ask organisers) | **P1** |
 | G9 | Round-1 deck showed old synthetic numbers (0.987, 88 tests, 0.8 ms) and "Rushita Bora" | honest reporting | deck text | Claude Code; Rushitha uses it | done: `~/Documents/r3_megahack/CREW_R3_deck_updated.pptx` (+ `.pdf`) shows 0 hallucinated prices, 0.900, ~1 ms, 240 tests, 0.635 → 0.900, stress 0.885 → 1.000; outside the repo; original untouched. Check the 60-second recording slides 3 and 7 mention exists |
-| G10 | Task 4: no independent held-out set | brief rule 4, task 4 | | teammate collected 64; Rushitha + Claude Code scored once | done (29 Oct): 0.556 on first contact; the set is now used |
+| G10 | Task 4: no independent held-out set | brief rule 4, task 4 | | Sushanth collects from real people | **open**: the 64 scored on 29 Oct were AI-written (0.556 on those); a real set with a record of who typed each is needed |
 | G11 | Offline readiness on the event laptop | demo must run offline | **Checked 29 Oct on this laptop:** the app makes no outgoing connections and loads nothing from the internet; served by bare system Python 3.9 with no virtual environment, all 5 routes return 200 and the 9 demo-script steps, typed in order, give the replies the script promises. Not yet tried on the event laptop | **Sushanth**: fresh clone + pack + Wi-Fi off on the event laptop | **P1** |
 | G12 | "Every team member must be able to explain the code" | fair play | | both: `docs/code_tour.md` (about an hour, or "quiz me" with Claude Code) | **P1, before L1** |
 | G13 | Commits `d098c6e` and `c8bd0a8` don't run on their own (a paste split `git add`); later commits fix it | clean history | documented in CHANGES.md | nobody (leave as is) | done |
@@ -84,7 +85,7 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | # | What | Who | Gap |
 |---|---|---|---|
 | 7 | Needs outside the hand-written map: try the provided embedding model, narrowly, and keep it only if it measurably helps | Rushitha + Claude Code | G14 |
-| 8 | A fresh batch of 50+ shopper questions (the first is now used), collected the same way, to measure the fixes honestly | teammate + friends | G10 |
+| 8 | 50+ questions typed by real people who haven't seen the code (the earlier sets were AI-written), with a record of who typed each, scored once | Sushanth + friends | G10 |
 
 If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
 
