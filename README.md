@@ -189,15 +189,21 @@ Measured with `python3 main.py bench --scale N` (a generated, messy catalogue of
 queries before and after, with identical replies on 210 compared). The generated catalogue has only 246 distinct words,
 so its queries match more products than a real long-tail catalogue would.
 
-| Products | Mean query before → after | p95 before → after | RAM |
+| Products | Mean query before → after | p95 before → after | RAM before → after |
 |---|---|---|---|
-| 5,000 | 1.4 → 0.5 ms | 2.7 → 0.9 ms | 58 MB |
-| 50,000 | 21 → 6.3 ms | 47 → 15 ms | 388 MB |
-| 200,000 | 100 → 29 ms | 225 → 65 ms | 1.5 GB |
+| 5,000 | 1.4 → 0.27 ms | 2.7 → 0.5 ms | 58 → 60 MB |
+| 50,000 | 21 → 1.5 ms | 47 → 3.2 ms | 387 → 414 MB |
+| 200,000 | 100 → about 7 ms (6.7 to 8.2 over 3 runs) | 225 → about 14 to 19 ms | 1,485 → 1,585 MB |
 
-What changed: a sorted price index (a budget is two binary searches), results ranked lazily (a listing needs the count
-and the top few, so it is not sorted in full), constraints worked out once per search instead of once per product,
-and product names found through their rarest word. `ShoppingAssistant.apply_updates` changes price, stock, products
+The 200,000 figure is steady state: the rank orders and measurement tables are built at start-up (`prepare`, called by
+`warm_up`), and the first time a new budget is seen costs a little more than the second. The slowest single query in a
+run is still about 160 ms, a one-off first-use cost not yet traced.
+
+What changed: matches are found with set operations (postings, price index, size, stock, exclusions and measurements
+all as sets) instead of a check on every product, and the top few are picked without ranking the rest (ids are
+split by in-stock and by how much of the query their titles share, then the first of each group is taken from a
+pre-sorted order); product names are found through their rarest word, and whole-result checks look at the first 2,000
+matches at most (`SCAN_LIMIT`; identical to before whenever there are fewer). `ShoppingAssistant.apply_updates` changes price, stock, products
 and removals on a running assistant without a rebuild; questions wait while it runs (a reader-writer lock), and the
 tests check the result equals a fresh build. Not done yet: RAM still grows with the catalogue (every product is a Python
 object), and past about a million products the index belongs in a database.

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from ..catalogue import KIND_KEY, CatalogueIndex, Product, Spec
 from ..concurrency import ReadWriteLock
@@ -80,6 +80,7 @@ class ShoppingAssistant:
     # -- public --------------------------------------------------------------------------------
     def warm_up(self) -> None:
         """Run a few queries once so first real requests don't pay for lazy initialisation."""
+        self.index.prepare()
         for query in ("hi", "cheap runing shoes under 2k", "return policy", "price of xyzzy"):
             self.ask(query)
 
@@ -278,7 +279,8 @@ class ShoppingAssistant:
     def _one_of(self, p: Parsed, hits: list[Product], session: Session) -> Response:
         """The shopper means one of these products (rule 6.2): answer when they all give the same answer to what
         was asked, refuse when none of them lists it, and ask which one only when the answers differ."""
-        keys = [k for k in p.detail_keys if any(h.attr_values(k) for h in hits)]
+        window = hits[:SCAN_LIMIT]  # a whole-set check on a huge result adds nothing a few thousand don't show
+        keys = [k for k in p.detail_keys if any(h.attr_values(k) for h in window)]
         if p.detail_keys and not keys:  # "iron ka weight kitna hai": no iron lists a weight
             names = " or ".join(dict.fromkeys(field_label(k) for k in p.detail_keys))
             return Response(f"The catalogue does not list {names} for these products.", REFUSE)
@@ -289,13 +291,13 @@ class ShoppingAssistant:
             asked.append(lambda h: (h.in_stock, h.stock_status))  # the flag every catalogue fills, and the pack's value
         if "rating" in p.intents:
             asked.append(lambda h: h.rating)
-        if asked and all(len({get(h) for h in hits}) == 1 for get in asked):
+        if asked and all(_all_alike(window, get) for get in asked):
             session.last_product, session.shown = None, [h.id for h in hits[: self.list_limit]]
             if keys:
                 return product_answers.shown_details(hits[: self.list_limit], keys)
             return listings.listing(hits, p, p.spec, False, self.list_limit)
         session.last_product, session.shown = None, [h.id for h in hits[: self.clarify_limit]]
-        return listings.clarify(self.index, hits, self.clarify_limit)
+        return listings.clarify(self.index, window, self.clarify_limit, len(hits))
 
     def _names_a_kind(self, p: Parsed) -> bool:
         """The message names a kind of product sold, by its category or by the noun that names it."""
@@ -447,8 +449,9 @@ def _drop_unlisted_filters(index: CatalogueIndex, spec: Spec, p: Parsed) -> list
         return []
     base = spec.copy()
     base.filters, base.price_min, base.price_max, base.size = {}, None, None, None
-    pool, _ = index.matching(base)
-    dropped = [k for k in spec.filters if pool and not any(x.attr_values(k) for x in pool)]
+    pool, _ = index.match_ids(base)
+    products = index.products
+    dropped = [k for k in spec.filters if pool and not any(products[i].attr_values(k) for i in pool)]
     for k in dropped:
         del spec.filters[k]
     return dropped
@@ -464,6 +467,12 @@ def _policy_terms(policy: list[Section], index: CatalogueIndex) -> frozenset:
     return frozenset(t for w in terms for t in tokenize(w) if t not in index.vocab)
 
 
+def _all_alike(items: list[Product], get: Callable[[Product], object]) -> bool:
+    """Whether `get` gives the same value for every product (stops at the first that differs)."""
+    first = get(items[0])
+    return all(get(h) == first for h in items)
+
+
 def _names_products(p: Parsed) -> bool:
     """The message names products or a new search of its own, so it isn't a follow-up about the last listing."""
     s = p.spec
@@ -475,6 +484,7 @@ GIFT_QUESTION = (
     "I'll show you options."
 )
 ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
+SCAN_LIMIT = 2000  # most results looked through when asking "do these all give the same answer?"
 _AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
 KIND_FILTERS = ("category", "sub_category")  # filters that name the kind of product itself
 IDENTIFYING = ("brand", "color", "colour", "gender")  # filters that say which product, not what is asked about it

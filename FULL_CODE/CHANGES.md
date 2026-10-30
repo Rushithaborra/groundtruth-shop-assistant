@@ -1053,3 +1053,11 @@ a second click hides it. Page only (the card comes from the cited record the rep
 * The default answers, the submission file and the scoring path are unchanged: models are still off unless a model path is
   given, and with no synonym file nothing differs. The official scorer was not re-run on this branch (the pack is not on
   this machine): run `main.py score --part all` (must stay 0.9325) and `main.py submit` before merging.
+* **Set-based search, second pass** (same branch): candidates come from set operations (postings, price index, size,
+  stock, exclusions, measurement tables, cached filter sets) and the top n are picked without ranking the rest
+  (`RankedHits`, `_top_products`, `_relevance_tiers`, pre-sorted tail orders built by `prepare`). 210 replies still
+  identical; `tests/test_search_equivalence.py` compares 400 random specs (all constraint kinds and sorts) against a plain
+  filter-and-sort, and was checked to fail when the budget index is off by one. One deliberate limit: checks over a whole
+  result ("do these all give the same answer", which attributes tell them apart) look at the first 2,000 matches
+  (`SCAN_LIMIT`), so a result larger than that could in theory be worded differently; none is on the 5,000-product pack.
+  200,000 products: mean query 100 ms before the branch, about 7 ms now (target was under 5 ms; not reached).

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import islice, repeat
+
 from ..catalogue import SIZE_KEY, CatalogueIndex, Product, Spec
 from ..text import field_label, value_label
 from ..understanding import Parsed
@@ -31,11 +33,18 @@ def listing(hits: list[Product], p: Parsed, spec: Spec, relaxed: bool, list_limi
     return Response("\n".join(lines), ANSWER, claims=claims)
 
 
-def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> Response:
+def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int, total: int | None = None) -> Response:
     """Ask which product the shopper means, listing the attributes that tell the candidates apart (no prices)."""
     lowered = index.attr_lower
-    keys = dict.fromkeys(k for h in hits for k in lowered[h.id] if k != SIZE_KEY)
-    varying = [k for k in keys if len({lowered[h.id].get(k) for h in hits}) > 1][:3]
+    dicts = [lowered[h.id] for h in hits]
+    keys: dict[str, None] = {}  # attribute names by first appearance; products of one kind repeat the same list
+    seen_lists: set[tuple] = set()
+    for d in dicts:
+        names = tuple(d)
+        if names not in seen_lists:
+            seen_lists.add(names)
+            keys.update(dict.fromkeys(k for k in names if k != SIZE_KEY))
+    varying = list(islice((k for k in keys if len(set(map(dict.get, dicts, repeat(k)))) > 1), 3))
     lines, claims = ["I found more than one match, so I don't want to guess. Which one do you mean?"], Claims()
     for h in hits[:clarify_limit]:
         detail = ", ".join(_shown_value(k, v) for k in varying for v in h.attr_values(k)[:1])
@@ -47,7 +56,7 @@ def clarify(index: CatalogueIndex, hits: list[Product], clarify_limit: int) -> R
                 value = value[0] if value else None
             if value is not None:
                 claims.fact(h, h.source_key(key), value)
-    if len(hits) > clarify_limit:
+    if (total if total is not None else len(hits)) > clarify_limit:
         lines.append("There are more options too.")
     if varying:
         lines.append("You can tell me the " + " or ".join(map(field_label, varying)) + " to pick one.")
