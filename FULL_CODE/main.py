@@ -50,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     # imported here, after the settings have loaded: these modules read settings at import time
     """The command-line parser, one sub-command per task."""
     from api import server
-    from groundtruth import cli
+    from groundtruth import cli, synonyms_cli
     from groundtruth.evaluation import cost_report, official, scoring, submission
     from tools import bench, calibrate_semantic, download_voice_model, make_submission_zip, shoppers, stress
 
@@ -66,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("package", make_submission_zip.add_arguments, make_submission_zip.run, "build the checked submission zip"),
         ("stress", stress.add_arguments, stress.run, "score a catalogue-built stress set with the official scorer"),
         ("shoppers", shoppers.add_arguments, shoppers.run, "score a shopper-language set with the official scorer"),
+        ("synonyms", synonyms_cli.add_arguments, synonyms_cli.run, "review words a model proposed"),
         ("bench", bench.add_arguments, bench.run, "throughput and latency benchmark"),
         ("calibrate", calibrate_semantic.add_arguments, calibrate_semantic.run, "calibrate the embedding fallback"),
         ("voice-model", download_voice_model.add_arguments, download_voice_model.run, "get the offline speech model"),

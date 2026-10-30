@@ -7,8 +7,8 @@ the instruct model is a GGUF file read by llama.cpp. Every call goes through `ca
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from ..config import get_settings
 from ..errors import GroundTruthError
@@ -86,16 +86,20 @@ class LocalGenerator:
         )
         self._settings = settings
 
-    def __call__(self, system: str, user: str) -> tuple[str, int, int]:
-        """(reply text, input tokens, output tokens) for one system + user message pair."""
+    def __call__(
+        self, system: str, user: str, max_tokens: int | None = None, json_mode: bool = True
+    ) -> tuple[str, int, int]:
+        """(reply text, input tokens, output tokens) for one system + user message pair. `max_tokens` caps this
+        call's output (a menu pick needs 4, not the configured 120); `json_mode=False` allows plain text."""
         s = self._settings
+        extra = {"response_format": {"type": "json_object"}} if json_mode else {}
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         out = call_model(
             lambda: self._llm.create_chat_completion(
                 messages=messages,
                 temperature=s.llm_temperature,
-                max_tokens=s.llm_max_new_tokens,
-                response_format={"type": "json_object"},
+                max_tokens=max_tokens or s.llm_max_new_tokens,
+                **extra,
             ),
             what="instruct model",
             timeout_s=s.llm_timeout_s,

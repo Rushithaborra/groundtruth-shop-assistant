@@ -357,7 +357,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   try { sessionId = sessionStorage.getItem("gt-session"); } catch (e) { sessionId = null; }
 
   const ACTION_LABEL = { answer: "Answered", clarify: "Asks which one", refuse: "Not in catalogue" };
-  const PATH_LABEL = { rules: "Catalogue rules", semantic: "Embedding fallback", llm: "Language-model fallback" };
+  const PATH_LABEL = { rules: "Catalogue rules", synonym: "Approved synonym (no model)", semantic: "Embedding fallback", llm: "Language-model fallback" };
   const INTENT = { search: "finding products", price: "price", stock: "stock", rating: "ratings", detail: "details", policy: "a policy", compare: "a comparison" };
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

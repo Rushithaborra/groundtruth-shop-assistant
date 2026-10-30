@@ -92,7 +92,12 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 def run(args: argparse.Namespace) -> None:
     """Score a question set with the local evaluator and write its reports."""
     assistant = build_assistant(
-        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=True
+        args.catalogue,
+        args.policy,
+        embed_model=args.embed_model,
+        llm_model=args.llm_model,
+        resolver=args.llm_resolver,
+        measure_tokens=True,
     )
     grounding = Grounding(assistant.index, assistant.sections)
     rows = [score_case(assistant, grounding, case) for case in load_cases(Path(args.questions))]
@@ -205,7 +210,9 @@ def summarise(rows: list[dict], price_in: float, price_out: float) -> dict:
         **_scores(rows),
         "latency_ms": _latency_stats([r["latency_ms"] for r in rows]),
         "tokens_per_query": _token_stats(ctx, out),
-        "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
+        "path_share": {
+            p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "synonym", "semantic", "llm")
+        },
         "llm_tokens_real": {
             "input_total": sum(r["llm_input_tokens"] for r in rows),
             "output_total": sum(r["llm_output_tokens"] for r in rows),

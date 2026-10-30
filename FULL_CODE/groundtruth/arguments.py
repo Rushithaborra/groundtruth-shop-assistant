@@ -27,3 +27,9 @@ def add_model_arguments(ap: argparse.ArgumentParser) -> None:
         default=models.llm_model,
         help="path to the provided instruct model (last-resort query normaliser)",
     )
+    ap.add_argument(
+        "--llm-resolver",
+        choices=("shortlist", "schema"),
+        default="shortlist",
+        help="how the instruct model is asked: a short numbered menu (default) or the whole vocabulary",
+    )

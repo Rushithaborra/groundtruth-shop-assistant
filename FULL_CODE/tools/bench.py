@@ -28,15 +28,49 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--profile", action="store_true")
+    ap.add_argument("--scale", type=int, default=0, metavar="N", help="generate and use an N-product catalogue instead")
+
+
+SCALE_QUESTIONS = (
+    "cotton kurta 1500 ke andar",
+    "cheap running shoes under 2k",
+    "black backpack for women",
+    "sabse sasti bluetooth speaker",
+    "blue cotton shirt size M",
+    "runing shoes",
+    "power bank 20000 mah",
+    "wireless earbuds under 2000",
+    "best rated kettle",
+    "do you sell iphones?",
+    "return policy",
+)
+
+
+def _scale_catalogue(n: int) -> str:
+    """Write a generated catalogue of n products (messy, like the 5,000 demo one) to a temp file; returns its path."""
+    import tempfile
+
+    from tools import generate_scale
+
+    generate_scale.N_PRODUCTS = n
+    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8") as fh:
+        fh.write("\n".join(json.dumps(p) for p in generate_scale.make_scale_catalogue()))
+    return fh.name
 
 
 def run(args: argparse.Namespace) -> None:
     """Time the assistant on its own, then with several threads at once, and optionally profile where time goes."""
+    if args.scale:
+        args.catalogue, args.questions = _scale_catalogue(args.scale), None
+        args.policy = str(get_settings().paths.policy)  # the demo policy only exists after `generate`
     start = time.perf_counter()
     assistant = build_assistant(args.catalogue, args.policy)
-    write_out(f"build: {time.perf_counter() - start:.2f}s")
-    with open(args.questions, encoding="utf-8") as fh:
-        convos = [json.loads(line)["turns"] for line in fh if line.strip()]
+    write_out(f"build: {time.perf_counter() - start:.2f}s for {len(assistant.index.products):,} products")
+    if args.questions:
+        with open(args.questions, encoding="utf-8") as fh:
+            convos = [json.loads(line)["turns"] for line in fh if line.strip()]
+    else:
+        convos = [[q] for q in SCALE_QUESTIONS]
 
     def run_convo(convo: list[str]) -> list[float]:
         """Answer one conversation's turns in order in a fresh session; each turn's latency in milliseconds."""

@@ -101,7 +101,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/info":
             self._json(200, self.info)
         elif path == "/api/insights":
-            self._json(200, self.state.insights.summary())
+            summary = self.state.insights.summary()
+            if self.state.assistant.synonyms is not None:
+                summary["synonyms"] = self.state.assistant.synonyms.counts()
+            self._json(200, summary)
         elif path == "/api/insights.csv":
             self._send(200, self.state.insights.gaps_csv().encode("utf-8"), "text/csv; charset=utf-8")
         else:
@@ -246,7 +249,9 @@ def _voice_input(info: dict) -> Transcriber | None:
 def run(args: argparse.Namespace) -> None:
     """Build the assistant once and serve the demo, the retailer view and the JSON API until stopped."""
     args.catalogue, args.policy = pick_data(args.catalogue, args.policy)
-    assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model)
+    assistant = build_assistant(
+        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, resolver=args.llm_resolver
+    )
     snapshot, source = args.snapshot, "given"
     if not snapshot:
         snapshot, source = datetime.fromtimestamp(Path(args.catalogue).stat().st_mtime).date().isoformat(), "file date"

@@ -20,7 +20,12 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 def run(args: argparse.Namespace) -> None:
     """An interactive command-line chat with one session, until 'quit' or end of input."""
     assistant = build_assistant(
-        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=args.meta
+        args.catalogue,
+        args.policy,
+        embed_model=args.embed_model,
+        llm_model=args.llm_model,
+        resolver=args.llm_resolver,
+        measure_tokens=args.meta,
     )
     session = Session()
     write_out("Shopping assistant ready. Type a question (or 'quit'). Say 'start over' to clear context.")

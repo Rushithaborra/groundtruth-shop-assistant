@@ -16,6 +16,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ..catalogue import KIND_KEY, CatalogueIndex, Product, Spec
+from ..concurrency import ReadWriteLock
 from ..config import get_settings
 from ..policy import STRONG, Section
 from ..text import (
@@ -42,6 +43,7 @@ from .response import ANSWER, CLARIFY, REFUSE, Claims, Response, Session
 if TYPE_CHECKING:  # only for the annotations below: the model fallbacks are optional and load lazily
     from ..models.normaliser import LLMNormaliser
     from ..models.semantic import SemanticFallback
+    from ..synonyms import LearnedSynonyms
 
 
 class ShoppingAssistant:
@@ -57,12 +59,14 @@ class ShoppingAssistant:
         measure_tokens: bool = False,
         semantic: SemanticFallback | None = None,
         normaliser: LLMNormaliser | None = None,
+        synonyms: LearnedSynonyms | None = None,
     ) -> None:
         limits = get_settings().assistant
         self.index, self.policy = index, policy
         self.semantic = semantic  # optional SemanticFallback (embedding model), miss path only
         self.head_nouns = head_nouns(index)
         self.normaliser = normaliser  # optional LLMNormaliser (instruct model), last resort on the miss path
+        self.synonyms = synonyms  # optional LearnedSynonyms: words a person approved, answered with no model
         self.sections = {s.id: s for s in policy}
         self.list_limit = list_limit if list_limit is not None else limits.list_limit
         self.clarify_limit = clarify_limit if clarify_limit is not None else limits.clarify_limit
@@ -70,6 +74,7 @@ class ShoppingAssistant:
         # the policy's named terms ("GST", "COD"): one alone is enough to identify a policy question
         self.policy_words = STRONG | _policy_terms(policy, index)
         self.policy_vocab = frozenset(t for sec in policy for _, toks in sec.sentences for t in toks)
+        self._catalogue_lock = ReadWriteLock()  # questions read the index; apply_updates changes it
         self.measure_tokens = measure_tokens  # token estimates cost time; enable for reports, not for serving
 
     # -- public --------------------------------------------------------------------------------
@@ -78,17 +83,47 @@ class ShoppingAssistant:
         for query in ("hi", "cheap runing shoes under 2k", "return policy", "price of xyzzy"):
             self.ask(query)
 
+    def apply_updates(
+        self,
+        add: list[Product] | None = None,
+        remove: list[str] | None = None,
+        price_stock: list[dict] | None = None,
+    ) -> dict[str, int]:
+        """Change the live catalogue without a restart or a rebuild: `price_stock` is a list of {"id", "price"?,
+        "in_stock"?, "stock_status"?}; `add` replaces products with the same id. Questions wait while it runs."""
+        done = {"added": 0, "removed": 0, "price_stock": 0}
+        with self._catalogue_lock.writing():
+            for change in price_stock or []:
+                fields = {k: v for k, v in change.items() if k != "id"}
+                done["price_stock"] += self.index.update_price_stock(change["id"], **fields)
+            done["removed"] = sum(self.index.remove_product(pid) for pid in remove or [])
+            for product in add or []:
+                self.index.add_product(product)
+                done["added"] += 1
+            if add or remove:
+                self.index.refresh()
+                self.head_nouns = head_nouns(self.index)
+        return done
+
     def ask(self, query: str, session: Session | None = None) -> Response:
         """Answer one shopper message; `session` carries filters and the last product between turns."""
+        with self._catalogue_lock.reading():
+            return self._ask(query, session)
+
+    def _ask(self, query: str, session: Session | None) -> Response:
         session = session if session is not None else Session()
         start = time.perf_counter()
         parsed, path, llm_usage = understand(query, self.index), "rules", (0, 0)
+        if self._missed(parsed) and self.synonyms is not None and self.synonyms.apply(parsed, self.index):
+            path = "synonym"  # an approved mapping: no model, no tokens
+        mapped_before = len(parsed.mapped)
         if self._missed(parsed) and self.semantic is not None and self.semantic.resolve(parsed):
             path = "semantic"
         if self._missed(parsed) and self.normaliser is not None:
             llm_usage = self.normaliser.apply(parsed, self.index)
             if llm_usage != (0, 0):
                 path = "llm"
+        self._learn(parsed, mapped_before, path)
         resp = self._route(parsed, session)
         if resp.path == "rules":  # a policy answer found by the embedding fallback has already marked itself
             resp.path = path
@@ -100,6 +135,12 @@ class ShoppingAssistant:
                 approx_tokens(self._source_text(c)) for c in resp.citations
             )
         return resp
+
+    def _learn(self, parsed: Parsed, since: int, path: str) -> None:
+        """Hand the words a model just resolved to the synonym table as proposals for a person to review."""
+        if self.synonyms is not None and path in ("semantic", "llm"):
+            for word, target in parsed.mapped[since:]:
+                self.synonyms.propose(word, target, path)
 
     @staticmethod
     def _missed(p: Parsed) -> bool:

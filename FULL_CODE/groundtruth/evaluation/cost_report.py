@@ -84,7 +84,9 @@ def summarise(rows: list[dict]) -> dict:
     return {
         "questions": n,
         "by_split": {s: sum(r["split"] == s for r in rows) for s in sorted({r["split"] for r in rows})},
-        "path_share": {p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "semantic", "llm")},
+        "path_share": {
+            p: round(sum(r["path"] == p for r in rows) / n, 4) for p in ("rules", "synonym", "semantic", "llm")
+        },
         "latency_ms": {
             "mean": round(statistics.mean(lat), 3),
             "p50": round(percentile(lat, 0.5), 3),
@@ -136,7 +138,12 @@ def run(args: argparse.Namespace) -> None:
     files = {"dev": paths.dev_questions, "test": paths.test_questions}
     chosen = files if args.split == "all" else {args.split: files[args.split]}
     assistant = build_assistant(
-        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, measure_tokens=True
+        args.catalogue,
+        args.policy,
+        embed_model=args.embed_model,
+        llm_model=args.llm_model,
+        resolver=args.llm_resolver,
+        measure_tokens=True,
     )
     rows = measure(assistant, {split: load_questions(path) for split, path in chosen.items()})
     summary = summarise(rows)

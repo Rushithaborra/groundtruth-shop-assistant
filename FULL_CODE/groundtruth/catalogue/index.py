@@ -10,9 +10,9 @@ import difflib
 import heapq
 import math
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
-from collections.abc import Sequence
 from typing import Callable
 
 from ..config import get_settings
@@ -127,10 +127,10 @@ class CatalogueIndex:
         self.products = {p.id: p for p in products}
         self.ids_upper = {pid.upper(): pid for pid in self.products}
         self._declare_tables()
-        doc_freq: Counter = Counter()
+        self._doc_freq: Counter = Counter()
         for p in products:
-            doc_freq.update(self._index_product(p))
-        self._build_vocabulary(doc_freq, len(products))
+            self._doc_freq.update(self._index_product(p))
+        self._build_vocabulary(self._doc_freq, len(products))
         self._build_typo_lookup(typo_cache_size if typo_cache_size is not None else search.typo_cache_size)
 
     def _declare_tables(self) -> None:
@@ -205,14 +205,14 @@ class CatalogueIndex:
     def _build_price_index(self) -> None:
         """Products in price order, so a budget is two binary searches instead of a check on every product."""
         ordered = sorted(self.products.values(), key=lambda p: p.price)
-        self._prices = [p.price for p in ordered]
-        self._price_ids = [p.id for p in ordered]
+        self._price_table = ([p.price for p in ordered], [p.id for p in ordered])  # replaced whole, never edited
 
     def _ids_in_budget(self, low: float | None, high: float | None) -> set[str]:
         """Ids of the products priced within [low, high] (either end may be open)."""
-        start = bisect.bisect_left(self._prices, low) if low is not None else 0
-        end = bisect.bisect_right(self._prices, high) if high is not None else len(self._prices)
-        return set(self._price_ids[start:end])
+        prices, ids = self._price_table
+        start = bisect.bisect_left(prices, low) if low is not None else 0
+        end = bisect.bisect_right(prices, high) if high is not None else len(prices)
+        return set(ids[start:end])
 
     def _build_title_anchors(self) -> None:
         """File each product (of two or more title words) under its rarest title word. A title can only appear in a
@@ -275,6 +275,76 @@ class CatalogueIndex:
                 group.append(key)
         if len(words) >= 2:
             self.attr_key_phrases.setdefault(tuple(words), key)
+
+    # -- live updates --------------------------------------------------------------------------
+    # Not thread-safe on their own: `ShoppingAssistant.apply_updates` runs them under a write lock that every
+    # question also takes (as a reader), so a question never sees a half-changed index.
+    def update_price_stock(
+        self, pid: str, price: float | None = None, in_stock: bool | None = None, stock_status: str | None = None
+    ) -> bool:
+        """Change a product's price or stock in place: the fields that change all day and need no re-indexing."""
+        p = self.products.get(pid)
+        if p is None:
+            return False
+        if in_stock is not None:
+            p.in_stock = in_stock
+        if stock_status is not None:
+            p.stock_status = stock_status
+        if price is not None and price != p.price:
+            p.price = price
+            self._build_price_index()
+        return True
+
+    def _words(self, p: Product) -> tuple[set[str], set[str]]:
+        """(the product's title/category/attribute words, its description words): what `_index_product` posts."""
+        text = set(tokenize(p.title)) | set(tokenize(p.category))
+        for key in p.attributes:
+            if key != SIZE_KEY:
+                for val in p.attr_values(key):
+                    text.update(tokenize(val))
+        return text, set(tokenize(p.description))
+
+    def add_product(self, p: Product) -> None:
+        """Index a new product, or replace one with the same id."""
+        if p.id in self.products:
+            self.remove_product(p.id)
+        self.products[p.id] = p
+        self.ids_upper[p.id.upper()] = p.id
+        self._doc_freq.update(self._index_product(p))
+        title = self.title_tokens[p.id]
+        if len(title) >= 2:
+            self._title_anchors.setdefault(min(title, key=lambda t: (len(self._title_postings[t]), t)), []).append(p.id)
+
+    def remove_product(self, pid: str) -> bool:
+        """Take a product out of every lookup table. (Attribute vocabularies keep values only it had; that is
+        harmless, and a full rebuild tidies it.)"""
+        p = self.products.pop(pid, None)
+        if p is None:
+            return False
+        self.ids_upper.pop(pid.upper(), None)
+        text, desc = self._words(p)
+        self._doc_freq.subtract(text | desc)
+        for tok in text:
+            _discard(self._text_postings, tok, pid)
+        for tok in self.title_tokens.pop(pid, ()):
+            _discard(self._title_postings, tok, pid)
+            if pid in self._title_anchors.get(tok, ()):
+                self._title_anchors[tok].remove(pid)
+        for key, lowered in self.attr_lower.pop(pid, {}).items():
+            for low in lowered:
+                _discard(self._attr_postings, (key, low), pid)
+        for key in p.attributes:
+            for val in p.attr_values(key):
+                _discard(self._attr_token_postings, (key, tuple(tokenize(val))), pid)
+        self.desc_tokens.pop(pid, None)
+        return True
+
+    def refresh(self) -> None:
+        """Rebuild what depends on the whole catalogue (word weights, vocabularies, kind tables, price order) after a
+        batch of adds and removes. Costs the number of distinct words, not of products, except the price order."""
+        self._doc_freq = Counter({t: c for t, c in self._doc_freq.items() if c > 0})
+        self._build_vocabulary(self._doc_freq, len(self.products))
+        self._build_typo_lookup(self.closest.cache_info().maxsize or 0)
 
     # -- typo tolerance ------------------------------------------------------------------------
     def _closest(self, token: str) -> str | None:
@@ -365,7 +435,9 @@ class CatalogueIndex:
         )
         return pool if nothing_left else list(filter(self._matcher(spec, use_desc), pool))
 
-    def search(self, spec: Spec, query_tokens: set[str] | frozenset[str] = frozenset()) -> tuple[Sequence[Product], bool]:
+    def search(
+        self, spec: Spec, query_tokens: set[str] | frozenset[str] = frozenset()
+    ) -> tuple[Sequence[Product], bool]:
         """Return (ranked matches, description_tokens_were_relaxed)."""
         hits, relaxed = self.matching(spec)
         if not hits and spec.size and spec.size_soft:
@@ -420,6 +492,15 @@ class CatalogueIndex:
             return []
         longest = max(len(self.title_tokens[p.id]) for p in full)
         return [p for p in full if len(self.title_tokens[p.id]) == longest]
+
+
+def _discard(postings: dict, key: object, pid: str) -> None:
+    """Remove a product from one posting list, dropping the list when it empties (so no word outlives its products)."""
+    ids = postings.get(key)
+    if ids is not None:
+        ids.discard(pid)
+        if not ids:
+            del postings[key]
 
 
 def _slips(token: str) -> list[str]:

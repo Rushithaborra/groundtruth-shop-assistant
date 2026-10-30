@@ -26,7 +26,9 @@ class ScalableSearchTest(unittest.TestCase):
         prices = [p.price for p in self.products]
         for _ in range(200):
             low, high = rng.choice([None, rng.choice(prices)]), rng.choice([None, rng.choice(prices)])
-            expected = {p.id for p in self.products if (low is None or p.price >= low) and (high is None or p.price <= high)}
+            expected = {
+                p.id for p in self.products if (low is None or p.price >= low) and (high is None or p.price <= high)
+            }
             self.assertEqual(self.index._ids_in_budget(low, high), expected)
 
     def test_lazy_ranking_equals_full_sort(self) -> None:

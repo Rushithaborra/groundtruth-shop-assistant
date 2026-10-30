@@ -53,6 +53,7 @@ class PathSettings:
     reports_dir: Path
     cache_dir: Path
     semantic_config: Path
+    synonyms: Path
     vocabulary: Path
 
 

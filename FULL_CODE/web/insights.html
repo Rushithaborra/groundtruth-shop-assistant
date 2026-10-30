@@ -135,7 +135,8 @@ ol.rank.amber .meter i { background: var(--clarify); }
       <div class="fact ${d.failed_checks === 0 ? "good" : ""}"><dt>Replies that failed the grounding check</dt><dd>${d.failed_checks}</dd></div>
       <div class="fact"><dt>Median answer time</dt><dd>${d.latency_ms.median != null ? d.latency_ms.median.toFixed(2) : "–"} <small>ms</small></dd></div>
       <div class="fact"><dt>Slowest 5% take over</dt><dd>${d.latency_ms.p95 != null ? d.latency_ms.p95.toFixed(2) : "–"} <small>ms</small></dd></div>
-      <div class="fact"><dt>Needed a model</dt><dd>${pct(viaModel, t)}% <small>${d.llm_tokens.toLocaleString("en-IN")} tokens</small></dd></div>`;
+      <div class="fact"><dt>Needed a model</dt><dd>${pct(viaModel, t)}% <small>${d.llm_tokens.toLocaleString("en-IN")} tokens (${d.llm_tokens_per_query} per question)</small></dd></div>
+      <div class="fact"><dt>Answered by an approved synonym, no model</dt><dd>${pct(d.paths.synonym || 0, t)}% <small>${d.synonyms ? d.synonyms.proposed + " waiting for review" : ""}</small></dd></div>`;
     $("gaps").innerHTML = rank(d.not_stocked, "") || `<p class="empty">Nothing refused yet.</p>`;
     $("unplaced").innerHTML = rank(d.not_understood, "amber") || `<p class="empty">None yet.</p>`;
     $("unclear").innerHTML = rank(d.needed_clarifying, "amber") || `<p class="empty">No clarifying questions yet.</p>`;

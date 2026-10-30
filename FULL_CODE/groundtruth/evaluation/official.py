@@ -114,7 +114,9 @@ def run(args: argparse.Namespace) -> None:
     paths, timeout_s = get_settings().paths, get_settings().evaluation.scorer_timeout_s
     reports = paths.reports_dir
     questions = load_questions(paths.dev_questions)
-    assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model)
+    assistant = build_assistant(
+        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, resolver=args.llm_resolver
+    )
     rows = predict(assistant, questions)
     validate_predictions(rows, questions)
     ours = write_predictions(rows, paths.dev_predictions)

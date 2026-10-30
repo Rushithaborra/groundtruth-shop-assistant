@@ -1039,3 +1039,17 @@ a second click hides it. Page only (the card comes from the cited record the rep
 2. Run `python main.py evaluate` with `--embed-model` and `--llm-model` on a fresh held-out set and compare against the
    rules-only score. Keep a fallback only if it helps.
 3. Adapt `load_cases` in `groundtruth/evaluation/scoring.py` to the real test-file format.
+
+## 31 Oct (branch `perf/scalable-search`): scale and a cheaper model path
+
+* **Search speed** (`catalogue/index.py`): price index, lazy ranking (`RankedHits`), constraints hoisted out of the
+  per-product check, title lookup by rarest word, no full ranking just to ask which attributes exist. Replies identical
+  on 210 compared (before/after dump); numbers in the README.
+* **Live updates**: `CatalogueIndex.update_price_stock / add_product / remove_product / refresh` and
+  `ShoppingAssistant.apply_updates`, with a reader-writer lock (`concurrency.py`). Tests compare against a fresh build and
+  run questions and updates on several threads.
+* **Cheaper model path**: `models/resolver.py` (shortlist + numbered menus, 4-token answers) and `synonyms.py` (proposals
+  reviewed by a person, then answered with no model). `main.py synonyms`, `--llm-resolver`, `bench --scale N`.
+* The default answers, the submission file and the scoring path are unchanged: models are still off unless a model path is
+  given, and with no synonym file nothing differs. The official scorer was not re-run on this branch (the pack is not on
+  this machine): run `main.py score --part all` (must stay 0.9325) and `main.py submit` before merging.

@@ -11,9 +11,11 @@ from .catalogue import CatalogueIndex, Product, load_catalogue
 from .config import get_settings
 from .errors import DataFileError
 from .policy import Section, load_policy
+from .synonyms import LearnedSynonyms
 
 if TYPE_CHECKING:  # only for annotations: the model modules are imported lazily, when a model is used
     from .models.normaliser import LLMNormaliser
+    from .models.resolver import ShortlistNormaliser
     from .models.semantic import SemanticFallback
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,7 @@ def build_assistant(
     llm_model: str | None = None,
     cache_dir: str | Path | None = None,
     strict: bool | None = None,
+    resolver: str = "shortlist",
     **kwargs: Any,
 ) -> ShoppingAssistant:
     """Build the assistant. The rule-based path always runs first; the optional fallbacks only see its misses.
@@ -34,6 +37,8 @@ def build_assistant(
     embed_model      path to the provided embedding model; enables the embedding fallback only if
                      `semantic_config` exists (thresholds written by `python main.py calibrate`)
     llm_model        path to the provided instruct model; enables the last-resort query normaliser
+    resolver         how the instruct model is asked: "shortlist" (a numbered menu, ~100 tokens) or "schema" (the whole
+                     catalogue vocabulary in the prompt, ~3,800 tokens)
     strict           reject bad or duplicate catalogue rows instead of skipping them (default: only for the pack's)
     """
     paths = get_settings().paths
@@ -48,7 +53,8 @@ def build_assistant(
         if semantic:
             kwargs["semantic"] = semantic
     if llm_model:
-        kwargs["normaliser"] = _normaliser(llm_model)
+        kwargs["normaliser"] = _normaliser(llm_model, resolver)
+    kwargs.setdefault("synonyms", LearnedSynonyms(paths.synonyms))
     assistant = ShoppingAssistant(index, policy, **kwargs)
     assistant.warm_up()
     return assistant
@@ -101,9 +107,15 @@ def _semantic_fallback(
     )
 
 
-def _normaliser(llm_model: str) -> LLMNormaliser:
+def _normaliser(llm_model: str, resolver: str = "shortlist") -> LLMNormaliser | ShortlistNormaliser:
     """The last-resort query normaliser around the provided instruct model."""
     from .models.local import LocalGenerator
-    from .models.normaliser import LLMNormaliser
 
-    return LLMNormaliser(LocalGenerator(llm_model))
+    generate = LocalGenerator(llm_model)
+    if resolver == "schema":
+        from .models.normaliser import LLMNormaliser
+
+        return LLMNormaliser(generate)
+    from .models.resolver import ShortlistNormaliser
+
+    return ShortlistNormaliser(generate)

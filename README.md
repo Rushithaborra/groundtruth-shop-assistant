@@ -86,7 +86,7 @@ if a model is slow, busy, fails, or isn't installed, the reply falls back to the
 ```bash
 cd FULL_CODE
 uv sync              # once: creates .venv with the pinned dev tools from uv.lock (uv fetches Python 3.12 if needed)
-uv run pytest        # 257 tests (2 need the voice extra)
+uv run pytest        # 284 tests (2 need the voice extra)
 uv run ruff check . && uv run ruff format --check .
 uv export --format requirements-txt --no-hashes > /tmp/reqs.txt && uv run pip-audit -r /tmp/reqs.txt
 ```
@@ -182,6 +182,40 @@ catalogue's allowed product types and attribute values), multiplied by the numbe
 every query. The pack states no token or cost budget; GroundTruth's cost is CPU time only. The per-query CSV also
 gives an estimate of the context each reply cites (mean 139 tokens) and of the reply itself (mean 55 tokens), about
 four characters per token.
+
+### Scaling beyond 5,000 products, and a model that costs almost nothing
+
+Measured with `python3 main.py bench --scale N` (a generated, messy catalogue of N products; one laptop; the same 14
+queries before and after, with identical replies on 210 compared). The generated catalogue has only 246 distinct words,
+so its queries match more products than a real long-tail catalogue would.
+
+| Products | Mean query before → after | p95 before → after | RAM |
+|---|---|---|---|
+| 5,000 | 1.4 → 0.5 ms | 2.7 → 0.9 ms | 58 MB |
+| 50,000 | 21 → 6.3 ms | 47 → 15 ms | 388 MB |
+| 200,000 | 100 → 29 ms | 225 → 65 ms | 1.5 GB |
+
+What changed: a sorted price index (a budget is two binary searches), results ranked lazily (a listing needs the count
+and the top few, so it is not sorted in full), constraints worked out once per search instead of once per product,
+and product names found through their rarest word. `ShoppingAssistant.apply_updates` changes price, stock, products
+and removals on a running assistant without a rebuild; questions wait while it runs (a reader-writer lock), and the
+tests check the result equals a fresh build. Not done yet: RAM still grows with the catalogue (every product is a Python
+object), and past about a million products the index belongs in a database.
+
+**Model cost.** The rules answer every pack question with 0 tokens. For the words they can't place, the optional
+instruct model is now asked with `ShortlistNormaliser` (`--llm-resolver shortlist`, the default when `--llm-model` is
+given): a character-trigram shortlist with no model, then at most two numbered menus of 16 options or fewer (categories,
+then the types inside one), answered with one number (4 new tokens at most). On the demo catalogues the prompts are
+about 130 tokens in total, whatever the catalogue size, against 421 for the old whole-vocabulary prompt there (3,820 on the
+pack's catalogue, as measured earlier; the menu size is capped, so the pack figure would stay near 130; an estimate, the
+model was not run here). The shortlist alone puts the right type first for 60 of 62 mistyped type words, at about 3 µs a
+word. Not measured: the real model's speed or accuracy on these menus; score it with `main.py score` before turning it on.
+`--llm-resolver schema` keeps the old prompt.
+
+**Learning without retraining.** Each word a model resolves is saved as a *proposal* in `data/learned_synonyms.json`.
+`python3 main.py synonyms` lists them (most seen first); `synonyms approve WORD [TYPE]` makes one live, `synonyms reject
+WORD` drops it. Approved words are answered by the rule path with no model call (`path: synonym` in the chat details and
+the retailer view). A proposal is never used until a person approves it, so a wrong mapping can't take effect by itself.
 
 ## AI usage
 

@@ -20,6 +20,7 @@
     "reports_dir": "output/reports",
     "cache_dir": ".cache",
     "semantic_config": "semantic_config.json",
+    "synonyms": "data/learned_synonyms.json",
     "vocabulary": "groundtruth/resources/vocabulary.json"
   },
   "submission": {

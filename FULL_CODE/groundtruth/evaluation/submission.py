@@ -125,7 +125,9 @@ def run(args: argparse.Namespace) -> None:
     questions_path = paths.test_questions if args.split == "test" else paths.dev_questions
     out = Path(args.out) if args.out else (paths.submission if args.split == "test" else paths.dev_predictions)
     questions = load_questions(questions_path)
-    assistant = build_assistant(args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model)
+    assistant = build_assistant(
+        args.catalogue, args.policy, embed_model=args.embed_model, llm_model=args.llm_model, resolver=args.llm_resolver
+    )
     rows = predict(assistant, questions)
     validate_predictions(rows, questions)
     write_predictions(rows, out)
