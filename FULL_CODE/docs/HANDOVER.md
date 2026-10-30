@@ -137,8 +137,8 @@ who have not seen the code (G10; then you and your Claude score them once, never
 
 ## 5. Audit against the R3 brief (summary)
 
-Every required output exists and was exercised: a CLI and a web chat; citations on every claim (150 of 150 test answers carry
-them; the structured fields match the text); explicit refuse and clarify paths (67 answers, 34 clarifications, 49 refusals);
+Every required output exists and was exercised: a CLI and a web chat; citations on every claim (all 72 answered test questions carry
+them; the structured fields match the text; refusals make no claims); explicit refuse and clarify paths (72 answers, 32 clarifications, 46 refusals);
 an evaluator with a heavy hallucinated-price penalty and the organisers' scorer wrapped as `main.py score`; per-query latency
 and tokens (0 model tokens); and the multi-turn budget stretch (checked in code: every cited product fits the budget and
 material). The one real weakness was in the safety net, not the replies: the checker was weaker than the README claimed. It is
