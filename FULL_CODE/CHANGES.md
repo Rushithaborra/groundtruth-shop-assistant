@@ -974,6 +974,16 @@ score can change; the text the evaluation scores (and the "Answer as text" panel
 
 Tests: 261 (unchanged; the page has no unit tests of its own). No errors in the browser console.
 
+## The zip, tested as a judge would use it, 30 October
+
+Unzipped `TEAM-000802_R3.zip` (commit 0824544) into an empty folder, added the pack, and used the Mac's plain
+`/usr/bin/python3` (3.9.6, nothing installed): 261 tests pass (2 voice tests skipped), `serve` starts with 5,000
+products, and "iphone 15 price" is refused. One problem: `python3 main.py score` crashed with the organisers'
+scorer's own traceback (`No module named 'numpy'`) instead of our message. The dependency check looked for pandas and
+numpy in the normal way and found them in the user's `pip install --user` folder, but the scorer is run isolated
+(`-I`), which ignores that folder. The check now imports them the same isolated way, so it gives the clear message
+("needs pandas and numpy; run `uv sync` ..."). With `uv run`, the score is unchanged (dev check 0.900). Tests: 262.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words

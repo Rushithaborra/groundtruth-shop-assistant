@@ -47,10 +47,16 @@ class OfficialScorerTests(unittest.TestCase):
 
     def test_missing_pandas_is_explained_before_anything_runs(self):
         with (
-            mock.patch.object(official.importlib.util, "find_spec", return_value=None),
+            mock.patch.object(official, "_isolated_import_works", return_value=False),
             self.assertRaisesRegex(official.ScorerError, "uv sync"),
         ):
             official._require_scorer_dependencies()
+
+    def test_dependencies_are_checked_the_way_the_scorer_runs(self):
+        # the scorer runs isolated (-I), so pandas from `pip install --user` is invisible to it; the check must agree
+        with mock.patch.object(official.subprocess, "run", return_value=finished(1)) as run:
+            self.assertFalse(official._isolated_import_works("pandas"))
+        self.assertIn("-I", run.call_args.args[0])
 
 
 if __name__ == "__main__":

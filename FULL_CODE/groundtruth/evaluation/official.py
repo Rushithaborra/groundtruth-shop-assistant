@@ -8,7 +8,6 @@ is exactly the one the organisers compute. They need pandas and numpy, which are
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import logging
 import subprocess
@@ -33,12 +32,19 @@ class ScorerError(GroundTruthError, RuntimeError):
 
 
 def _require_scorer_dependencies() -> None:
-    """Stop with a clear message if pandas or numpy (needed by the scorer) is missing."""
-    missing = [name for name in ("pandas", "numpy") if importlib.util.find_spec(name) is None]
+    """Stop with a clear message if pandas or numpy (needed by the scorer) is missing. Checked the way the scorer is
+    run (isolated, -I), so packages it can't see, such as ones from `pip install --user`, count as missing."""
+    missing = [name for name in ("pandas", "numpy") if not _isolated_import_works(name)]
     if missing:
         raise ScorerError(
             f"the official scorer needs {' and '.join(missing)}; run `uv sync` and then `uv run python main.py score`"
         )
+
+
+def _isolated_import_works(module: str) -> bool:
+    """Whether this Python, run isolated like the pack's scripts, can import the module."""
+    cmd = [sys.executable, "-I", "-c", f"import {module}"]
+    return subprocess.run(cmd, capture_output=True, timeout=120, check=False).returncode == 0
 
 
 def _run_pack_script(args: list[str], timeout_s: float) -> str:
