@@ -94,15 +94,23 @@ def product_nouns(index: CatalogueIndex) -> list[tuple[str, list[str]]]:
     kinds = set(type_words(index))
     groups: dict[str, list[str]] = {}
     for p in index.products.values():
-        noun = noun_of(p.title, kinds).lower()
+        noun = product_noun(p, kinds).lower()
         if noun:
             groups.setdefault(noun, []).append(p.id)
     return sorted(((n, ids) for n, ids in groups.items() if len(ids) >= 3), key=lambda g: -len(g[1]))
 
 
+def product_noun(p: Product, kinds: frozenset[str] | set[str]) -> str:
+    """What a product is called: its sub-category ("Running Shoes") when the catalogue gives one, else its title's end.
+
+    The pack's titles end in a colour ("... Running Shoes - Blue"), so the last title word would call a shoe "Blue".
+    """
+    return str(p.attributes.get("sub_category") or "").strip() or noun_of(p.title, kinds)
+
+
 def noun_of(title: str, kinds: frozenset[str] | set[str]) -> str:
     """What a product is called, from the end of its title: "... Running Shoes (Blue)" -> "Running Shoes"."""
-    words = [w for w in re.sub(r"\(.*?\)", " ", title).split() if w.isalpha()]
+    words = [w for w in re.sub(r"\(.*?\)| - .*$", " ", title).split() if w.isalpha()]
     if not words:
         return ""
     if len(words) >= 2 and tokenize(words[-2]) and tokenize(words[-2])[0] in kinds:
@@ -116,7 +124,7 @@ def product_record(p: Product, kinds: frozenset[str] = frozenset()) -> dict:
         "kind": "product",
         "id": p.id,
         "title": p.title,
-        "noun": noun_of(p.title, kinds),
+        "noun": product_noun(p, kinds),
         "price": format_inr(p.price),
         "category": p.category,
         "in_stock": p.in_stock,

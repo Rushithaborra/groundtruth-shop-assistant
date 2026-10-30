@@ -877,6 +877,21 @@ in any case.
 Not done: voice on a phone. Browsers allow the microphone only on `localhost` or HTTPS, and the demo serves plain
 HTTP. Not tested with real human voices.
 
+## Example chips and card labels named products by their colour, 30 October
+
+Found by looking at the demo on the real pack (a phone-check screenshot): the example chips under the headline read
+"price of the white white" and "polyester black 1000 ke andar". The page named a product by the **last word of its
+title**, and the pack's titles end in a colour ("... Running Shoes - White"). The same word was the kind label on
+product cards ("Blue" instead of "Running Shoes"). The chips still worked as examples (a clarification, an answer),
+so no test or score noticed.
+
+Fix (`api/views.py`): a product is named by its `sub_category` ("Running Shoes", "Chargers") when the catalogue gives
+one, and otherwise by the end of its title with any " - Colour" tail removed. On the real pack the chips are now
+"price of the black t-shirts" and "cotton t-shirts 1000 ke andar", and a third example appears ("t-shirts under 100",
+a refusal); a charger card is labelled "Chargers". No reply, prediction or score can change: this only builds the
+page's examples and labels. Three tests in `tests/test_example_chips.py` fail on the previous code. 254 tests pass
+(Python 3.13 only; not re-run on 3.9 and 3.12); ruff clean, no suppressions.
+
 ## Before submitting
 
 1. Run `python main.py calibrate --embed-model PATH` with the provided embedding model and read its table. Add words
