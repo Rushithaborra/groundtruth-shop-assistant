@@ -271,9 +271,10 @@ documentation. The team reviewed every change and can explain the code.
 
 ## Pre-built and third-party code
 
-**Written for this hackathon before Day 1 (30 October 2026).** All the code in this repository was written for this
-hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit so far
-came before Day 1 (`git log` has the full history):
+**Written for this hackathon, mostly before Day 1 (30 October 2026).** All the code in this repository was written for
+this hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit in the
+table below came before Day 1 except the last row, which was made on Day 1 itself (30 to 31 October 2026, during the
+event). `git log` has the full history with dates:
 
 | Dates | Commits | Author | What |
 |---|---|---|---|
@@ -287,6 +288,7 @@ came before Day 1 (`git log` has the full history):
 | 2026-10-28 | `e3901d7` to `4e75a03` | Rushitha Borra | Fixes found while rehearsing the demo; demo script; status document |
 | 2026-10-28 | `3abaa8f` to `d000e83` | Sushanth Kilari | Type hints, shorter functions and `tools/` docstrings; a stricter grounding checker (prices bound to their citation, attribute words, policy quotes); strict pack loading; stock wording; retailer view split; handover |
 | 2026-10-29 | after `d000e83` | Rushitha Borra | Lint and README fixes; grounding checker no longer flags attribute names |
+| **2026-10-30 to 31 (Day 1)** | the five commits after `27c7368`, ending `d9f4762` | Sushanth Kilari with Claude Code | **Made during the event:** faster, set-based catalogue search; live catalogue updates; the low-token numbered-menu resolver and learned-synonym review (off by default, not run with a real model); a session store (memory or SQLite); tests and docs for these. Replies are identical to before on all 150 pack predictions and the dev score is unchanged at 0.9500 |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),
