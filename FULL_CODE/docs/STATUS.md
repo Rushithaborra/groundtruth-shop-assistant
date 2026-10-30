@@ -87,6 +87,8 @@ Priority: **P1** before L1 (30 Oct), **P2** before later rounds, **P3** nice to 
 | 7 | Needs outside the hand-written map: try the provided embedding model, narrowly, and keep it only if it measurably helps | Rushitha + Claude Code | G14 |
 | 8 | 50+ questions typed by real people who haven't seen the code (the earlier sets were AI-written), with a record of who typed each, scored once | Sushanth + friends | G10 |
 
+**Future scope: a public voice demo.** Voice input runs only where the optional speech library and the Whisper small model (about 480 MB) are installed, and it needs roughly 1 GB or more of RAM. The free Render demo (https://groundtruth-shop-assistant.onrender.com, synthetic catalogue, 512 MB) therefore has no Speak button; the live site deployed on 30 Oct showed "Voice input is off" in its log. Voice is demonstrated on `http://127.0.0.1:8000` with the real pack. Hosting it publicly would need a host with more memory (a paid Render plan of 2 GB, or a free Hugging Face Space with a Dockerfile) or a tunnel from the laptop; none of these has been set up.
+
 If the organisers ask for `000802_R3.zip` or no `.gitattributes`, Claude Code changes `tools/make_submission_zip.py`.
 
 ## 5. Habits
