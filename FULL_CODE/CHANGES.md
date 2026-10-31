@@ -1100,3 +1100,19 @@ Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
 * Checked in headless Chromium with a stand-in recognizer: button shown, spoken text answered, "not allowed", "network" and
   "no speech" each give their own message, and no button without support. The real microphone was not tried here.
   Tests: `tests/test_page_voice_button.py` (page text only).
+
+## 31 Oct: "Did you mean" offers only for close slips
+
+* **Found:** regenerating the 150 submission answers after the typo change showed three refusals with odd offers on
+  the real pack: "saal bacche cycle" -> "Sandals", "basmati chawal" -> "Hawa", "pune saffron store" -> "Storage". None
+  claims anything false (an offer only asks, cites nothing and is never searched for), but each is a guess on a word
+  that is a real word of its own. The offer scored 0.8 or 0.83 on `difflib`, the same as the good ones ("hoddie" ->
+  "Hoodie" 0.83), so a higher cutoff alone could not tell them apart.
+* **Fixed** (`catalogue/index.py` `_suggest`): an offer must start with the same letter as the typed word, be within
+  one letter of its length, and the typed word must have at least 5 letters (`SUGGEST_MIN_LENGTH`). "sneker",
+  "hoddie" and "laptpo" are still offered; the three above are not.
+* **Checked:** 314 tests pass, ruff clean; official scorer dev check half 0.900, all 40 dev 0.950, stress holdout
+  1.000, shoppers 0.981, 0 hallucinated prices (all as before); the 150 regenerated predictions match the committed
+  `R3_predictions.jsonl` in every field except `latency_ms`, so the submission file does not need a new commit for this
+  change. Tests: `tests/test_typos_and_budget_memory.py` (`test_an_offer_keeps_the_first_letter_and_the_length` fails on
+  the old code).

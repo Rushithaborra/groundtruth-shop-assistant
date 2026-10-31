@@ -154,6 +154,28 @@ class TypoAndBudgetTests(unittest.TestCase):
             offers = self.a.index.suggest(word)
             self.assertFalse({"Blue", "Red", "Women", "Casa"} & set(offers), (word, offers))
 
+    def test_an_offer_keeps_the_first_letter_and_the_length(self):
+        # On the real pack "saal" was offered "Sandals", "chawal" "Hawa" and "store" "Storage": a loose match is a guess
+        index = self.a.index
+        words = sorted({w for n in index._offers_by_len for w in index._offers_by_len[n]})
+        offers = 0
+        for word in words:
+            for typed in (word[:-1], word[:-2], word[:2] + word[3:], word + word[-1], "x" + word[1:]):
+                for offer in index.suggest(typed):
+                    offers += 1
+                    # the matched word may be a synonym ("battalu" shows as "Apparel"): one of them must fit
+                    matched = [w for w, kind in index._offers.items() if index.display_word(kind) == offer]
+                    self.assertTrue(
+                        any(w[0] == typed[0] and abs(len(w) - len(typed)) <= 1 for w in matched),
+                        (typed, offer, matched),
+                    )
+        self.assertGreater(offers, 0)
+
+    def test_a_word_cut_short_is_not_offered_the_longer_product(self):
+        self.assertEqual(self.a.index.suggest("jeanz"), ["Jeans"])  # a real slip: same first letter, same length
+        self.assertEqual(self.a.index.suggest("jea"), [])  # too short to be a typo
+        self.assertEqual(self.a.index.suggest("jeansxx"), [])  # two letters longer: a different word, not a slip
+
     # -- a budget that found nothing stays in force ----------------------------------------------
     def test_budget_is_remembered_after_nothing_fitted_it(self):
         s = Session()
