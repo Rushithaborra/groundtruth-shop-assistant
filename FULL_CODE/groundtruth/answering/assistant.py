@@ -374,7 +374,7 @@ class ShoppingAssistant:
         hits, relaxed = self.index.search(spec, p.all_tokens)
         if not hits:
             if self._budget_ruled_out(spec, p):  # "under 500" found nothing: the next turn is still under 500
-                session.spec = spec
+                session.spec, session.budget_kept = spec, True
             return refusals.no_match(self.index, spec, p, self.list_limit)
         if _off_topic_refinement(self.index, p, hits, relaxed):
             # "laptop" after "black hoodie": none of the products being discussed match, so don't re-show them
@@ -383,7 +383,7 @@ class ShoppingAssistant:
                 'looking at. Tell me what you\'d like instead, or say "start over".',
                 REFUSE,
             )
-        session.spec = spec
+        session.spec, session.budget_kept = spec, False
         pick = self._pick_one(p, spec, hits)
         if pick is _AMBIGUOUS:
             return self._one_of(p, hits, session)
@@ -438,6 +438,10 @@ class ShoppingAssistant:
         # named by product words or read as a category, so the earlier colour or type doesn't carry over
         new_kind = any(k in s.filters and s.filters[k] != session.spec.filters.get(k) for k in KIND_FILTERS)
         if s.type_tokens or new_kind or session.spec.is_empty() or not (p.has_constraint or s.sort or s.desc_tokens):
+            return None, s.copy()
+        if session.budget_kept and set(p.unknown) - set(p.external):
+            # the kept search failed on its budget; a message with a word we can't place ("hudieee under 1500") is a new
+            # request, not a follow-up, so the failed search's product must not be shown for it
             return None, s.copy()
         merged = session.spec.copy()  # a refinement of the previous search
         merged.filters.update(s.filters)

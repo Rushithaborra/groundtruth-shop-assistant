@@ -260,7 +260,12 @@ def _deflate(entry: dict) -> dict:
 
 def session_to_dict(session: Session) -> dict:
     """A Session as plain JSON data."""
-    return {"spec": asdict(session.spec), "last_product": session.last_product, "shown": list(session.shown)}
+    return {
+        "spec": asdict(session.spec),
+        "last_product": session.last_product,
+        "shown": list(session.shown),
+        "budget_kept": session.budget_kept,
+    }
 
 
 def session_from_dict(data: dict | None) -> Session:
@@ -269,4 +274,9 @@ def session_from_dict(data: dict | None) -> Session:
         return Session()
     fields = dict(data["spec"])
     fields["measures"] = [tuple(m) for m in fields.get("measures", [])]
-    return Session(spec=Spec(**fields), last_product=data.get("last_product"), shown=list(data.get("shown", [])))
+    return Session(
+        spec=Spec(**fields),
+        last_product=data.get("last_product"),
+        shown=list(data.get("shown", [])),
+        budget_kept=bool(data.get("budget_kept", False)),
+    )

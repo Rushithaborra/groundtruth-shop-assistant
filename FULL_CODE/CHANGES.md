@@ -1116,3 +1116,14 @@ Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
   `R3_predictions.jsonl` in every field except `latency_ms`, so the submission file does not need a new commit for this
   change. Tests: `tests/test_typos_and_budget_memory.py` (`test_an_offer_keeps_the_first_letter_and_the_length` fails on
   the old code).
+
+## 31 Oct: a kept budget miss no longer answers an unplaced word
+
+* **Seen in the web demo:** "jeans under 1000" (refused: nothing that cheap) and then "hudieee under 1500" showed jeans with a
+  note at the bottom that "hudieee" could not be verified. Cause: the budget-memory change kept the failed jean search for the
+  next turn, and a message with a new budget and an unplaced word was read as a follow-up to it. The original code refused it.
+* **Fix:** `Session.budget_kept` marks a search kept only because its budget failed. A message with a word the assistant can't
+  place (not a brand it knows it lacks) is then a new request; a budget-only follow-up ("under 5000") still refines the kept
+  search. The flag is stored with the chat (`api/state.py`). Tests: `tests/test_budget_memory_unplaced_word.py`.
+* **Not changed:** after a search that *did* find products ("black hoodie under 1500"), a message like "hudieee under 1500" is
+  still read as a follow-up and shows hoodies; that is the older refinement rule, and the reply says it can't verify the word.

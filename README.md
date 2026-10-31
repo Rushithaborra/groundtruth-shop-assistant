@@ -276,7 +276,7 @@ documentation. The team reviewed every change and can explain the code.
 
 **Written for this hackathon, mostly before Day 1 (30 October 2026).** All the code in this repository was written for
 this hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit in the
-table below came before Day 1 except the last three rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
+table below came before Day 1 except the last five rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
 
 | Dates | Commits | Author | What |
 |---|---|---|---|
@@ -292,7 +292,9 @@ table below came before Day 1 except the last three rows, which were made during
 | 2026-10-29 | after `d000e83` | Rushitha Borra | Lint and README fixes; grounding checker no longer flags attribute names |
 | **2026-10-30 to 31 (Day 1)** | the five commits after `27c7368`, ending `d9f4762` | Sushanth Kilari with Claude Code | **Made during the event:** faster, set-based catalogue search; live catalogue updates; the low-token numbered-menu resolver and learned-synonym review (off by default, not run with a real model); a session store (memory or SQLite); tests and docs for these. Replies are identical to before on all 150 pack predictions and the dev score is unchanged at 0.9500 |
 | **2026-10-31 (during the event)** | the commit "Mend short vowel-slip typos, offer 'did you mean', keep a budget that found nothing" (pull request #1) | Sushanth Kilari with Claude | **Made during the event:** short-word typo repair by one vowel slip ("jeens" -> jeans) with the correction shown in the reply; "Did you mean" offers on refusals; a budget that found nothing stays in force on the next turn; 14 tests (`tests/test_typos_and_budget_memory.py`). Replies to every question in the repo's question sets are unchanged (428 compared before and after) |
+| **2026-10-31 (during the event)** | the commit "Offer 'did you mean' only for close slips; note browser speech on the live demo" | Sushanth Kilari | **Made during the event:** tightened the 'did you mean' offer (same first letter, similar length, typed word of at least 5 letters) so real words are not guessed at; notes on the browser-speech fallback. Small change in `catalogue/index.py` and its test |
 | **2026-10-31 (during the event)** | the commit "Speak button: browser-speech fallback, and keep a hidden button hidden" | Sushanth Kilari with Claude Code | **Made during the event:** the Speak button was shown even when the server had no speech model (a CSS rule overrode `hidden`) and could not work; it now stays hidden unless voice is available, and uses the browser's own speech recognition when the offline model is not installed. Page and docs only; no answer changes |
+| **2026-10-31 (during the event)** | the commit "Do not reuse a budget-missed search for a message with an unplaced word" | Sushanth Kilari with Claude Code | **Made during the event:** after a search that failed only on its budget ("jeans under 1000"), a message with a word the assistant can't place ("hudieee under 1500") was answered with the remembered jeans; it is now refused, as before the budget-memory change. A budget-only follow-up still uses the kept search. Three tests; replies identical on all 210 compared |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),

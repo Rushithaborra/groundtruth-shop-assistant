@@ -102,7 +102,10 @@ class Session:
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
     shown: list[str] = field(default_factory=list)  # products in the last listing, for "which sizes?"
+    budget_kept: bool = (
+        False  # `spec` is a search that found nothing only because of its budget, kept for the next turn
+    )
 
     def clear(self) -> None:
         """Forget everything the session remembers."""
-        self.spec, self.last_product, self.shown = Spec(), None, []
+        self.spec, self.last_product, self.shown, self.budget_kept = Spec(), None, [], False
