@@ -1087,3 +1087,16 @@ Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
 * Checked on all 364 replies of the repo's question sets before and after: 0 changed (so the same scores). Two
   regressions of the first version of this fix ("fitness band", "phone cases") are tests now.
   Tests: `tests/test_typos_and_budget_memory.py`.
+
+## 31 Oct: Speak button in the submission zip
+
+* **Found:** in the zip the Speak button did nothing useful. The offline speech model (about 480 MB) can't be in the zip,
+  so `/api/info` says `voice: false` and the page sets the button `hidden`, but `form.ask button.mic { display: inline-flex }`
+  overrode `hidden`, so the button was shown and every press failed at `/api/transcribe`.
+* **Fixed** (`web/index.html`): `form.ask button.mic[hidden] { display: none }`; and when the offline model is missing and the
+  browser has `SpeechRecognition` / `webkitSpeechRecognition` (Chrome, Edge), Speak uses that (language `en-IN`, stops by
+  itself, the text is asked like a typed question). Its tooltip says it needs the internet and uses the browser's speech
+  service; the offline Whisper path is unchanged and is still used when installed. A browser with neither gets no button.
+* Checked in headless Chromium with a stand-in recognizer: button shown, spoken text answered, "not allowed", "network" and
+  "no speech" each give their own message, and no button without support. The real microphone was not tried here.
+  Tests: `tests/test_page_voice_button.py` (page text only).

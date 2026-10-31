@@ -160,7 +160,10 @@ uv run python main.py serve           # the Speak button now appears; no interne
 
 The page records with the browser's own recorder and posts the recording (WebM, Ogg or MP4, as the browser makes
 it) to `/api/transcribe` on the same server, which decodes it with PyAV and transcribes it; it is checked like any
-request (same site only, audio types only, at most 15 seconds and 600 KB, rate-limited) and never stored or logged. Without the extra or the model the button simply doesn't appear. Browsers allow the
+request (same site only, audio types only, at most 15 seconds and 600 KB, rate-limited) and never stored or logged. Without the extra or the model (the model is about 480 MB, so it is not in the submission zip), the
+button falls back to the browser's own speech recognition in Chrome or Edge: it needs the internet and sends the audio to
+the browser's vendor, so its tooltip says so, and it is not the offline path. In a browser with no speech recognition the
+button doesn't appear. Browsers allow the
 microphone only on `localhost` or HTTPS, so voice works on the laptop running the demo, not on a phone over Wi-Fi.
 Measured with a synthetic Indian-English voice (macOS `say`, not real shoppers): on 12 spoken questions that no
 change was based on, 11 gave the same answer as the typed question (the smaller "base" model: 8); transcription takes
@@ -273,7 +276,7 @@ documentation. The team reviewed every change and can explain the code.
 
 **Written for this hackathon, mostly before Day 1 (30 October 2026).** All the code in this repository was written for
 this hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit in the
-table below came before Day 1 except the last two rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
+table below came before Day 1 except the last three rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
 
 | Dates | Commits | Author | What |
 |---|---|---|---|
@@ -289,6 +292,7 @@ table below came before Day 1 except the last two rows, which were made during t
 | 2026-10-29 | after `d000e83` | Rushitha Borra | Lint and README fixes; grounding checker no longer flags attribute names |
 | **2026-10-30 to 31 (Day 1)** | the five commits after `27c7368`, ending `d9f4762` | Sushanth Kilari with Claude Code | **Made during the event:** faster, set-based catalogue search; live catalogue updates; the low-token numbered-menu resolver and learned-synonym review (off by default, not run with a real model); a session store (memory or SQLite); tests and docs for these. Replies are identical to before on all 150 pack predictions and the dev score is unchanged at 0.9500 |
 | **2026-10-31 (during the event)** | the commit "Mend short vowel-slip typos, offer 'did you mean', keep a budget that found nothing" (pull request #1) | Sushanth Kilari with Claude | **Made during the event:** short-word typo repair by one vowel slip ("jeens" -> jeans) with the correction shown in the reply; "Did you mean" offers on refusals; a budget that found nothing stays in force on the next turn; 14 tests (`tests/test_typos_and_budget_memory.py`). Replies to every question in the repo's question sets are unchanged (428 compared before and after) |
+| **2026-10-31 (during the event)** | the commit "Speak button: browser-speech fallback, and keep a hidden button hidden" | Sushanth Kilari with Claude Code | **Made during the event:** the Speak button was shown even when the server had no speech model (a CSS rule overrode `hidden`) and could not work; it now stays hidden unless voice is available, and uses the browser's own speech recognition when the offline model is not installed. Page and docs only; no answer changes |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),

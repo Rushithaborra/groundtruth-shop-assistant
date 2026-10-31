@@ -210,6 +210,7 @@ form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padd
 form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
 form.ask button.mic { display: inline-flex; align-items: center; gap: 7px; background: var(--card); color: var(--btn-ink); border: 2px solid var(--btn); padding: 0 14px; white-space: nowrap; }
+form.ask button.mic[hidden] { display: none; }  /* the display rule above would otherwise show a button the page has hidden */
 form.ask button.mic svg { width: 16px; height: 16px; flex: none; }
 form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; padding-right: 6px; }
 form.ask button.mic.rec:hover { background: #9a1f18; }
@@ -365,11 +366,17 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   let maxSeconds = 15;  // the longest recording; the server says its own limit in /api/info
+  // Chrome and Edge can turn speech into text themselves. Used only when this server has no offline speech model
+  // (the model is about 480 MB, so it is not in the submission zip). That service needs the internet and sends the
+  // audio to the browser's vendor, so the button says so.
+  const BrowserSpeech = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let browserSpeech = false, browserRec = null;
   fetch("/api/info").then((r) => r.json()).then((info) => {
     snapshot = info.snapshot ? new Date(info.snapshot + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
     $("catalogue-size").textContent = `${info.products.toLocaleString("en-IN")} products${snapshot ? ` · prices as of ${snapshot}` : ""}`;
     const canRecord = !!(navigator.mediaDevices && window.MediaRecorder);
     if (info.voice && canRecord) { $("mic").hidden = false; maxSeconds = info.voice_max_seconds || maxSeconds; }
+    else if (BrowserSpeech) { browserSpeech = true; $("mic").hidden = false; setMic("idle"); }  // no offline model: the browser's own
     if ("speechSynthesis" in window) $("speak-wrap").hidden = false;
     if (info.examples && info.examples.length) {
       $("examples").innerHTML = info.examples.map((e) => `<button type="button" data-q="${esc(e.q)}"><span class="ex-label">${esc(e.label)}</span>${esc(e.q)}</button>`).join("");
@@ -692,7 +699,7 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   const MIC_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   const STOP_ICON = '<svg viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="1.5" fill="currentColor"/></svg>';
   const MIC_LOOKS = {
-    idle: { html: `${MIC_ICON}<span class="label">Speak</span>`, label: "Ask by voice", hint: null },
+    idle: { html: `${MIC_ICON}<span class="label">Speak</span>`, label: "Ask by voice", hint: null },  // see setMic for the browser-speech wording
     listening: { html: `<span class="dot" aria-hidden="true"></span><span class="label">Listening…</span><span class="stop">${STOP_ICON}</span>`, label: "Stop listening", hint: "Listening… say your question, then press ■ to stop." },
     transcribing: { html: `<span class="spin" aria-hidden="true"></span><span class="label">Transcribing…</span>`, label: "Turning your speech into text", hint: "Turning your speech into text…" },
   };
@@ -701,7 +708,8 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     const look = MIC_LOOKS[state];
     if (state === "listening") idleHint = input.placeholder;
     mic.innerHTML = look.html;  // fixed markup above; nothing typed or transcribed goes in here
-    mic.setAttribute("aria-label", look.label); mic.title = look.label;
+    const label = state === "idle" && browserSpeech ? "Ask by voice (uses your browser's speech service; needs internet)" : look.label;
+    mic.setAttribute("aria-label", label); mic.title = label;
     mic.classList.toggle("rec", state === "listening"); mic.classList.toggle("busy", state === "transcribing");
     mic.disabled = state === "transcribing";
     if (look.hint) input.placeholder = look.hint;
@@ -720,7 +728,28 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
     } catch (err) { setMic("idle"); input.placeholder = err.message; }
   }
   function stopRecording() { clearTimeout(rec.timer); if (rec.recorder.state === "recording") rec.recorder.stop(); }
+  function startBrowserSpeech() {
+    const r = new BrowserSpeech();
+    r.lang = "en-IN"; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;  // stops by itself after you finish
+    let heard = "", problem = "";
+    r.onstart = () => setMic("listening");
+    r.onresult = (e) => { heard = Array.from(e.results).map((x) => x[0].transcript).join(" "); input.value = heard; };
+    r.onerror = (e) => {
+      problem = e.error === "not-allowed" || e.error === "service-not-allowed" ? "The microphone isn’t allowed (allow it in the browser, on this computer)."
+        : e.error === "network" ? "Browser speech needs the internet. Type your question instead."
+        : e.error === "no-speech" || e.error === "aborted" ? "" : "Voice isn’t available right now. Type your question instead.";
+      if (e.error === "no-speech") problem = "Didn’t catch that. Press Speak and try again, or type your question.";
+    };
+    r.onend = () => {
+      browserRec = null; setMic("idle"); input.value = "";
+      const text = heard.trim();
+      if (text) ask(text); else if (problem) input.placeholder = problem; else input.placeholder = "Didn’t catch that. Press Speak and try again.";
+    };
+    browserRec = r;
+    try { r.start(); } catch (err) { browserRec = null; setMic("idle"); input.placeholder = "Voice isn’t available right now. Type your question instead."; }
+  }
   mic.addEventListener("click", async () => {
+    if (browserSpeech) { if (browserRec) browserRec.stop(); else startBrowserSpeech(); return; }
     if (rec) { stopRecording(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
