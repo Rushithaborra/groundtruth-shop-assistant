@@ -36,8 +36,16 @@ class LocalEmbedder:
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
             raise _missing_library("sentence-transformers") from exc
+        if not Path(model_path).is_dir():  # local files only: a missing folder is never looked up online
+            raise ModelLoadError(
+                f"embedding model folder not found: {model_path} "
+                "(download it with the pack's download_models.py, see README, 'How to run')"
+            )
         settings = get_settings().models
-        self._model = SentenceTransformer(str(model_path), device="cpu", local_files_only=True)
+        try:
+            self._model = SentenceTransformer(str(model_path), device="cpu", local_files_only=True)
+        except (OSError, ValueError) as exc:  # a folder that is not a model, or a cut-off download
+            raise ModelLoadError(f"embedding model in {model_path} could not be loaded: {exc}") from exc
         self._model.max_seq_length = settings.embed_max_length
         self._timeout_s, self._retries, self._backoff_s = (
             settings.embed_timeout_s,

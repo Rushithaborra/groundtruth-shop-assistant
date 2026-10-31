@@ -15,7 +15,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Callable
 
-from ..catalogue import KIND_KEY, CatalogueIndex, Product, Spec
+from ..catalogue import KIND_KEY, CatalogueIndex, Product, Spec, head_nouns
 from ..concurrency import ReadWriteLock
 from ..config import get_settings
 from ..policy import STRONG, Section
@@ -35,7 +35,7 @@ from ..understanding import Parsed, understand
 from ..understanding.lexicon import BROWSE_W
 from ..understanding.parser import COMMON_WORD_PRODUCTS
 from . import listings, product_answers, refusals
-from .formatting import SORT_LABELS, head_nouns, product_line
+from .formatting import SORT_LABELS, product_line
 from .policy_answers import cited_section, policy_answer, policy_silent
 from .product_answers import FACTS
 from .response import ANSWER, CLARIFY, REFUSE, Claims, Response, Session

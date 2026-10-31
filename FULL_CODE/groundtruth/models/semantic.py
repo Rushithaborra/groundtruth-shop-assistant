@@ -14,17 +14,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
+import os
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Sequence
 
+from ..catalogue import KIND_KEY, head_nouns
 from ..policy import Section
+from .calls import ModelCallError
 
 if TYPE_CHECKING:
     from ..catalogue import CatalogueIndex
     from ..understanding import Parsed
+
+logger = logging.getLogger(__name__)
 
 
 class Embedder(Protocol):
@@ -61,7 +67,8 @@ def type_words(index: CatalogueIndex) -> list[str]:
     Model names ("Flex", "Apex") and brands spread across categories or are excluded explicitly, so the fallback
     can only map a shopper word onto a product type, never onto a brand, model, colour or material.
     """
-    attr_words = {t for vals in index.attr_values.values() for toks in vals for t in toks}  # brands, colours, ...
+    # brands, colours, ...; not the kinds of product themselves ("Running Shoes"), or no kind word could be a type
+    attr_words = {t for key, vals in index.attr_values.items() if key != KIND_KEY for toks in vals for t in toks}
     words = []
     for tok, pids in index._text_postings.items():
         if len(pids) < max(3, len(index.products) // 500) or tok in attr_words or tok.isdigit() or len(tok) < 3:
@@ -70,6 +77,17 @@ def type_words(index: CatalogueIndex) -> list[str]:
         if cats.most_common(1)[0][1] / len(pids) >= 0.9:
             words.append(tok)
     return sorted(words)
+
+
+def embedding_targets(index: CatalogueIndex) -> list[str]:
+    """The words the embedding fallback may map a shopper word onto: the product types that name what a product is.
+
+    `type_words` also holds category names ("apparel", "home") and describing words ("wireless"). A shopper word that
+    lands near one of those would pull in a whole category, or every wireless product, instead of being refused, so
+    only the nouns that end product titles and kinds ("shoe", "earbud", "bank") are kept.
+    """
+    nouns = head_nouns(index)
+    return [w for w in type_words(index) if w in nouns]
 
 
 class SemanticFallback:
@@ -82,7 +100,7 @@ class SemanticFallback:
         self.map_threshold = map_threshold
         self.alt_threshold = alt_threshold if alt_threshold is not None else map_threshold
         self.policy_threshold = policy_threshold
-        self.targets = type_words(index)
+        self.targets = embedding_targets(index)
         self.policy_units = [(sec, sent) for sec in policy for sent, _ in sec.sentences]
         texts = self.targets + [s for _, s in self.policy_units]
         vecs = self._cached(texts, cache_dir)
@@ -91,16 +109,20 @@ class SemanticFallback:
         self._memo: dict[str, Match | None] = {}
 
     def _cached(self, texts: list[str], cache_dir: str | Path | None) -> list[list[float]]:
-        """Embeddings for these texts, read from or written to the cache folder when one is given."""
+        """Embeddings for these texts, read from or written to the cache folder when one is given.
+
+        A cache file that is cut off, unreadable or the wrong size (a killed start-up, a disk filling up) is rebuilt
+        rather than stopping the assistant, and a new file is written whole or not at all.
+        """
         if not cache_dir:
             return self.embedder.encode(texts)
         key = hashlib.sha1(json.dumps([self.embedder.name, texts]).encode()).hexdigest()[:16]
         path = Path(cache_dir) / f"embeddings-{key}.json"
-        if path.exists():
-            return json.loads(path.read_text())
+        cached = _read_cache(path, len(texts))
+        if cached is not None:
+            return cached
         vecs = self.embedder.encode(texts)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(vecs))
+        _write_cache(path, vecs)
         return vecs
 
     def nearest_type(self, word: str) -> Match | None:
@@ -109,10 +131,21 @@ class SemanticFallback:
             if not self.targets:
                 self._memo[word] = None
             else:
-                v = self.embedder.encode([word])[0]
+                v = self._embed(word)
+                if v is None:
+                    return None  # the model failed: not remembered, so the next question tries again
                 score, target = max((dot(v, t), w) for t, w in zip(self.target_vecs, self.targets))
                 self._memo[word] = Match(word, target, score)
         return self._memo[word]
+
+    def _embed(self, text: str) -> list[float] | None:
+        """One text as a vector, or None when the model times out, is busy or fails: the caller then does what the
+        rule-based path would have done, as with every other model call."""
+        try:
+            return self.embedder.encode([text])[0]
+        except ModelCallError as exc:
+            logger.warning("embedding fallback skipped: %s", exc)
+            return None
 
     def resolve(self, parsed: Parsed) -> bool:
         """Map unknown product words in place. Returns True if the parse changed."""
@@ -137,12 +170,42 @@ class SemanticFallback:
         """The policy sentence closest to the query, if it clears the calibrated threshold."""
         if self.policy_threshold is None or not self.policy_units:
             return None
-        v = self.embedder.encode([query])[0]
+        v = self._embed(query)
+        if v is None:
+            return None
         score, i = max((dot(v, p), i) for i, p in enumerate(self.policy_vecs))
         if score < self.policy_threshold:
             return None
         sec, sent = self.policy_units[i]
         return sec, sent, score
+
+
+def _read_cache(path: Path, expected: int) -> list[list[float]] | None:
+    """The cached vectors, or None when there is no usable cache file (missing, cut off, or the wrong size)."""
+    try:
+        vecs = json.loads(path.read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        logger.warning("embedding cache %s is unreadable (%s); rebuilding it", path, exc)
+        return None
+    if not isinstance(vecs, list) or len(vecs) != expected:
+        logger.warning("embedding cache %s does not match the catalogue and policy; rebuilding it", path)
+        return None
+    return vecs
+
+
+def _write_cache(path: Path, vecs: list[list[float]]) -> None:
+    """Save the vectors through a temporary file, so a start-up killed half-way never leaves a cut-off cache. A cache
+    that cannot be written costs only the next start-up's time."""
+    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps(vecs))
+        os.replace(tmp, path)
+    except OSError as exc:
+        logger.warning("embedding cache %s not saved: %s", path, exc)
+        tmp.unlink(missing_ok=True)
 
 
 def load_config(path: str | Path) -> dict | None:

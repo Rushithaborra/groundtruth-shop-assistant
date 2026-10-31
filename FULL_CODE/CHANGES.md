@@ -1100,3 +1100,38 @@ Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
 * Checked in headless Chromium with a stand-in recognizer: button shown, spoken text answered, "not allowed", "network" and
   "no speech" each give their own message, and no button without support. The real microphone was not tried here.
   Tests: `tests/test_page_voice_button.py` (page text only).
+
+## Embedding fallback: wrong target words and no fallback when the model fails, 31 October
+
+Found by reading `models/semantic.py` against a catalogue shaped like the pack's (every product has a `sub_category`).
+**Not measured with the real MiniLM model or the real pack**: neither is on the machine this was done on, so no score
+changed or is claimed. The default answers do not change (models are off); bundled sets still score 1.000 as before.
+
+* **The target list lost every product type (`type_words`).** It treated the tokens of `sub_category` ("Running Shoes",
+  "Power Banks") as attribute values and removed them, so on a pack-shaped catalogue the words left were categories and
+  describing words (`apparel`, `electronic`, `home`, `wireless`, `bluetooth`) and `shoe`, `earbud`, `kurta`, `bank`
+  were gone. A shopper word near "electronic" was then searched as a whole category instead of being refused. That is
+  a likely cause of the Task 3 notes (two unsold items no longer refused, non-types such as `gsm`, `mah` and `sport`
+  in the list, only one example synonym present in the catalogue). `CatalogueIndex` already leaves that key out for the
+  same reason (`index.py`); `type_words` now does too. The optional LLM paths (`resolver`, `normaliser`) share the list,
+  so their candidates change with it.
+* **Only product nouns are targets (`embedding_targets`).** Of the type words, the embedding fallback keeps the nouns that
+  end product titles and kinds (`head_nouns`, moved from `answering/formatting.py` to the catalogue package so the model
+  code does not import the answering code). Categories and describing words can no longer be the thing a word is
+  read as. Cost: "jogging" can now be read as `shoe`, not `running`. Calibration sets the thresholds from whatever
+  targets exist, so re-run `main.py calibrate` with the real model.
+* **A failed model call crashed the reply.** A timeout, or a second shopper arriving while the one model worker was
+  busy, raised `ModelCallError` out of `ask()`, although the module docs say every model call falls back to rules. Now
+  the word or policy question is treated as if the fallback were off, and the failure is not remembered as an answer.
+* **A cut-off embedding cache stopped start-up for good.** The cache was written in place; a start-up killed half-way left
+  a file that failed to parse on every later start. It is now written through a temporary file, and a missing, cut-off or
+  wrong-sized file is rebuilt.
+* **A missing or broken embedding model stopped the whole assistant.** `build_assistant` now logs a warning and runs on
+  rules; `LocalEmbedder` names the missing folder instead of passing on a library error.
+
+Still open: `calibrate` scores "flip flops" and "fitness band" as phrases, but at run time each unplaced word is looked up
+alone, so multi-word synonyms are calibrated differently from how they are used. Not changed without the model to check it.
+
+To measure (needs the model folder and the pack): `python main.py calibrate --embed-model models/all-MiniLM-L6-v2 --catalogue
+data/pack/data/catalogue.jsonl --policy data/pack/data/policy.md`, then `python main.py score --part all` with and without
+`--embed-model`; keep the fallback only if the check half (0.900) does not fall. Tests: 318 (new `tests/test_embedding_fixes.py`).

@@ -63,7 +63,7 @@ class FallbackTests(unittest.TestCase):
         words = type_words(cls.index) + [refund]
         cls.axes = {w: i for i, w in enumerate(words)}
         cls.leaning = {
-            "zoomer": ("running", 0.9),
+            "zoomer": ("shoe", 0.9),
             "gizmo": ("earbud", 0.6),
             "nike": ("running", 0.99),
             "money back timeline": (refund, 0.8),
@@ -86,8 +86,8 @@ class FallbackTests(unittest.TestCase):
         a, g = self.assistant(FakeEmbedder(self.axes, self.leaning))
         r = a.ask("zoomers under 3000")
         self.assertEqual((r.action, r.path), (ANSWER, "semantic"))
-        self.assertIn('"zoomer" as "running"', r.text)
-        self.assertTrue(all("Running" in a.index.products[c].title for c in r.citations))
+        self.assertIn('"zoomer" as "shoe"', r.text)
+        self.assertTrue(r.citations and all(a.index.has_text_token(c, "shoe") for c in r.citations))
         self.grounded(g, r, "zoomers under 3000")
 
     def test_word_between_thresholds_refuses_with_alternative(self):
@@ -123,7 +123,7 @@ class FallbackTests(unittest.TestCase):
         self.grounded(g, r, "money back timeline")
 
     def test_calibration_sets_threshold_above_every_unsold_word(self):
-        fb = SemanticFallback(self.index, self.policy, FakeEmbedder(self.axes, {"iphone": ("power", 0.7)}), 1.0)
+        fb = SemanticFallback(self.index, self.policy, FakeEmbedder(self.axes, {"iphone": ("bank", 0.7)}), 1.0)
         cfg = calibrate(fb)["config"]
         self.assertGreater(cfg["map_threshold"], 0.7)
 

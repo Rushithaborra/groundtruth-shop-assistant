@@ -87,7 +87,8 @@ def _semantic_fallback(
     index: CatalogueIndex, policy: list[Section], embed_model: str, semantic_config: str | Path, cache_dir: str | Path
 ) -> SemanticFallback | None:
     """The embedding fallback, or None (with a warning) when it has not been calibrated yet."""
-    from .models.local import LocalEmbedder
+    from .models.calls import ModelCallError
+    from .models.local import LocalEmbedder, ModelLoadError
     from .models.semantic import SemanticFallback, load_config
 
     config = load_config(semantic_config)
@@ -96,15 +97,19 @@ def _semantic_fallback(
             "%s not found: run `python main.py calibrate` first; embedding fallback disabled", semantic_config
         )
         return None
-    return SemanticFallback(
-        index,
-        policy,
-        LocalEmbedder(embed_model),
-        config["map_threshold"],
-        config.get("alt_threshold"),
-        config.get("policy_threshold"),
-        cache_dir=cache_dir,
-    )
+    try:
+        return SemanticFallback(
+            index,
+            policy,
+            LocalEmbedder(embed_model),
+            config["map_threshold"],
+            config.get("alt_threshold"),
+            config.get("policy_threshold"),
+            cache_dir=cache_dir,
+        )
+    except (ModelLoadError, ModelCallError) as exc:  # an optional fallback never stops the rule-based assistant
+        logger.warning("embedding fallback disabled: %s", exc)
+        return None
 
 
 def _normaliser(llm_model: str, resolver: str = "shortlist") -> LLMNormaliser | ShortlistNormaliser:

@@ -2,24 +2,11 @@
 
 from __future__ import annotations
 
-from ..catalogue import CatalogueIndex, Product
-from ..text import format_inr, tokenize
+from ..catalogue import Product
+from ..text import format_inr
 from .response import Claims
 
 SORT_LABELS = {"price_asc": "lowest-priced", "price_desc": "highest-priced", "rating_desc": "highest-rated"}
-
-
-def head_nouns(index: CatalogueIndex) -> frozenset[str]:
-    """Words that name what a product is: the last word of each title (\"... Running Shoes (Blue)\" -> \"shoe\"), and
-    the last word of each kind sold (\"cable\" in USB Cables), since titles may end in a colour (\"... - White\")."""
-    nouns = set(index.kind_nouns)
-    for p in index.products.values():
-        words = [w.replace("-", "") for w in p.title.split("(")[0].split()]  # "T-Shirt" -> "TShirt"
-        words = [w for w in words if w.isalpha()]
-        if words:
-            toks = tokenize(words[-1])
-            nouns.update(toks[-1:])
-    return frozenset(nouns)
 
 
 def stock_text(p: Product) -> str:
