@@ -38,7 +38,7 @@ from . import listings, product_answers, refusals
 from .formatting import SORT_LABELS, head_nouns, product_line
 from .policy_answers import cited_section, policy_answer, policy_silent
 from .product_answers import FACTS
-from .response import ANSWER, CLARIFY, REFUSE, Claims, Response, Session
+from .response import ANSWER, CLARIFY, REFUSE, Claims, Response, Session, spec_from_dict, spec_to_dict
 
 if TYPE_CHECKING:  # only for the annotations below: the model fallbacks are optional and load lazily
     from ..models.normaliser import LLMNormaliser
@@ -113,6 +113,7 @@ class ShoppingAssistant:
 
     def _ask(self, query: str, session: Session | None) -> Response:
         session = session if session is not None else Session()
+        session.carry_from = None  # set again by _resolve when this turn moves to another product
         start = time.perf_counter()
         parsed, path, llm_usage = understand(query, self.index), "rules", (0, 0)
         if self._missed(parsed) and self.synonyms is not None and self.synonyms.apply(parsed, self.index):
@@ -236,6 +237,120 @@ class ShoppingAssistant:
         if _asks_for_nothing(spec):  # "not nike" alone says what isn't wanted
             return Response(ASK_WHAT, CLARIFY)
         return self._search(p, spec, session)
+
+    # -- chat memory (web chat only: Session.carry) --------------------------------------------
+    def _kind_tokens(self, spec: Spec) -> list[str]:
+        """The product words of a search ("jean", "hoodie"), from its words or its category filters."""
+        tokens = list(spec.type_tokens)
+        for key in KIND_FILTERS:
+            tokens += tokenize(spec.filters.get(key, ""))
+        return list(dict.fromkeys(tokens))
+
+    def _remember_search(self, session: Session) -> None:
+        """Put the search being left into the chat's history (replacing an older one for the same product)."""
+        spec = session.spec
+        kinds = self._kind_tokens(spec)
+        if not kinds:
+            return
+        label = " ".join(self.index.display_word(t) for t in spec.type_tokens) or spec.filters.get(KIND_KEY, "")
+        label = label or spec.filters.get("category", "") or " ".join(kinds)
+        session.history = [e for e in session.history if set(e["kinds"]) != set(kinds)]
+        session.history.append({"label": label, "kinds": kinds, "spec": spec_to_dict(spec)})
+        del session.history[:-MAX_HISTORY]
+
+    def _go_back(self, p: Parsed, session: Session) -> Spec | None:
+        """ "Back to the jeans", "jeans again": the earlier search for that product, with anything the message adds."""
+        if not (BACK_WORDS & p.all_tokens) or not session.history:
+            return None
+        named = p.all_tokens | set(p.spec.type_tokens)
+        entry = next((e for e in reversed(session.history) if set(e["kinds"]) & named), None)
+        if entry is None:
+            return None
+        restored = spec_from_dict(entry["spec"])
+        session.history.remove(entry)  # it is the current search again
+        if set(self._kind_tokens(session.spec)) != set(self._kind_tokens(restored)):
+            self._remember_search(session)  # the search being left, unless it is the same product
+        p.unknown = [w for w in p.unknown if w not in BACK_WORDS]  # "back" is not a product word we failed to place
+        extra = p.spec.copy()
+        extra.type_tokens = []  # the product is already in the restored search
+        p.refined = True
+        return _refine(restored, extra)
+
+    def _with_carry(self, spec: Spec, prev: Spec, p: Parsed) -> tuple[Spec, str | None]:
+        """`spec` (a new product) with the earlier search's budget, size, brand/colour/gender and exclusions added when
+        the message doesn't say its own. If nothing matches with all of them, drop them in a fixed order (size, then
+        filters and exclusions, then the budget) until something matches. Returns the spec and a line saying what was
+        kept or dropped (None when there was nothing to carry)."""
+        budget = (prev.price_min, prev.price_max) if spec.price_min is None and spec.price_max is None else (None, None)
+        layers: dict[str, object] = {}
+        if budget != (None, None):
+            layers["budget"] = budget
+        if prev.size and spec.size is None:
+            layers["size"] = prev.size
+        filters = {k: v for k, v in prev.filters.items() if k in IDENTIFYING and k not in spec.filters}
+        if filters:
+            layers["filters"] = filters
+        exclude = {k: vs for k, vs in prev.exclude.items() if k not in spec.exclude}
+        if exclude:
+            layers["exclude"] = exclude
+        if not layers:
+            return spec, None
+        for dropped in ((), ("size",), ("size", "filters", "exclude"), ("size", "filters", "exclude", "budget")):
+            kept = [name for name in layers if name not in dropped]
+            candidate = self._carried(spec, prev, layers, kept)
+            if kept and self.index.search(candidate, p.all_tokens)[0]:
+                return candidate, self._carry_note(spec, layers, kept)
+        return spec, self._carry_note(spec, layers, [], none_fit=True)
+
+    @staticmethod
+    def _carried(spec: Spec, prev: Spec, layers: dict, kept: list[str]) -> Spec:
+        """A copy of `spec` with the named layers of the earlier search added."""
+        out = spec.copy()
+        if "budget" in kept:
+            out.price_min, out.price_max = layers["budget"]  # type: ignore[misc]
+        if "size" in kept:
+            out.size, out.size_soft = prev.size, prev.size_soft
+        if "filters" in kept:
+            out.filters.update(layers["filters"])  # type: ignore[arg-type]
+            for key in layers["filters"]:  # type: ignore[attr-defined]
+                out.alternatives[key] = list(prev.alternatives.get(key, []))
+        if "exclude" in kept:
+            for key, values in layers["exclude"].items():  # type: ignore[attr-defined]
+                out.exclude[key] = list(values)
+        return out
+
+    def _carry_note(self, spec: Spec, layers: dict, kept: list[str], none_fit: bool = False) -> str:
+        """ "(Kept from your earlier search: black, men, under ₹1,500.)", plus what had to be dropped."""
+
+        def words(names: list[str]) -> list[str]:
+            """Plain words for some layers ("under ₹1,500", "size 9", "black")."""
+            out: list[str] = []
+            for name in names:
+                value = layers[name]
+                if name == "budget":
+                    low, high = value  # type: ignore[misc]
+                    # in rupees without the sign: this line repeats the shopper's own budget and cites no product,
+                    # and the grounding check treats a line with a rupee sign as a price that needs a citation
+                    out += ([f"over {_rupees(low)}"] if low is not None else []) + (
+                        [f"under {_rupees(high)}"] if high is not None else []
+                    )
+                elif name == "size":
+                    out.append(f"size {value}")
+                elif name == "filters":
+                    out += [str(v) for v in value.values()]  # type: ignore[attr-defined]
+                else:
+                    out += [f"not {v}" for vs in value.values() for v in vs]  # type: ignore[attr-defined]
+            return out
+
+        if none_fit:
+            return f"(Nothing from your earlier search fits ({', '.join(words(list(layers)))}), so I started fresh.)"
+        line = f"(Kept from your earlier search: {', '.join(words(kept))}."
+        dropped = [name for name in layers if name not in kept]
+        if dropped:
+            line += f" Dropped {', '.join(words(dropped))}: nothing matches with them.)"
+        else:
+            line += ")"
+        return line
 
     def _budget_ruled_out(self, spec: Spec, p: Parsed) -> bool:
         """Nothing fits the budget, but the same search without it finds products: the budget is what failed."""
@@ -369,6 +484,18 @@ class ShoppingAssistant:
         return refusals.unknown_refusal(self.index, p, self.list_limit)
 
     def _search(self, p: Parsed, spec: Spec, session: Session) -> Response:
+        """Search with hard constraints. With chat memory on (web only), a new product also gets the earlier search's
+        budget, size and brand/colour/gender, and the reply says what was kept or dropped."""
+        note = None
+        if session.carry_from is not None:
+            spec, note = self._with_carry(spec, session.carry_from, p)
+            session.carry_from = None
+        resp = self._search_core(p, spec, session)
+        if note and resp.action == ANSWER:
+            resp.text = f"{note}\n{resp.text}"
+        return resp
+
+    def _search_core(self, p: Parsed, spec: Spec, session: Session) -> Response:
         """Search with hard constraints, then name one product, ask which one, or list the best matches."""
         unlisted = _drop_unlisted_filters(self.index, spec, p)
         hits, relaxed = self.index.search(spec, p.all_tokens)
@@ -434,29 +561,50 @@ class ShoppingAssistant:
         no_ref = not (s.type_tokens or s.filters or s.size or s.price_min is not None or s.price_max is not None)
         if session.last_product and no_ref and (p.intents & FACTS or p.unknown or s.desc_tokens):
             return products[session.last_product], Spec()
+        if session.carry:
+            back = self._go_back(p, session)
+            if back is not None:
+                return None, back
         # a different kind of product ("cotton kurti" after "blue running shoes") is a new search, whether it was
-        # named by product words or read as a category, so the earlier colour or type doesn't carry over
+        # named by product words or read as a category, so the earlier colour or type doesn't carry over (unless the
+        # chat has memory switched on: then the budget, size and brand/colour/gender are carried over, see _with_carry)
         new_kind = any(k in s.filters and s.filters[k] != session.spec.filters.get(k) for k in KIND_FILTERS)
         if s.type_tokens or new_kind or session.spec.is_empty() or not (p.has_constraint or s.sort or s.desc_tokens):
+            if session.carry and (s.type_tokens or new_kind) and not session.spec.is_empty():
+                if set(self._kind_tokens(session.spec)) != set(self._kind_tokens(s)):
+                    self._remember_search(session)  # moving to another product, not narrowing this one
+                session.carry_from = session.spec.copy()
             return None, s.copy()
         if session.budget_kept and set(p.unknown) - set(p.external):
             # the kept search failed on its budget; a message with a word we can't place ("hudieee under 1500") is a new
             # request, not a follow-up, so the failed search's product must not be shown for it
             return None, s.copy()
-        merged = session.spec.copy()  # a refinement of the previous search
-        merged.filters.update(s.filters)
-        for key in s.filters:  # a new value for a filter replaces the old one and its "or" alternatives
-            merged.alternatives[key] = list(s.alternatives.get(key, []))
-        for key, values in s.exclude.items():
-            merged.exclude[key] = list(dict.fromkeys(merged.exclude.get(key, []) + values))
-        merged.desc_tokens = list(dict.fromkeys(merged.desc_tokens + s.desc_tokens))
-        for attr in ("price_min", "price_max", "size", "sort"):
-            if getattr(s, attr) is not None:
-                setattr(merged, attr, getattr(s, attr))
-        if s.size is not None:
-            merged.size_soft = s.size_soft
+        merged = _refine(session.spec, s)  # a refinement of the previous search
         p.refined = True
         return None, merged
+
+
+def _rupees(amount: float) -> str:
+    """ "3,000 rupees": an amount the shopper gave, in words rather than with the rupee sign."""
+    return f"{format_inr(amount).lstrip('₹')} rupees"
+
+
+def _refine(base: Spec, s: Spec) -> Spec:
+    """`base` with what a follow-up message says laid over it: new filters replace old ones, exclusions and description
+    words add up, and a new budget, size or sort replaces the earlier one."""
+    merged = base.copy()
+    merged.filters.update(s.filters)
+    for key in s.filters:  # a new value for a filter replaces the old one and its "or" alternatives
+        merged.alternatives[key] = list(s.alternatives.get(key, []))
+    for key, values in s.exclude.items():
+        merged.exclude[key] = list(dict.fromkeys(merged.exclude.get(key, []) + values))
+    merged.desc_tokens = list(dict.fromkeys(merged.desc_tokens + s.desc_tokens))
+    for attr in ("price_min", "price_max", "size", "sort"):
+        if getattr(s, attr) is not None:
+            setattr(merged, attr, getattr(s, attr))
+    if s.size is not None:
+        merged.size_soft = s.size_soft
+    return merged
 
 
 def _drop_unlisted_filters(index: CatalogueIndex, spec: Spec, p: Parsed) -> list[str]:
@@ -503,6 +651,8 @@ GIFT_QUESTION = (
 ASK_WHAT = "What are you looking for? Tell me the kind of product, and a brand, colour or budget if you have one."
 SCAN_LIMIT = 2000  # most results looked through when asking "do these all give the same answer?"
 _AMBIGUOUS = object()  # _pick_one's answer when several products fit "the" product and differ
+BACK_WORDS = frozenset({"back", "again", "earlier", "previous", "before", "pehle", "wapas", "phir", "pichle"})
+MAX_HISTORY = 8  # earlier searches kept for "back to the jeans" (web chat only)
 KIND_FILTERS = ("category", "sub_category")  # filters that name the kind of product itself
 IDENTIFYING = ("brand", "color", "colour", "gender")  # filters that say which product, not what is asked about it
 

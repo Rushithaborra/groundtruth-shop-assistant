@@ -9,11 +9,10 @@ import statistics
 import threading
 import time
 from collections import Counter, OrderedDict, deque
-from dataclasses import asdict
 from datetime import datetime
 
 from groundtruth.answering import CLARIFY, REFUSE, Response, Session, ShoppingAssistant
-from groundtruth.catalogue import Spec
+from groundtruth.answering.response import spec_from_dict, spec_to_dict
 from groundtruth.config import get_settings
 from groundtruth.grounding import Grounding
 from groundtruth.metrics import percentile
@@ -22,7 +21,7 @@ from groundtruth.storage import SessionBackend, open_backend
 from groundtruth.text import EXTERNAL_DISPLAY, format_inr
 from groundtruth.understanding import Parsed, understand
 
-from .views import policy_record, product_record, reading, remembered
+from .views import earlier_searches, policy_record, product_record, reading, remembered
 
 
 class Insights:
@@ -162,6 +161,7 @@ class State:
                 },
                 "reading": reading(parsed),
                 "remembered": remembered(entry["session"]),
+                "earlier": earlier_searches(entry["session"]),
                 "gaps": entry["gaps"].most_common(8),
                 "totals": {
                     "queries": t["queries"],
@@ -233,14 +233,14 @@ class State:
             entry["session"].clear()
             entry["said"].clear()
             self._save(sid, entry)
-        return {"session_id": sid, "remembered": remembered(entry["session"])}
+        return {"session_id": sid, "remembered": remembered(entry["session"]), "earlier": []}
 
 
 def _inflate(data: dict | None, lock: threading.Lock) -> dict:
     """A chat entry from stored JSON (or a fresh one when there is none): live Session, counters and a lock."""
     data = data or {}
     return {
-        "session": session_from_dict(data.get("session")),
+        "session": session_from_dict(data.get("session"), carry=True),
         "lock": lock,
         "gaps": Counter(data.get("gaps", {})),
         "said": deque(data.get("said", []), maxlen=30),
@@ -261,22 +261,24 @@ def _deflate(entry: dict) -> dict:
 def session_to_dict(session: Session) -> dict:
     """A Session as plain JSON data."""
     return {
-        "spec": asdict(session.spec),
+        "spec": spec_to_dict(session.spec),
         "last_product": session.last_product,
         "shown": list(session.shown),
         "budget_kept": session.budget_kept,
+        "history": session.history,
     }
 
 
-def session_from_dict(data: dict | None) -> Session:
-    """A Session from `session_to_dict`'s data (a fresh one for None); measurements go back to (unit, number) pairs."""
+def session_from_dict(data: dict | None, carry: bool = False) -> Session:
+    """A Session from `session_to_dict`'s data (a fresh one for None). `carry` switches on the web chat's memory of
+    earlier searches; it is never stored, because only the web layer turns it on."""
     if not data:
-        return Session()
-    fields = dict(data["spec"])
-    fields["measures"] = [tuple(m) for m in fields.get("measures", [])]
+        return Session(carry=carry)
     return Session(
-        spec=Spec(**fields),
+        spec=spec_from_dict(data["spec"]),
         last_product=data.get("last_product"),
         shown=list(data.get("shown", [])),
         budget_kept=bool(data.get("budget_kept", False)),
+        carry=carry,
+        history=list(data.get("history", [])),
     )

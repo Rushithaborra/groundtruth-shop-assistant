@@ -6,7 +6,8 @@ import re
 from collections import Counter
 
 from groundtruth.answering import Session, ShoppingAssistant
-from groundtruth.catalogue import CatalogueIndex, Product
+from groundtruth.answering.response import spec_from_dict
+from groundtruth.catalogue import CatalogueIndex, Product, Spec
 from groundtruth.models.semantic import type_words
 from groundtruth.policy import Section
 from groundtruth.text import format_inr, tokenize
@@ -161,7 +162,11 @@ def reading(parsed: Parsed) -> dict:
 
 def remembered(session: Session) -> dict:
     """What the session carries into the next message: filters, budget, size, last product."""
-    s = session.spec
+    return {**spec_summary(session.spec), "last_product": session.last_product}
+
+
+def spec_summary(s: Spec) -> dict:
+    """A search spec as the page shows it: product words, filters, budget, size, sort."""
     return {
         "looking_for": s.type_tokens,
         "features": s.desc_tokens,
@@ -171,5 +176,12 @@ def remembered(session: Session) -> dict:
         "budget_max": s.price_max,
         "size": s.size,
         "sort": s.sort,
-        "last_product": session.last_product,
     }
+
+
+def earlier_searches(session: Session) -> list[dict]:
+    """The earlier searches of this chat (newest first), for the page's list and its "back to" buttons."""
+    return [
+        {"label": e["label"], "remembered": {**spec_summary(spec_from_dict(e["spec"])), "last_product": None}}
+        for e in reversed(session.history)
+    ]

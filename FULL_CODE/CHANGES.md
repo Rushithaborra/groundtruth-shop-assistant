@@ -1127,3 +1127,22 @@ Found by tracing "kurti 500 ke andar" and "jeens under 700" through the parser:
   search. The flag is stored with the chat (`api/state.py`). Tests: `tests/test_budget_memory_unplaced_word.py`.
 * **Not changed:** after a search that *did* find products ("black hoodie under 1500"), a message like "hudieee under 1500" is
   still read as a follow-up and shows hoodies; that is the older refinement rule, and the reply says it can't verify the word.
+
+## 31 Oct: web chat memory across products
+
+* **Asked for:** "first jeans, next hoodie: it should remember everything." Until now a chat kept only the latest search, and
+  naming another product started fresh (by design, so a colour or type didn't leak into an unrelated search).
+* **Built, web chat only** (`Session.carry`, set by `api/state.py`; a plain `Session()`, used by scoring and `submit`, is
+  unchanged): a new product gets the earlier search's budget, size and brand/colour/gender/exclusions when the message gives
+  none of its own (`_with_carry`). If nothing matches with all of them they are dropped in a fixed order (size, then filters and
+  exclusions, then the budget) and the line at the top of the reply says what was kept and dropped; if nothing fits at all
+  it says it started fresh. Earlier searches are kept in `Session.history` (stored with the chat, newest last, at most 8);
+  "back to the jeans" / "jeans again" returns to one (`_go_back`), with anything the message adds, and "back" is not
+  reported as an unplaced word. The side panel lists them ("Back to Jeans") and the button sends that message.
+* **Grounding:** the note repeats the shopper's own budget and cites nothing; the checker (unchanged) flags a line with a
+  rupee sign and no citation, so the note says "under 3,000 rupees" without the sign. Tested through `State.chat`: verified.
+* **Checked:** 326 tests, ruff clean, 210 replies compared with the original code: 0 different (the scored path is
+  untouched); in headless Chromium: the note shows, the "Earlier in this chat" box lists Jeans with its budget, colour and
+  gender, the button goes back, and Start over clears it. Tests: `tests/test_chat_memory.py`.
+* **Limits:** only the brand/colour/gender/size/budget/exclusions are carried, not description words or a sort; the carry
+  happens on every change of product, so a shopper who wants a fresh start says "start over" (or uses the button).

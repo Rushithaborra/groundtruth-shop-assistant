@@ -210,6 +210,9 @@ form.ask input { flex: 1; min-width: 0; border: 0; background: transparent; padd
 form.ask button { border: 0; background: var(--btn); color: var(--btn-ink); border-radius: 11px; padding: 0 22px; font-weight: 850; cursor: pointer; }
 form.ask button:disabled { opacity: .5; cursor: default; }
 form.ask button.mic { display: inline-flex; align-items: center; gap: 7px; background: var(--card); color: var(--btn-ink); border: 2px solid var(--btn); padding: 0 14px; white-space: nowrap; }
+.box[hidden] { display: none; }
+.earlier-item { margin: 10px 0 0; }
+.earlier-item .link-btn { font-weight: 700; padding: 0; }
 form.ask button.mic[hidden] { display: none; }  /* the display rule above would otherwise show a button the page has hidden */
 form.ask button.mic svg { width: 16px; height: 16px; flex: none; }
 form.ask button.mic.rec { background: #b3261e; color: #fff; border-color: #b3261e; padding-right: 6px; }
@@ -318,7 +321,11 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   <aside class="panel" aria-label="Conversation details">
     <section class="box">
       <h2>Remembered from this chat <button class="link-btn" id="reset" type="button">Start over</button></h2>
-      <div id="remembered"><p class="empty">Follow-ups like “under 2000” or “only cotton” build on what you asked before.</p></div>
+      <div id="remembered"><p class="empty">Follow-ups like “under 2000” or “only cotton” build on what you asked before. Ask for another product and your budget, size, colour, brand and gender come with you.</p></div>
+    </section>
+    <section class="box" id="earlier-box" hidden>
+      <h2>Earlier in this chat</h2>
+      <div id="earlier"></div>
     </section>
     <section class="box">
       <h2>How I read your last message</h2>
@@ -641,6 +648,9 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
   function updatePanel(d) {
     const rem = tagsHTML(d.remembered) + (d.remembered.last_product ? `<span class="tagx">Talking about ${esc(d.remembered.last_product)}</span>` : "");
     $("remembered").innerHTML = rem ? `<div class="tags">${rem}</div>` : `<p class="empty">Nothing remembered. Your next message starts fresh.</p>`;
+    const earlier = d.earlier || [];
+    $("earlier-box").hidden = !earlier.length;
+    $("earlier").innerHTML = earlier.map((e) => `<div class="earlier-item"><button type="button" class="link-btn" data-back="${esc(e.label)}">Back to ${esc(e.label)}</button><div class="tags">${tagsHTML(e.remembered)}</div></div>`).join("");
     const r = d.reading, rows = [];
     const add = (k, v) => v && rows.push(`<dt>${k}</dt><dd>${v}</dd>`);
     add("Looking for", esc(r.looking_for.join(", ")));
@@ -780,12 +790,14 @@ details.roadmap ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
 
   form.addEventListener("submit", (e) => { e.preventDefault(); const t = input.value; input.value = ""; ask(t); });
   $("examples").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) ask(b.dataset.q || b.textContent.replace(/^(Trap|Not sold|Policy)/, "")); });
+  $("earlier").addEventListener("click", (e) => { const b = e.target.closest("button[data-back]"); if (b) ask("back to " + b.dataset.back); });
   $("reset").addEventListener("click", async () => {
     try {
       const res = await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) });
       const data = await res.json();
       sessionId = data.session_id;
       $("remembered").innerHTML = `<p class="empty">Cleared. Your next message starts fresh.</p>`;
+      $("earlier-box").hidden = true; $("earlier").innerHTML = "";
       messages.append(Object.assign(el("p", "seal"), { textContent: "Started over: earlier filters and budget are forgotten." }));
     } catch (e) {
       messages.append(Object.assign(el("p", "seal"), { textContent: "Couldn’t start over: check that the server is still running, then try again." }));

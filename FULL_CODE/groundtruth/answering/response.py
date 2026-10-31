@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from ..catalogue import Product, Spec
@@ -102,10 +102,26 @@ class Session:
     spec: Spec = field(default_factory=Spec)
     last_product: str | None = None
     shown: list[str] = field(default_factory=list)  # products in the last listing, for "which sizes?"
-    budget_kept: bool = (
-        False  # `spec` is a search that found nothing only because of its budget, kept for the next turn
-    )
+    budget_kept: bool = False  # `spec` found nothing only because of its budget, kept for the next turn
+    # Web chat only (off for scoring): moving to another product carries the budget, size and brand/colour/gender over,
+    # earlier searches are kept in `history`, and "back to the jeans" returns to one.
+    carry: bool = False
+    history: list[dict] = field(default_factory=list)  # earlier searches: {"label", "kinds", "spec"}; newest last
+    carry_from: Spec | None = None  # this turn only: the search being left, to carry things from
 
     def clear(self) -> None:
         """Forget everything the session remembers."""
         self.spec, self.last_product, self.shown, self.budget_kept = Spec(), None, [], False
+        self.history, self.carry_from = [], None
+
+
+def spec_to_dict(spec: Spec) -> dict:
+    """A search spec as plain JSON data."""
+    return asdict(spec)
+
+
+def spec_from_dict(data: dict) -> Spec:
+    """A search spec from `spec_to_dict`'s data (measurements go back to (unit, number) pairs)."""
+    fields = dict(data)
+    fields["measures"] = [tuple(m) for m in fields.get("measures", [])]
+    return Spec(**fields)

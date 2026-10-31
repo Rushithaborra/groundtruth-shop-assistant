@@ -147,6 +147,14 @@ The API (`api/`) validates every request (JSON only, size and length limits, all
 ids), refuses requests from other sites, rate-limits each session and client address, and sends security headers,
 including a Content-Security-Policy that lets only the page's own script run. It listens on 127.0.0.1 by default.
 
+**Chat memory (web chat only).** Ask for black men's jeans under 1500 and then "hoodie": the reply keeps the budget, size,
+brand, colour and gender where hoodies match them and starts with a line saying so ("Kept from your earlier search: under
+1,500 rupees, black, men."), or says what it dropped because nothing matched. Earlier searches are listed in the side panel
+("Back to Jeans"), and "back to the jeans under 1200" returns to one with a new budget. A budget, size or filter in the new
+message always wins. The memory is switched on by the web layer only (`Session(carry=True)`), so `evaluate`, `score`,
+`submit` and the 150 predictions are unchanged. The note is worded in rupees without the sign, because it repeats the
+shopper's own number and cites no product, and the grounding check treats a line with a rupee sign as a price needing a citation.
+
 **Asking by voice (optional, offline).** A **Speak** button turns a spoken question into text on this computer and
 asks it like a typed one; **Read replies aloud** speaks the answer with the computer's own voices, without the citation
 tags. Speech-to-text uses faster-whisper with the Whisper "small" model; set it up once, while online:
@@ -276,7 +284,7 @@ documentation. The team reviewed every change and can explain the code.
 
 **Written for this hackathon, mostly before Day 1 (30 October 2026).** All the code in this repository was written for
 this hackathon by the team, Rushitha Borra and Sushanth Kilari, with the AI assistants named above. Every commit in the
-table below came before Day 1 except the last five rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
+table below came before Day 1 except the last six rows, which were made during the event (30 to 31 October 2026). `git log` has the full history with dates:
 
 | Dates | Commits | Author | What |
 |---|---|---|---|
@@ -295,6 +303,7 @@ table below came before Day 1 except the last five rows, which were made during 
 | **2026-10-31 (during the event)** | the commit "Offer 'did you mean' only for close slips; note browser speech on the live demo" | Sushanth Kilari | **Made during the event:** tightened the 'did you mean' offer (same first letter, similar length, typed word of at least 5 letters) so real words are not guessed at; notes on the browser-speech fallback. Small change in `catalogue/index.py` and its test |
 | **2026-10-31 (during the event)** | the commit "Speak button: browser-speech fallback, and keep a hidden button hidden" | Sushanth Kilari with Claude Code | **Made during the event:** the Speak button was shown even when the server had no speech model (a CSS rule overrode `hidden`) and could not work; it now stays hidden unless voice is available, and uses the browser's own speech recognition when the offline model is not installed. Page and docs only; no answer changes |
 | **2026-10-31 (during the event)** | the commit "Do not reuse a budget-missed search for a message with an unplaced word" | Sushanth Kilari with Claude Code | **Made during the event:** after a search that failed only on its budget ("jeans under 1000"), a message with a word the assistant can't place ("hudieee under 1500") was answered with the remembered jeans; it is now refused, as before the budget-memory change. A budget-only follow-up still uses the kept search. Three tests; replies identical on all 210 compared |
+| **2026-10-31 (during the event)** | the commit "Web chat memory: keep budget, size and brand/colour/gender across products, list earlier searches, go back to one" | Sushanth Kilari with Claude Code | **Made during the event:** in the web chat only (a `Session` flag the scoring and `submit` never set), asking for another product keeps the earlier budget, size, brand, colour and gender (dropping what leaves nothing, and saying so); earlier searches are listed in the side panel and "back to the jeans" returns to one. Scored answers unchanged (210 compared) |
 
 **Third-party code.** None is copied into the repository, and the assistant has no runtime dependencies. The
 development tools are pinned in `FULL_CODE/uv.lock` (`pip-audit` finds no known vulnerabilities): ruff (MIT),
