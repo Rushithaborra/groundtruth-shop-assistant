@@ -30,6 +30,7 @@ SHORT_TYPO_LENGTHS = range(3, 8)  # a word this long is also mended by one vowel
 VOWELS = frozenset("aeiou")
 SHORT_TARGET_MIN = 4  # ... and that product word has at least this many letters ("jen" -> "jean", never "jen" -> "pen")
 SUGGEST_CUTOFF = 0.8  # similarity for a "did you mean" offer; looser than the 0.85 of a correction, since it only asks
+SUGGEST_MIN_LENGTH = 5  # a shorter word is too easily a real word of its own ("saal", "chawal") to be called a typo
 
 
 @dataclass
@@ -441,9 +442,11 @@ class CatalogueIndex:
     def _suggest(self, token: str) -> list[str]:
         """Up to two product words a word might have meant, as the shop writes them, for a "did you mean" offer.
         It only ever asks; a suggestion is never searched for."""
-        if len(token) < 4 or not token.isalpha():
+        if len(token) < SUGGEST_MIN_LENGTH or not token.isalpha():
             return []
-        pool = [w for n in range(len(token) - 2, len(token) + 3) for w in self._offers_by_len.get(n, ())]
+        # a real slip keeps the first letter and the length (within one); "saal" -> "Sandals" is a guess
+        lengths = range(len(token) - 1, len(token) + 2)
+        pool = [w for n in lengths for w in self._offers_by_len.get(n, ()) if w[0] == token[0]]
         near = difflib.get_close_matches(token, pool, n=2, cutoff=SUGGEST_CUTOFF)
         return list(dict.fromkeys(self.display_word(self._offers[w]) for w in near))
 
